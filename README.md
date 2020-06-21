@@ -1,0 +1,2 @@
+# skyray
+skyray static web
