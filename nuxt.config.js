@@ -1,5 +1,17 @@
 
 export default {
+  generate: {
+    routes: function() {
+      const fs = require('fs');
+      const path = require('path');
+      return fs.readdirSync('./assets/content/blog').map(file => {
+        return {
+          route: `/blog/${path.parse(file).name}`, // Return the slug
+          payload: require(`./assets/content/blog/${file}`),
+        };
+      });
+    },
+  },
   /*
   ** Nuxt rendering mode
   ** See https://nuxtjs.org/api/configuration-mode
@@ -42,7 +54,11 @@ export default {
   modules: [
     // Doc: https://github.com/nuxt-community/modules/tree/master/packages/bulma
     '@nuxtjs/bulma',
+    '@nuxtjs/markdownit'
   ],
+  markdownit: {
+    injected: true,
+  },
   /*
   ** Build configuration
   ** See https://nuxtjs.org/api/configuration-build/
