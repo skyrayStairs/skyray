@@ -1,5 +1,8 @@
 <template>
-    <h2>aaaa</h2>
+    <div>
+        <p>{{blogPosts}}</p>
+        <h2>bbbb</h2>
+    </div>
 </template>
 <script>
 export default {
