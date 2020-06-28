@@ -1,6 +1,7 @@
 <template>
     <section class="hero is-info is-medium is-bold">
-        <div class="hero-body" :style="{'background-image': `url(${backgroundURL})`}">
+        <!-- <div class="hero-body" :style="{'background-image': `url(${backgroundURL})`}"> -->
+        <div class="hero-body">
             <div class="container has-text-centered">
                 <h1 class="title banner">
                     <client-only>
@@ -29,9 +30,9 @@ export default {
   },
   computed: {
       backgroundURL() {
-          let images = Array.from(require.context('../../assets/img/index/', false, /\.jpeg$/).keys());
-          return require(`../../assets/img/index/${images[Math.floor(Math.random() * images.length)].substr(2)}`);
-
+        //   let images = Array.from(require.context('../../assets/img/index/', false, /\.jpeg$/).keys());
+          return ""
+        //   return require(`../../assets/img/index/${images[Math.floor(Math.random() * images.length)].substr(2)}`);
       }
   },
   components: {

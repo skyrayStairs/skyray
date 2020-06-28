@@ -15,7 +15,7 @@
                     </div>
                 </div>
             </div>
-            <div class="content article-body">
+            <div class="content article-body" style="min-width: 600px">
                 <p v-html="$md.render(content)"></p>
             </div>
         </div>
@@ -61,8 +61,44 @@ export default {
 </script>
 
 <style scoped>
-.articles {
-  margin: 5rem 0;
-  margin-top: -200px;
+.title {
+  font-family:
+    'Quicksand',
+    'Source Sans Pro',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  display: block;
+  font-weight: 600;
+  font-size: 2rem;
+  line-height: 1.125;
+  letter-spacing: 1px;
+}
+
+.subtitle {
+  font-weight: 300;
+  font-size: 20px;
+  color: #526488;
+  word-spacing: 2px;
+  padding-bottom: 15px;
+}
+
+.links {
+  padding-top: 15px;
+}
+
+.author-image {
+  position: absolute;
+    top: -30px;
+    left: 50%;
+    width: 60px;
+    height: 60px;
+    margin-left: -30px;
+    border: 3px solid #ccc;
+    border-radius: 50%;
 }
 </style>
