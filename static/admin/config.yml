@@ -16,7 +16,9 @@ collections:
     editor:
       preview: false
     fields:
-      - { label: 'Title', name: 'title', widget: 'string' }
+      - { label: 'EN Title', name: 'title', widget: 'string' }
+      - { label: 'EN Title', name: 'en_title', widget: 'string' }
+      - { label: 'KR Title', name: 'kr_title', widget: 'string' }
       - { label: 'Publish Date', name: 'date', widget: 'datetime' }
       - { label: 'Tags', name: 'tags', widget: 'list' }
       - { label: 'EN Description', name: 'en_description', widget: 'string' }
