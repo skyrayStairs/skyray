@@ -1,13 +1,16 @@
 {
+  "kr_title": "테스트라니까",
+  "en_title": "Test",
+  "kr_description": "테스트입니다.",
+  "en_description": "This is a test",
+  "thumbnail": "/img/d7d57223-d0c8-4aa4-ad7d-3ccf8303a6bf.jpeg",
   "date": "2020-06-28T23:05:33.786Z",
   "title": "real test",
+  "en_body": "This is a test. What did you expect?",
   "tags": [
     "test",
     "new_test",
     "blog_test"
   ],
-  "en_description": "This is a test",
-  "kr_description": "테스트입니다.",
-  "en_body": "This is a test. What did you expect?",
-  "kr_body": "테스트 용도라니"
+  "kr_body": "테스트 용도라니까"
 }
