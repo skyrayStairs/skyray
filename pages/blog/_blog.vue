@@ -1,17 +1,18 @@
 <template>
-  <article>
-    <h1>{{blogPost.title}}</h1>
-    <div v-html="$md.render(blogPost.body)" />
-  </article>
+  <section class="articles">
+    <h2>{{blogPost.title}}</h2>
+    <p v-html="$md.render(blogPost.en_body)"></p>
+  </section>
 </template>
 
 <script>
+
 export default {
     async asyncData({ params, payload }) {
         if (payload) return { blogPost: payload };
         else
         return {
-            blogPost: await require(`~/assets/content/blog/${params.blog}.json`),
+            blogPost: await require(`@/assets/content/blog/${params.blog}.json`),
         };
     },
 };

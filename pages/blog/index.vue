@@ -1,15 +1,19 @@
 <template>
-    <div>
-        <p>{{blogPosts}}</p>
-        <h2>bbbb</h2>
+    <div class="content">
+        <div v-for="post of blogPosts" :key="post.title">
+            <nuxt-link :to="`blog/${post.slug}`">{{post.title}}</nuxt-link>
+        </div>
     </div>
 </template>
+
 <script>
-export default {
-  computed: {
-    blogPosts() {
-      return this.$store.state.blogPosts;
-    },
-  },
-};
+    import gnb from "@/components/global/gnb"
+
+    export default {
+        computed: {
+            blogPosts() {
+                return this.$store.state.blogPosts;
+            },
+        }
+    };
 </script>

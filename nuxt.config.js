@@ -36,6 +36,7 @@ export default {
   ** Global CSS
   */
   css: [
+    "@/assets/css/global.css"
   ],
   /*
   ** Plugins to load before mounting the App
@@ -54,7 +55,15 @@ export default {
   modules: [
     // Doc: https://github.com/nuxt-community/modules/tree/master/packages/bulma
     '@nuxtjs/bulma',
-    '@nuxtjs/markdownit'
+    '@nuxtjs/markdownit',
+    '@nuxtjs/dayjs',
+    ['nuxt-fontawesome', {
+      component: 'fa',
+      imports: [{
+        set: '@fortawesome/free-solid-svg-icons',
+        icons: ['fas']
+      }]
+    }]
   ],
   markdownit: {
     injected: true,

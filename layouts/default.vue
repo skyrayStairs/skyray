@@ -1,10 +1,23 @@
 <template>
   <div>
+    <gnb></gnb>
     <nuxt />
   </div>
 </template>
 
-<style>
+<script>
+  import gnb from "@/components/global/gnb"
+
+  export default {
+    data: function() {
+      return {}
+    },
+    components: {
+      gnb
+    }
+  }
+</script>
+<style scoped>
 html {
   font-family:
     'Source Sans Pro',
