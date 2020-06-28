@@ -1,19 +1,24 @@
 <template>
   <div class="content">
-    <banner></banner>
+    <section class="hero is-info is-medium is-bold banner">
+      <banner></banner>
+    </section>
       <!-- START ARTICLE FEED -->
       <section class="articles">
         <div class="container">
           <div class="columns is-centered">
             <div class="column is-full">
-              <card-slug 
-                v-for="post of blogPosts" 
-                :key="post.title" 
-                :title="post.title" 
-                :content="post.en_body" 
-                :date="post.date" 
-                author="kyungsong">
-              </card-slug>
+              <client-only>
+                <card-slug 
+                  v-for="post of blogPosts" 
+                  :key="post.kr_title" 
+                  :title="{'kr': post.kr_title, 'en': post.en_title}" 
+                  :content="{'kr': post.kr_body, 'en': post.en_body}" 
+                  :date="post.date"
+                  :slug="post.slug"
+                  author="kyungsong">
+                </card-slug>
+              </client-only>
             </div>
           </div>
         </div>

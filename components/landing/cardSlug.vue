@@ -1,23 +1,35 @@
 <template>
     <div class="card article">
         <div class="card-content">
-            <div class="media">
-                <client-only>
-                    <div v-if="!!author_image" class="media-center">
-                        <img :src="author_image" class="author-image">
+            <client-only>
+                <nuxt-link :to="`blog/${slug}`" style="color: black">
+                    <div class="media">
+                        <div v-if="!!author_image" class="media-center">
+                            <img :src="author_image" class="author-image" />
+                        </div>
+                        <div class="media-content has-text-centered">
+                            <p class="title article-title">{{title.kr}}</p>
+                            <p class="title article-title">{{title.en}}</p>
+                            <div class="tags has-addons level-item">
+                                <span class="tag is-rounded is-info">@{{author}}</span>
+                                <span class="tag is-rounded">{{ !!date ? $dayjs(date).format("YYYY-MMM-DD"): "2020 Jun 25"}}</span>
+                            </div>
+                        </div>
                     </div>
-                </client-only>
-                <div class="media-content has-text-centered">
-                    <p class="title article-title">{{title}}</p>
-                    <div class="tags has-addons level-item">
-                        <span class="tag is-rounded is-info">@{{author}}</span>
-                        <span class="tag is-rounded">{{ !!date ? $dayjs(date).format("YYYY-MMM-DD"): "2020 Jun 25"}}</span>
+                    <div class="columns" style="min-width: 600px">
+                        <div class="column">
+                            <div class="content">
+                                <p v-html="$md.render(content.en)"></p>
+                            </div>
+                        </div>
+                        <div class="column">
+                            <div class="content">
+                                <p v-html="$md.render(content.kr)"></p>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
-            <div class="content article-body" style="min-width: 600px">
-                <p v-html="$md.render(content)"></p>
-            </div>
+                </nuxt-link>
+            </client-only>
         </div>
     </div>
 </template>
@@ -31,12 +43,10 @@ export default {
   },
   props: {
       title: {
-          type: String,
-          default: ""
+          type: Object
       },
       content: {
-          type: String,
-          default: ""
+          type: Object
       },
       length: {
           type: Number,
@@ -53,6 +63,10 @@ export default {
       author_image: {
           type: String,
           default: null
+      },
+      slug: {
+          type: String,
+          default: "/"
       }
   },
   components: {},

@@ -1,19 +1,19 @@
 <template>
-    <section class="hero is-info is-medium is-bold">
-        <!-- <div class="hero-body" :style="{'background-image': `url(${backgroundURL})`}"> -->
-        <div class="hero-body">
-            <div class="container has-text-centered">
-                <h1 class="title banner">
-                    <client-only>
-                        <div v-for="text of titleText.text" :key="text">
-                            {{text}}
-                        </div>
-                        <div v-if="!!titleText.author" class="subtitle" style="text-align: right">{{`- ${titleText.author}` }}</div>
-                    </client-only>
-                </h1>
-            </div>
+    <!-- <div class="hero-body" :style="{'background-image': `url(${backgroundURL})`}"> -->
+    <div class="hero-body">
+        <div class="container has-text-centered">
+            <h1 class="title banner">
+                <client-only>
+                    <div v-for="text of titleText.text" :key="text">
+                        {{text}}
+                    </div>
+                    <div v-if="!!titleText.author" class="subtitle" style="text-align: right">
+                        {{`- ${titleText.author}` }}
+                    </div>
+                </client-only>
+            </h1>
         </div>
-    </section>
+    </div>
 </template>
 
 <script>
@@ -77,7 +77,7 @@ export default {
     letter-spacing: 1px;
 }
 
-.banner {
+/* .banner {
     color: #000;
     text-shadow: 0.05em 0 black,
                 0 0.05em black,
@@ -87,7 +87,7 @@ export default {
                 -0.05em 0.05em black,
                 0.05em -0.05em black,
                 0.05em 0.05em black;
-}
+} */
 
 .articles {
     margin: 5rem 0;
