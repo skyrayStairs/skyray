@@ -1,5 +1,5 @@
 <template>
-    <div class="card article">
+    <div class="card article" style="margin-bottom: 50px">
         <div class="card-content">
             <client-only>
                 <nuxt-link :to="`blog/${slug}`" style="color: black">
@@ -8,8 +8,8 @@
                             <img :src="author_image" class="author-image" />
                         </div>
                         <div class="media-content has-text-centered">
-                            <p class="title article-title">{{title.kr}}</p>
                             <p class="title article-title">{{title.en}}</p>
+                            <p class="title article-title">{{title.kr}}</p>
                             <div class="tags has-addons level-item">
                                 <span class="tag is-rounded is-info">@{{author}}</span>
                                 <span class="tag is-rounded">{{ !!date ? $dayjs(date).format("YYYY-MMM-DD"): "2020 Jun 25"}}</span>

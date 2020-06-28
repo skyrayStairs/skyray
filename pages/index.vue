@@ -10,8 +10,8 @@
             <div class="column is-full">
               <client-only>
                 <card-slug 
-                  v-for="post of blogPosts" 
-                  :key="post.kr_title" 
+                  v-for="(post, i) of blogPosts" 
+                  :key="i" 
                   :title="{'kr': post.kr_title, 'en': post.en_title}" 
                   :content="{'kr': post.kr_body, 'en': post.en_body}" 
                   :date="post.date"

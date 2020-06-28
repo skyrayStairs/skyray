@@ -4,6 +4,7 @@ backend:
 
 media_folder: static/img
 public_folder: /img
+site_url: "https://www.skyray.io"
 
 collections:
   - name: 'blog'
@@ -17,6 +18,8 @@ collections:
     fields:
       - { label: 'Title', name: 'title', widget: 'string' }
       - { label: 'Publish Date', name: 'date', widget: 'datetime' }
-      - { label: 'Description', name: 'description', widget: 'string' }
-      - { label: 'Body EN', name: 'body_en', widget: 'markdown' }
-      - { label: 'Body EN', name: 'body_kr', widget: 'markdown' }
+      - { label: 'Tags', name: 'tags', widget: 'list' }
+      - { label: 'EN Description', name: 'en_description', widget: 'string' }
+      - { label: 'KR Description', name: 'kr_description', widget: 'string' }
+      - { label: 'EN Body', name: 'en_body', widget: 'markdown' }
+      - { label: 'KR Body', name: 'kr_body', widget: 'markdown' }
