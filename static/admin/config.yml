@@ -9,6 +9,7 @@ site_url: "https://www.skyray.io"
 collections:
   - name: 'blog'
     label: 'Blog'
+    identifier_field: "en_title"
     format: 'json'
     folder: 'assets/content/blog'
     create: true
@@ -16,7 +17,6 @@ collections:
     editor:
       preview: false
     fields:
-      - { label: 'EN Title', name: 'title', widget: 'string' }
       - { label: 'EN Title', name: 'en_title', widget: 'string' }
       - { label: 'KR Title', name: 'kr_title', widget: 'string' }
       - { label: 'Publish Date', name: 'date', widget: 'datetime' }
@@ -25,3 +25,9 @@ collections:
       - { label: 'KR Description', name: 'kr_description', widget: 'string' }
       - { label: 'EN Body', name: 'en_body', widget: 'markdown' }
       - { label: 'KR Body', name: 'kr_body', widget: 'markdown' }
+      - { label: "Featured Image", 
+          name: "thumbnail", 
+          widget: "image", 
+          media_library:
+            {config: multiple: true}
+        }
