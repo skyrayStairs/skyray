@@ -25,9 +25,9 @@ collections:
       - { label: 'KR Description', name: 'kr_description', widget: 'string' }
       - { label: 'EN Body', name: 'en_body', widget: 'markdown' }
       - { label: 'KR Body', name: 'kr_body', widget: 'markdown' }
-      - { label: "Featured Image", 
-          name: "thumbnail", 
-          widget: "image", 
-          media_library:
-            {config: multiple: true}
-        }
+  - label: "Featured Image"
+    name: "thumbnail"
+    widget: "image"
+    media_library:
+      config:
+        multiple: true
