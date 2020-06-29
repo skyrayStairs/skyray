@@ -4,12 +4,21 @@ export default {
     routes: function() {
       const fs = require('fs');
       const path = require('path');
-      return fs.readdirSync('./assets/content/blog').map(file => {
+      let tech_posts = fs.readdirSync('./assets/content/tech').map(file => {
         return {
-          route: `/blog/${path.parse(file).name}`, // Return the slug
-          payload: require(`./assets/content/blog/${file}`),
+          route: `tech/${path.parse(file).name}`, // Return the slug
+          payload: require(`./assets/content/tech/${file}`),
         };
       });
+
+      let game_posts = fs.readdirSync('./assets/content/game').map(file => {
+        return {
+          route: `game/${path.parse(file).name}`, // Return the slug
+          payload: require(`./assets/content/game/${file}`),
+        };
+      });
+
+      return [...tech_posts, ...game_posts]
     },
   },
   /*

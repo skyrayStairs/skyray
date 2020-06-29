@@ -4,13 +4,14 @@
             <div class="columns">
                 <div class="column is-10 is-offset-1">
                     <div class="columns featured-post is-multiline">
-                        <blog-card-feature 
+                        <post-card-feature 
                             :title="{'kr': blogPosts[0].kr_title, 'en': blogPosts[0].en_title}"
                             :description="{'kr': blogPosts[0].kr_description, 'en': blogPosts[0].en_description}"
                             :date="blogPosts[0].date"
                             :author="blogPosts[0].author"
                             :slug="blogPosts[0].slug"
-                        ></blog-card-feature>
+                            :images="{'thumbnail': blogPosts[0].thumbnail}"
+                        ></post-card-feature>
                     </div>
                     <div class="columns is-multiline">
                         <component v-for="(post, i) of blogPosts" :key="i"
@@ -29,27 +30,27 @@
 </template>
 
 <script>
-    import blogCardFeature from "@/components/blog/blogCardFeature"
-    import blogCardMedium from "@/components/blog/blogCardMedium"
-    import blogCardSmall from "@/components/blog/blogCardSmall"
+    import postCardFeature from "@/components/post/postCardFeature"
+    import postCardMedium from "@/components/post/postCardMedium"
+    import postCardSmall from "@/components/post/postCardSmall"
 
     export default {
         components: {
-            blogCardFeature,
-            blogCardMedium,
-            blogCardSmall
+            postCardFeature,
+            postCardMedium,
+            postCardSmall
         },
         computed: {
             blogPosts() {
-                return this.$store.state.blogPosts;
+                return this.$store.state.techPosts;
             },
         },
         methods: {
             postSize(i) {
                 if (i < 2) {
-                    return blogCardMedium
+                    return postCardMedium
                 } else {
-                    return blogCardSmall
+                    return postCardSmall
                 }
             }
         }

@@ -1,10 +1,10 @@
 <template>
-    <div class="column post is-12">
+    <div class="column post is-10">
         <article class="columns featured">
             <div class="column is-7 post-img ">
-                <img src="https://cdn.emk.dev/templates/featured-image.png" alt="">
+                <img :src="images.thumbnail"/>
             </div>
-            <div class="column is-5 featured-content">
+            <div class="column is-3 featured-content">
                 <div>
                     <h3 class="heading post-category">Category Name</h3>
                     <h1 class="title post-title">{{title.en}} > {{ title.kr }}</h1>
@@ -12,7 +12,7 @@
                     <p class="post-excerpt">{{description.en}}</p>
                     <p class="post-excerpt">{{description.kr}}</p>
                     <br>
-                    <nuxt-link :to="`blog/${slug}`" class="button is-primary">Read More</nuxt-link>
+                    <nuxt-link :to="`${$route.path}/${slug}`" class="button is-primary">Read More</nuxt-link>
                 </div>
             </div>
         </article>
@@ -38,9 +38,14 @@ export default {
       slug: {
           type: String,
           default: "/"
+      },
+      images: {
+          type: Object,
       }
   },
   components: {},
-  methods: {}
+  methods: {},
+  created() {
+  }
 }
 </script>

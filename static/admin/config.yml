@@ -7,11 +7,11 @@ public_folder: /img
 site_url: "https://www.skyray.io"
 
 collections:
-  - name: 'blog'
-    label: 'Blog'
+  - name: 'game'
+    label: 'game'
     identifier_field: "en_title"
     format: 'json'
-    folder: 'assets/content/blog'
+    folder: 'assets/content/game'
     create: true
     slug: '{{year}}-{{month}}-{{day}}-{{slug}}'
     editor:
@@ -28,6 +28,32 @@ collections:
       - label: "Featured Image"
         name: "thumbnail"
         widget: "image"
+        default: "/static/img/game-1926905_640.png"
+        media_library:
+          config:
+            multiple: true
+  - name: 'tech'
+    label: 'tech'
+    identifier_field: "en_title"
+    format: 'json'
+    folder: 'assets/content/tech'
+    create: true
+    slug: '{{year}}-{{month}}-{{day}}-{{slug}}'
+    editor:
+      preview: false
+    fields:
+      - { label: 'EN Title', name: 'en_title', widget: 'string' }
+      - { label: 'KR Title', name: 'kr_title', widget: 'string' }
+      - { label: 'Publish Date', name: 'date', widget: 'datetime' }
+      - { label: 'Tags', name: 'tags', widget: 'list' }
+      - { label: 'EN Description', name: 'en_description', widget: 'string' }
+      - { label: 'KR Description', name: 'kr_description', widget: 'string' }
+      - { label: 'EN Body', name: 'en_body', widget: 'markdown' }
+      - { label: 'KR Body', name: 'kr_body', widget: 'markdown' }
+      - label: "Featured Image"
+        name: "thumbnail"
+        widget: "image"
+        default: "/static/img/code-1970468_640.png"
         media_library:
           config:
             multiple: true
