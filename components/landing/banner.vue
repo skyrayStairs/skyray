@@ -24,8 +24,7 @@ export default {
     data: function () {
         let random_index = Math.floor(Math.random() * indexText.site_header["en"].length);
         return {
-            titleText: indexText.site_header["en"][random_index],
-            lang: "kr"
+            // titleText: indexText.site_header["en"][random_index],
         }
   },
   computed: {
@@ -33,6 +32,10 @@ export default {
         //   let images = Array.from(require.context('../../assets/img/index/', false, /\.jpeg$/).keys());
           return ""
         //   return require(`../../assets/img/index/${images[Math.floor(Math.random() * images.length)].substr(2)}`);
+      },
+      titleText() {
+          let random_index = Math.floor(Math.random() * indexText.site_header[this.$store.state.curLang].length);
+          return indexText.site_header[this.$store.state.curLang][random_index]
       }
   },
   components: {

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@fortawesome/free-solid-svg-icons": "^5.13.1",
+    "@growthbunker/vueflags": "^0.1.2",
     "@nuxtjs/bulma": "^1.2.7",
     "@nuxtjs/dayjs": "^1.1.7",
     "@nuxtjs/markdownit": "^1.2.9",

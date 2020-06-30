@@ -2,13 +2,19 @@ export const state = () => ({
     posts: {
       game: [],
       tech: [],
-    }
+    },
+    curLang: "kr",
+    curFlag: "kr"
   });
   
 export const mutations = {
   setPosts(state, payload) {
     state.posts[payload.target] = payload.posts;
   },
+  setLang(state, payload) {
+    state.curLang = payload.lang;
+    state.curFlag = payload.flag;
+  }
 };
 
 export const actions = {

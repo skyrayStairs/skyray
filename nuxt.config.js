@@ -52,6 +52,7 @@ export default {
   ** https://nuxtjs.org/guide/plugins
   */
   plugins: [
+    { src: "@/plugins/vueflags.js" }
   ],
   /*
   ** Nuxt.js dev-modules

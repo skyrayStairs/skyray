@@ -33,9 +33,7 @@ import cardSlug from "@/components/landing/cardSlug"
 
 export default {
   data: function () {
-    return {
-      lang: "en"
-    }
+    return {}
   },
   computed: {
     blogPosts() {
