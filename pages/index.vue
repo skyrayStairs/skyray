@@ -39,7 +39,7 @@ export default {
   },
   computed: {
     blogPosts() {
-        return [];
+        return this.$store.getters.getAllPosts;
     },
   },
   head() {

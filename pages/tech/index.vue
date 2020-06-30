@@ -42,7 +42,7 @@
         },
         computed: {
             blogPosts() {
-                return this.$store.state.techPosts;
+                return this.$store.state.posts.tech;
             },
         },
         methods: {

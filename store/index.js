@@ -1,33 +1,45 @@
 export const state = () => ({
-    gamePosts: [],
-    techPosts: [],
+    posts: {
+      game: [],
+      tech: [],
+    }
   });
   
-  export const mutations = {
-    setPosts(state, payload) {
-      state[payload.target] = payload.posts;
-    },
-  };
-  
-  export const actions = {
-    async nuxtServerInit({ commit }) {
-      let gameFiles = await require.context('@/assets/content/game/', false, /\.json$/);
-      let techFiles = await require.context('@/assets/content/tech/', false, /\.json$/);
+export const mutations = {
+  setPosts(state, payload) {
+    state.posts[payload.target] = payload.posts;
+  },
+};
 
-      let gamePosts = gameFiles.keys().map(key => {
-        let res = gameFiles(key);
-        res.slug = key.slice(2, -5);
-        return res;
-      });
+export const actions = {
+  async nuxtServerInit({ commit }) {
+    let gameFiles = await require.context('@/assets/content/game/', false, /\.json$/);
+    let techFiles = await require.context('@/assets/content/tech/', false, /\.json$/);
 
-      let techPosts = techFiles.keys().map(key => {
-        let res = techFiles(key);
-        res.slug = key.slice(2, -5);
-        return res;
-      });
-      await commit('setPosts', {target: "gamePosts", 
-                                posts: gamePosts.sort((a,b) => (a.date < b.date) ? 1 : ((b.date < a.date) ? -1 : 0))});
-      await commit('setPosts', {target: "techPosts", 
-                                posts: techPosts.sort((a,b) => (a.date < b.date) ? 1 : ((b.date < a.date) ? -1 : 0))});
+    let gamePosts = gameFiles.keys().map(key => {
+      let res = gameFiles(key);
+      res.slug = key.slice(2, -5);
+      return res;
+    });
+
+    let techPosts = techFiles.keys().map(key => {
+      let res = techFiles(key);
+      res.slug = key.slice(2, -5);
+      return res;
+    });
+    await commit('setPosts', {target: "game", 
+                              posts: gamePosts.sort((a,b) => (a.date < b.date) ? 1 : ((b.date < a.date) ? -1 : 0))});
+    await commit('setPosts', {target: "tech", 
+                              posts: techPosts.sort((a,b) => (a.date < b.date) ? 1 : ((b.date < a.date) ? -1 : 0))});
+  }
+};
+
+export const getters = {
+  getAllPosts: state => {
+    let allPosts = []
+    for (let category of Object.keys(state.posts)) {
+      allPosts = [...allPosts, ...state.posts[category]]
     }
-  };
+    return allPosts.sort((a,b) => (a.date < b.date) ? 1 : ((b.date < a.date) ? -1 : 0)).slice(0, 10);
+  }
+}
