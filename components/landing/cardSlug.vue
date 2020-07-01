@@ -36,11 +36,6 @@
 
 <script>
 export default {
-  data: function () {
-    return {
-      lang: "en"
-    }
-  },
   props: {
       title: {
           type: Object
@@ -70,7 +65,9 @@ export default {
       }
   },
   components: {},
-  methods: {}
+  methods: {},
+  created() {
+  }
 }
 </script>
 

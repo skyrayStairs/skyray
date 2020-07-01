@@ -25,10 +25,11 @@ collections:
       - { label: 'KR Description', name: 'kr_description', widget: 'string' }
       - { label: 'EN Body', name: 'en_body', widget: 'markdown' }
       - { label: 'KR Body', name: 'kr_body', widget: 'markdown' }
+      - { label: "Category", name: "category", widget: "hidden", default: "game" }
       - label: "Featured Image"
         name: "thumbnail"
         widget: "image"
-        default: "/static/img/game-1926905_640.png"
+        default: "/img/game-1926905_640.png"
         media_library:
           config:
             multiple: true
@@ -50,10 +51,11 @@ collections:
       - { label: 'KR Description', name: 'kr_description', widget: 'string' }
       - { label: 'EN Body', name: 'en_body', widget: 'markdown' }
       - { label: 'KR Body', name: 'kr_body', widget: 'markdown' }
+      - { label: "Category", name: "category", widget: "hidden", default: "tech" }
       - label: "Featured Image"
         name: "thumbnail"
         widget: "image"
-        default: "/static/img/code-1970468_640.png"
+        default: "/img/code-1970468_640.png"
         media_library:
           config:
             multiple: true

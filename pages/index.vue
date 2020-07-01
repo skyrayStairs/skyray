@@ -37,7 +37,7 @@ export default {
   },
   computed: {
     blogPosts() {
-        return this.$store.getters.getAllPosts;
+      return this.$store.getters.getAllPosts;
     },
   },
   head() {
