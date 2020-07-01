@@ -22,12 +22,12 @@
 <script>
 
 export default {
-    async asyncData({ params, payload }) {
-        if (payload) return { blogPost: payload };
-        else
-        return {
-            blogPost: await require(`@/assets/content/game/${params.blog}.json`),
-        };
-    },
+  async asyncData({ params, payload }) {
+    if (payload) return { blogPost: payload };
+    else
+    return {
+      blogPost: await require(`@/assets/content/game/${params.game}.json`),
+    };
+  },
 };
 </script>

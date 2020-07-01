@@ -11,7 +11,7 @@
                 <p class="post-excerpt">{{description.en}}</p>
                 <p class="post-excerpt">{{description.kr}}</p>
                 <br>
-                <nuxt-link :to="`blog/${slug}`" class="button is-primary">Read More</nuxt-link>
+                <nuxt-link :to="`${$route.path}/${slug}`" class="button is-primary">Read More</nuxt-link>
         </div>
         </article>
     </div>
