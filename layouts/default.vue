@@ -17,7 +17,7 @@
     }
   }
 </script>
-<style scoped>
+<style>
 html {
   font-family:
     'Source Sans Pro',
@@ -35,6 +35,7 @@ html {
   -moz-osx-font-smoothing: grayscale;
   -webkit-font-smoothing: antialiased;
   box-sizing: border-box;
+  background: #191b1f;
 }
 
 *,

@@ -1,6 +1,6 @@
 <template>
-    <div class="content">
-        <section class="blog-posts">
+    <section class="tech-posts">
+        <div class="container">
             <div class="columns">
                 <div class="column is-10 is-offset-1">
                     <div class="columns featured-post is-multiline">
@@ -13,6 +13,7 @@
                             :images="{'thumbnail': blogPosts[0].thumbnail}"
                         ></post-card-feature>
                     </div>
+                    <hr>
                     <div class="columns is-multiline">
                         <component v-for="(post, i) of blogPosts" :key="i"
                             :is="postSize(i)"
@@ -21,12 +22,13 @@
                             :date="post.date"
                             :author="post.author"
                             :slug="post.slug"
+                            :images="{'thumbnail': post.thumbnail}"
                         ></component>
                     </div>
                 </div>
             </div>
-        </section>
-    </div>
+        </div>
+    </section>
 </template>
 
 <script>
@@ -58,4 +60,10 @@
 </script>
 
 <style scoped>
+    .tech-posts {
+        min-height: 100vh;
+        background: #191b1f;
+        padding-top: 4rem;
+        padding-bottom: 10rem;
+    }
 </style>

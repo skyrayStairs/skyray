@@ -25,12 +25,14 @@ export const actions = {
     let gamePosts = gameFiles.keys().map(key => {
       let res = gameFiles(key);
       res.slug = key.slice(2, -5);
+      res.target = "game"
       return res;
     });
 
     let techPosts = techFiles.keys().map(key => {
       let res = techFiles(key);
       res.slug = key.slice(2, -5);
+      res.target = "tech"
       return res;
     });
     await commit('setPosts', {target: "game", 

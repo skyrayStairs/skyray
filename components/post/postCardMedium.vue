@@ -1,14 +1,14 @@
 <template>
     <div class="column post is-6">
         <article class="columns is-multiline">
-            <div class="column is-12 post-img">
-                <img src="https://cdn.emk.dev/templates/post-img.png" alt="Featured Image">
+            <div class="column is-12 center">
+                <img class="post-img" :src="images.thumbnail"/>
             </div>
             <div class="column is-12 featured-content ">
                 <div>
                     <h3 class="heading post-category">Category Name</h3>
-                    <h1 class="title post-title">{{title.en}} > {{ title.kr }}</h1>
-                    <h3>by {{author}}</h3>
+                    <h1 class="title post-title">{{title.en}} - {{ title.kr }}</h1>
+                    <h3 class="author">by {{author}}</h3>
                     <p class="post-excerpt">{{description.en}}</p>
                     <p class="post-excerpt">{{description.kr}}</p>
                     <br>
@@ -38,9 +38,45 @@ export default {
       slug: {
           type: String,
           default: "/"
+      },
+      images: {
+          type: Object,
       }
   },
   components: {},
   methods: {}
 }
 </script>
+
+<style scoped>
+    .title {
+        font-size: 2.2rem;
+        color: white;
+    }
+
+    .heading {
+        color: #3b7adf;
+    }
+
+    .author {
+        color: white;
+    }
+    .post-excerpt {
+        line-height: 1.5rem;
+        letter-spacing: .03rem;
+        font-size: 1.2rem;
+        font-family: 'IBM Plex Serif', serif;
+        color: #92a3ab;
+    }
+
+    .post-img {
+        max-height: 200px;
+    }
+
+    .center {
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+        width: 50%;
+    }
+</style>

@@ -1,35 +1,33 @@
 <template>
     <div class="card article" style="margin-bottom: 50px">
         <div class="card-content">
-            <client-only>
-                <nuxt-link :to="`blog/${slug}`" style="color: black">
+                <nuxt-link :to="`${post.target}/${post.slug}`" style="color: black">
                     <div class="media">
                         <div v-if="!!author_image" class="media-center">
                             <img :src="author_image" class="author-image" />
                         </div>
                         <div class="media-content has-text-centered">
-                            <p class="title article-title">{{title.en}}</p>
-                            <p class="title article-title">{{title.kr}}</p>
+                            <p class="title article-title">{{post.en_title}}</p>
+                            <p class="title article-title">{{post.kr_title}}</p>
                             <div class="tags has-addons level-item">
-                                <span class="tag is-rounded is-info">@{{author}}</span>
-                                <span class="tag is-rounded">{{ !!date ? $dayjs(date).format("YYYY-MMM-DD"): "2020 Jun 25"}}</span>
+                                <span class="tag is-rounded is-info">@{{post.author}}</span>
+                                <span class="tag is-rounded">{{ !!post.date ? $dayjs(post.date).format("YYYY-MMM-DD"): "2020 Jun 25"}}</span>
                             </div>
                         </div>
                     </div>
                     <div class="columns" style="min-width: 600px">
                         <div class="column">
                             <div class="content">
-                                <p v-html="$md.render(content.en)"></p>
+                                <p v-html="$md.render(post.en_description)"></p>
                             </div>
                         </div>
                         <div class="column">
                             <div class="content">
-                                <p v-html="$md.render(content.kr)"></p>
+                                <p v-html="$md.render(post.kr_description)"></p>
                             </div>
                         </div>
                     </div>
                 </nuxt-link>
-            </client-only>
         </div>
     </div>
 </template>
@@ -37,37 +35,17 @@
 <script>
 export default {
   props: {
-      title: {
+      post: {
           type: Object
-      },
-      content: {
-          type: Object
-      },
-      length: {
-          type: Number,
-          default: 100
-      },
-      date: {
-          type: String,
-          default: null
-      },
-      author: {
-          type: String,
-          default: "kyung"
       },
       author_image: {
           type: String,
-          default: null
-      },
-      slug: {
-          type: String,
-          default: "/"
+          default: ""
       }
   },
   components: {},
   methods: {},
-  created() {
-  }
+  created() {}
 }
 </script>
 
@@ -111,5 +89,9 @@ export default {
     margin-left: -30px;
     border: 3px solid #ccc;
     border-radius: 50%;
+}
+
+.card-content {
+    background-color: #39B7CD;
 }
 </style>

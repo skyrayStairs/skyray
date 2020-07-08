@@ -11,11 +11,11 @@
             <div id="navbarMenu" class="navbar-menu">
                 <div class="navbar-end">
                     <span class="navbar-item">
-                        <nuxt-link to="/">Home</nuxt-link>
+                        <nuxt-link class="link" to="/">Home</nuxt-link>
                     </span>
                     <client-only>
                         <span class="navbar-item" v-for="route in routes" :key="route.path">
-                            <nuxt-link :to="route.path">{{route.name}}</nuxt-link>
+                            <nuxt-link class="link" :to="route.path">{{route.name}}</nuxt-link>
                         </span>
                         <span class="navbar-item">
                             <div class="control has-icons-left">
@@ -51,3 +51,17 @@ export default {
     }
 }
 </script>
+
+<style scoped>
+    .navbar {
+        background: #191b1f;
+    }
+
+    .link {
+        color: white;
+    }
+
+    .link:hover {
+        color: #3b7adf;
+    }
+</style>

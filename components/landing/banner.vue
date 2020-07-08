@@ -1,5 +1,4 @@
 <template>
-    <!-- <div class="hero-body" :style="{'background-image': `url(${backgroundURL})`}"> -->
     <div class="hero-body">
         <div class="container has-text-centered">
             <h1 class="title banner">
@@ -28,11 +27,6 @@ export default {
         }
   },
   computed: {
-      backgroundURL() {
-        //   let images = Array.from(require.context('../../assets/img/index/', false, /\.jpeg$/).keys());
-          return ""
-        //   return require(`../../assets/img/index/${images[Math.floor(Math.random() * images.length)].substr(2)}`);
-      },
       titleText() {
           let random_index = Math.floor(Math.random() * indexText.site_header[this.$store.state.curLang].length);
           return indexText.site_header[this.$store.state.curLang][random_index]
@@ -80,18 +74,6 @@ export default {
     letter-spacing: 1px;
 }
 
-/* .banner {
-    color: #000;
-    text-shadow: 0.05em 0 black,
-                0 0.05em black,
-                -0.05em 0 black,
-                0 -0.05em black,
-                -0.05em -0.05em black,
-                -0.05em 0.05em black,
-                0.05em -0.05em black,
-                0.05em 0.05em black;
-} */
-
 .articles {
     margin: 5rem 0;
     margin-top: -200px;
@@ -100,7 +82,7 @@ export default {
 .subtitle {
     font-weight: 500;
     font-size: 24px;
-    color: #526488;
+    color: black;
     word-spacing: 2px;
     padding-bottom: 15px;
 }

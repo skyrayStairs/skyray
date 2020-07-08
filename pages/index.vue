@@ -1,6 +1,6 @@
 <template>
   <div class="content">
-    <section class="hero is-info is-medium is-bold banner">
+    <section class="hero is-medium is-bold banner">
       <banner></banner>
     </section>
       <!-- START ARTICLE FEED -->
@@ -12,11 +12,7 @@
                 <card-slug 
                   v-for="(post, i) of blogPosts" 
                   :key="i" 
-                  :title="{'kr': post.kr_title, 'en': post.en_title}" 
-                  :content="{'kr': post.kr_body, 'en': post.en_body}" 
-                  :date="post.date"
-                  :slug="post.slug"
-                  author="kyungsong">
+                  :post="post">
                 </card-slug>
               </client-only>
             </div>
@@ -66,5 +62,9 @@ export default {
 .articles {
   margin: 5rem 0;
   margin-top: -200px;
+}
+
+.hero {
+  background-color: #F78702;
 }
 </style>
