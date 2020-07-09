@@ -1,19 +1,16 @@
 <template>
-    <div class="column post is-12">
-        <article class="columns featured">
-            <div class="column is-6 center">
-                <img class="post-img" :src="images.thumbnail"/>
+    <div class="column post is-full">
+        <article class="columns featured" style="align-items: center">
+            <div class="column is-half" style="text-align: center">
+                <img class="post-img" :src="post.thumbnail"/>
             </div>
-            <div class="column is-6 featured-content">
-                <div>
-                    <h3 class="heading post-category">{{$route.name}}</h3>
-                    <h1 class="title post-title">{{title.en}} - {{ title.kr }}</h1>
-                    <h3 class="author">by {{author}}</h3>
-                    <p class="post-excerpt">{{description.en}}</p>
-                    <p class="post-excerpt">{{description.kr}}</p>
-                    <br>
-                    <nuxt-link :to="`${$route.path}/${slug}`" class="button is-primary">Read More</nuxt-link>
-                </div>
+            <div class="column is-half featured-content">
+                <h3 class="heading post-category">{{$route.name}}</h3>
+                <h1 class="title post-title">{{title}}</h1>
+                <h3 class="author">by {{post.author ? post.author : "khs"}}</h3>
+                <p class="post-excerpt">{{description}}</p>
+                <br>
+                <nuxt-link :to="`${$route.path}/${post.slug}`" class="button is-primary">Read More</nuxt-link>
             </div>
         </article>
     </div>
@@ -21,32 +18,27 @@
 
 <script>
 export default {
-  data: function () {
-    return {}
+  data() {
+    return {
+        description: this.post[`${this.$store.state.curLang}_description`],
+        title: this.post[`${this.$store.state.curLang}_title`]
+    }
   },
   props: {
-      title: {
-          type: Object
-      },
-      description: {
-          type: Object
-      },
-      author: {
-          type: String,
-          default: "kyung"
-      },
-      slug: {
-          type: String,
-          default: "/"
-      },
-      images: {
+      post: {
           type: Object,
+          required: true
       }
   },
   components: {},
   methods: {},
-  created() {
-  }
+  watch: {
+        "$store.state.curLang": function(newVal, oldVal) {
+            this.description = this.post[`${newVal}_description`],
+            this.title = this.post[`${newVal}_title`]
+        }
+    },
+  created() {}
 }
 </script>
 
@@ -76,8 +68,9 @@ export default {
     }
 
     .center {
-        display: block;
+        width: 50%;
         margin-left: auto;
         margin-right: auto;
+        display: block;
     }
 </style>

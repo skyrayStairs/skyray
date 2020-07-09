@@ -6,11 +6,11 @@
                         <div v-if="!!author_image" class="media-center">
                             <img :src="author_image" class="author-image" />
                         </div>
+                        <br>
                         <div class="media-content has-text-centered">
-                            <p class="title article-title">{{post.en_title}}</p>
-                            <p class="title article-title">{{post.kr_title}}</p>
+                            <p class="title article-title">{{title}}</p>
                             <div class="tags has-addons level-item">
-                                <span class="tag is-rounded is-info">@{{post.author}}</span>
+                                <span class="tag is-rounded is-info">@{{post.author ? post.author : "khs"}}</span>
                                 <span class="tag is-rounded">{{ !!post.date ? $dayjs(post.date).format("YYYY-MMM-DD"): "2020 Jun 25"}}</span>
                             </div>
                         </div>
@@ -18,12 +18,7 @@
                     <div class="columns" style="min-width: 600px">
                         <div class="column">
                             <div class="content">
-                                <p v-html="$md.render(post.en_description)"></p>
-                            </div>
-                        </div>
-                        <div class="column">
-                            <div class="content">
-                                <p v-html="$md.render(post.kr_description)"></p>
+                                <p v-html="$md.render(this.description)"></p>
                             </div>
                         </div>
                     </div>
@@ -34,18 +29,31 @@
 
 <script>
 export default {
-  props: {
-      post: {
-          type: Object
-      },
-      author_image: {
-          type: String,
-          default: ""
-      }
-  },
-  components: {},
-  methods: {},
-  created() {}
+    data() {
+        return {
+            description: this.post[`${this.$store.state.curLang}_description`],
+            title: this.post[`${this.$store.state.curLang}_title`]
+        }
+    },
+    props: {
+        post: {
+            type: Object
+        },
+        author_image: {
+            type: String,
+            default: "img/author_default.jpg"
+        }
+    },
+    computed: {},
+    watch: {
+        "$store.state.curLang": function(newVal, oldVal) {
+            this.description = this.post[`${newVal}_description`],
+            this.title = this.post[`${newVal}_title`]
+        }
+    },
+    components: {},
+    methods: {},
+    created() {}
 }
 </script>
 

@@ -2,18 +2,15 @@
     <div class="column post is-6">
         <article class="columns is-multiline">
             <div class="column is-12 center">
-                <img class="post-img" :src="images.thumbnail"/>
+                <img class="post-img" :src="post.thumbnail"/>
             </div>
             <div class="column is-12 featured-content ">
-                <div>
-                    <h3 class="heading post-category">Category Name</h3>
-                    <h1 class="title post-title">{{title.en}} - {{ title.kr }}</h1>
-                    <h3 class="author">by {{author}}</h3>
-                    <p class="post-excerpt">{{description.en}}</p>
-                    <p class="post-excerpt">{{description.kr}}</p>
-                    <br>
-                    <nuxt-link :to="`${$route.path}/${slug}`" class="button is-primary">Read More</nuxt-link>
-                </div>
+                <h3 class="heading post-category">{{$route.name}}</h3>
+                <h1 class="title post-title">{{title}}</h1>
+                <h3 class="author">by {{post.author ? post.author : "khs"}}</h3>
+                <p class="post-excerpt">{{description}}</p>
+                <br>
+                <nuxt-link :to="`${$route.path}/${post.slug}`" class="button is-primary">Read More</nuxt-link>
             </div>
         </article>
     </div>
@@ -21,30 +18,27 @@
 
 <script>
 export default {
-  data: function () {
-    return {}
+  data() {
+    return {
+        description: this.post[`${this.$store.state.curLang}_description`],
+        title: this.post[`${this.$store.state.curLang}_title`]
+    }
   },
   props: {
-      title: {
-          type: Object
-      },
-      description: {
-          type: Object
-      },
-      author: {
-          type: String,
-          default: "kyung"
-      },
-      slug: {
-          type: String,
-          default: "/"
-      },
-      images: {
+      post: {
           type: Object,
+          required: true
       }
   },
   components: {},
-  methods: {}
+  methods: {},
+  watch: {
+        "$store.state.curLang": function(newVal, oldVal) {
+            this.description = this.post[`${newVal}_description`],
+            this.title = this.post[`${newVal}_title`]
+        }
+    },
+  created() {}
 }
 </script>
 
