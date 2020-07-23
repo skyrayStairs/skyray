@@ -1,18 +1,22 @@
 <template>
-  <div class="columns">
-    <div class="column is-half">
-      <div class="box">
-        <div class="content">
-          <div class="title">{{blogPost.en_title}}</div>
-          <p v-html="$md.render(blogPost.en_body)"></p>
+  <div class="container">
+    <div class="columns is-variable is-1">
+      <div class="column is-half">
+        <author-card :auth_name="blogPost.en_author" :auth_image="blogPost.original_author"></author-card>
+        <div class="box">
+          <div class="content">
+            <div class="title">{{blogPost.en_title}}</div>
+            <p v-html="$md.render(blogPost.en_body)"></p>
+          </div>
         </div>
       </div>
-    </div>
-    <div class="column is-half">
-      <div class="box">
-        <div class="content">
-          <div class="title">{{blogPost.kr_title}}</div>
-          <p v-html="$md.render(blogPost.kr_body)"></p>
+      <div class="column is-half">
+        <author-card :auth_name="blogPost.en_author" :auth_image="blogPost.original_author"></author-card>
+        <div class="box">
+          <div class="content">
+            <div class="title">{{blogPost.kr_title}}</div>
+            <p v-html="$md.render(blogPost.kr_body)"></p>
+          </div>
         </div>
       </div>
     </div>
@@ -20,7 +24,7 @@
 </template>
 
 <script>
-
+import authorCard from "@/components/global/authorCard"
 export default {
   async asyncData({ params, payload }) {
     if (payload) return { blogPost: payload };
@@ -29,5 +33,11 @@ export default {
       blogPost: await require(`@/assets/content/game/${params.game}.json`),
     };
   },
+  components: {
+    authorCard
+  }
 };
 </script>
+
+<style scoped>
+</style>

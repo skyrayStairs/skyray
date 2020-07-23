@@ -9,6 +9,7 @@
                         <br>
                         <div class="media-content has-text-centered">
                             <p class="title article-title">{{title}}</p>
+                            <p class="category subtitle">{{post.target}}</p>
                             <div class="tags has-addons level-item">
                                 <span class="tag is-rounded is-info">@{{post.author ? post.author : "khs"}}</span>
                                 <span class="tag is-rounded">{{ !!post.date ? $dayjs(post.date).format("YYYY-MMM-DD"): "2020 Jun 25"}}</span>
@@ -79,7 +80,6 @@ export default {
 .subtitle {
   font-weight: 300;
   font-size: 20px;
-  color: #526488;
   word-spacing: 2px;
   padding-bottom: 15px;
 }
@@ -89,8 +89,8 @@ export default {
 }
 
 .author-image {
-  position: absolute;
-    top: -30px;
+    position: absolute;
+    top: -40px;
     left: 50%;
     width: 60px;
     height: 60px;

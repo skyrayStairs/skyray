@@ -1,7 +1,7 @@
 export const state = () => ({
     posts: {
-      game: [],
-      tech: [],
+      game: {},
+      tech: {},
     },
     curLang: "kr",
     curFlag: "kr"
@@ -35,10 +35,33 @@ export const actions = {
       res.target = "tech"
       return res;
     });
+
+    gamePosts = gamePosts.sort((a,b) => (a.date < b.date) ? 1 : ((b.date < a.date) ? -1 : 0))
+    let gameByDates = {};
+    for (let post of gamePosts) {
+      let date = post.date.split("T")[0]
+      date = date.slice(0, date.length - 3)
+      if (gameByDates[date]) {
+        gameByDates[date].push(post)
+      } else {
+        gameByDates[date] = [post]
+      }
+    }
+    techPosts = techPosts.sort((a,b) => (a.date < b.date) ? 1 : ((b.date < a.date) ? -1 : 0))
+    let techByDates = {};
+    for (let post of techPosts) {
+      let date = post.date.split("T")[0]
+      date = date.slice(0, date.length - 3)
+      if (techByDates[date]) {
+        techByDates[date].push(post)
+      } else {
+        techByDates[date] = [post]
+      }
+    }
     await commit('setPosts', {target: "game", 
-                              posts: gamePosts.sort((a,b) => (a.date < b.date) ? 1 : ((b.date < a.date) ? -1 : 0))});
+                              posts: gameByDates});
     await commit('setPosts', {target: "tech", 
-                              posts: techPosts.sort((a,b) => (a.date < b.date) ? 1 : ((b.date < a.date) ? -1 : 0))});
+                              posts: techByDates});
   }
 };
 
@@ -46,8 +69,43 @@ export const getters = {
   getAllPosts: state => {
     let allPosts = []
     for (let category of Object.keys(state.posts)) {
-      allPosts = [...allPosts, ...state.posts[category]]
+      for(let byDate of Object.keys(state.posts[category])) {
+        allPosts = [...allPosts, ...state.posts[category][byDate]]
+      }
     }
     return allPosts.sort((a,b) => (a.date < b.date) ? 1 : ((b.date < a.date) ? -1 : 0)).slice(0, 10);
-  }
+  },
+  getPosts: (state) => (date, type, start=0, end=0) => {
+    if(!state.posts[type][date]) {
+      return null
+    }
+
+    if (end != 0) {
+      return state.posts[type][date].slice(start, end)
+    } else {
+      return state.posts[type][date]
+    }
+  },
+  // getTechPosts: (state) => (date, start=0, end=0) => {
+  //   if(!state.posts.tech[date]) {
+  //     return null
+  //   }
+
+  //   if (end != 0) {
+  //     return state.posts.tech[date].slice(start, end)
+  //   } else {
+  //     return state.posts.tech[date]
+  //   }
+  // },
+  // getGamePosts: (state) => (date, start=0, end=0) => {
+  //   if(!state.posts.game[date]) {
+  //     return null
+  //   }
+
+  //   if (end != 0) {
+  //     return state.posts.game[date].slice(start, end)
+  //   } else {
+  //     return state.posts.game[date]
+  //   }
+  // }
 }

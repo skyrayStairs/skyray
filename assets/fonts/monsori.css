@@ -1,0 +1,9 @@
+@font-face {
+    font-family: 'kr_monsori';
+    src: url('/fonts/TmonMonsori.ttf');
+}
+
+@font-face {
+    font-family: 'en_monsori';
+    src: url('/fonts/TmonTium.ttf');
+}

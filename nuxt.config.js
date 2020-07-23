@@ -44,14 +44,15 @@ export default {
   ** Global CSS
   */
   css: [
-    "@/assets/css/global.css"
+    "@/assets/css/global.css",
+    "@/assets/fonts/monsori.css"
   ],
   /*
   ** Plugins to load before mounting the App
   ** https://nuxtjs.org/guide/plugins
   */
   plugins: [
-    { src: "@/plugins/vueflags.js" }
+    { src: "@/plugins/vueflags.js", ssr: false }
   ],
   /*
   ** Nuxt.js dev-modules

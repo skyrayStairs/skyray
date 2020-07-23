@@ -1,6 +1,7 @@
 <template>
   <div class="columns">
     <div class="column is-half">
+      <author-card :auth_name="blogPost.en_author" :auth_image="blogPost.original_author"></author-card>
       <div class="box">
         <div class="content">
           <div class="title">{{blogPost.en_title}}</div>
@@ -9,6 +10,7 @@
       </div>
     </div>
     <div class="column is-half">
+      <author-card :auth_name="blogPost.en_author" :auth_image="blogPost.original_author"></author-card>
       <div class="box">
         <div class="content">
           <div class="title">{{blogPost.kr_title}}</div>
@@ -20,7 +22,7 @@
 </template>
 
 <script>
-
+import authorCard from "@/components/global/authorCard"
 export default {
   async asyncData({ params, payload }) {
     if (payload) return { blogPost: payload };
@@ -29,5 +31,8 @@ export default {
       blogPost: await require(`@/assets/content/tech/${params.tech}.json`),
     };
   },
+  components: {
+    authorCard
+  }
 };
 </script>

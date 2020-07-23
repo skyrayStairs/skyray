@@ -1,30 +1,24 @@
 <template>
     <div class="hero-body">
-        <div class="container has-text-centered">
-            <h1 class="title banner">
-                <client-only>
-                    <div v-for="text of titleText.text" :key="text">
-                        {{text}}
-                    </div>
-                    <div v-if="!!titleText.author" class="subtitle" style="text-align: right">
-                        {{`- ${titleText.author}` }}
-                    </div>
-                </client-only>
-            </h1>
-        </div>
+        <h1 class="banner container has-text-centered">
+            <client-only>
+                <div v-for="text of titleText.text" :key="text" :class="[`${$store.state.curLang}_title`]">
+                    <p>{{text}}</p>
+                </div>
+                <div v-if="!!titleText.author" class="subtitle" style="text-align: right">
+                    {{`- ${titleText.author}` }}
+                </div>
+            </client-only>
+        </h1>
     </div>
 </template>
 
 <script>
 import indexText from "@/assets/site_text/index.json"
-import gnb from "@/components/global/gnb"
 
 export default {
     data: function () {
-        let random_index = Math.floor(Math.random() * indexText.site_header["en"].length);
-        return {
-            // titleText: indexText.site_header["en"][random_index],
-        }
+        return {}
   },
   computed: {
       titleText() {
@@ -32,62 +26,42 @@ export default {
           return indexText.site_header[this.$store.state.curLang][random_index]
       }
   },
-  components: {
-    gnb
-  },
+  components: {},
   methods: {}
 }
 </script>
 
 <style scoped>
-
-.container {
-    margin: 0 auto;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-}
-
-.hero-body { 
-    background-position: center;
-    background-size: cover;
-    background-repeat: no-repeat;
-    height: 500px;
-}
-
-.title {
-    font-family:
-        'Quicksand',
-        'Source Sans Pro',
-        -apple-system,
-        BlinkMacSystemFont,
-        'Segoe UI',
-        Roboto,
-        'Helvetica Neue',
-        Arial,
-        sans-serif;
+.en_title {
+    font-family: "en_monsori",sans-serif;
     display: block;
     font-weight: 600;
-    font-size: 2rem;
+    font-size: 3rem;
     line-height: 1.125;
     letter-spacing: 1px;
+    color: black;
 }
 
-.articles {
-    margin: 5rem 0;
-    margin-top: -200px;
+.kr_title {
+    font-family: "kr_monsori",sans-serif;
+    display: block;
+    font-weight: 600;
+    font-size: 2.5rem;
+    line-height: 1.125;
+    letter-spacing: 1px;
+    color: black;
 }
 
 .subtitle {
     font-weight: 500;
-    font-size: 24px;
+    font-size: 25px;
     color: black;
     word-spacing: 2px;
-    padding-bottom: 15px;
+    margin-top: 30px;
+    padding-right: 50px;
 }
 
-.links {
-    padding-top: 15px;
+.hero-body {
+  background-color: #ff624d;
 }
 </style>
