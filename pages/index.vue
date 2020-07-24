@@ -3,12 +3,6 @@
       <section class="hero is-fullheight-with-navbar">
         <banner></banner>
       </section>
-      <section class="hero is-fullheight-with-navbar">
-          <div class="hero-body">
-            <h1 class="title banner container has-text-centered">
-            </h1>
-        </div>
-      </section>
   </div>
 </template>
 
