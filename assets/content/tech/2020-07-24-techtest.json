@@ -1,0 +1,19 @@
+{
+  "kr_title": "테크",
+  "en_author": "testAuthor101",
+  "en_title": "techTest",
+  "kr_author": "101호",
+  "kr_description": "작성자 이름 포함한 테스트",
+  "en_description": "this is a tech test with author name",
+  "thumbnail": "/img/code-1970468_640.png",
+  "date": "2020-07-24T01:37:24.125Z",
+  "translation": true,
+  "en_body": "\\# en body\n\n\\> it is not, but it do",
+  "tags": [
+    "tech",
+    "translated"
+  ],
+  "original_author": "/img/author_default.jpg",
+  "kr_body": "\\# 테스트 용도\n\n\\> 라니",
+  "category": "tech"
+}
