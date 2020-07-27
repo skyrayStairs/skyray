@@ -17,7 +17,14 @@ export default {
           payload: require(`./assets/content/game/${file}`),
         };
       });
-      return [...tech_posts, ...game_posts]
+
+      let misc_posts = fs.readdirSync('./assets/content/misc').map(file => {
+        return {
+          route: `misc/${path.parse(file).name}`, // Return the slug
+          payload: require(`./assets/content/misc/${file}`),
+        };
+      });
+      return [...tech_posts, ...game_posts, ...misc_posts]
     },
   },
   /*

@@ -1,16 +1,15 @@
 <template>
   <div class="columns">
     <div class="column is-half">
-      <author-card :auth_name="blogPost.en_author" :auth_image="blogPost.original_author"></author-card>
       <div class="box">
         <div class="content">
           <div class="title">{{blogPost.en_title}}</div>
           <p v-html="$md.render(blogPost.en_body)"></p>
         </div>
       </div>
+      <author-card :auth_name="blogPost.en_author" :auth_image="blogPost.original_author"></author-card>
     </div>
     <div class="column is-half">
-      <author-card :auth_name="blogPost.en_author" :auth_image="blogPost.original_author"></author-card>
       <div class="box">
         <div class="content">
           <div class="title">{{blogPost.kr_title}}</div>
@@ -18,6 +17,7 @@
         </div>
       </div>
     </div>
+    <author-card :auth_name="blogPost.en_author" :auth_image="blogPost.original_author"></author-card>
   </div>
 </template>
 

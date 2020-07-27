@@ -30,7 +30,7 @@ export default {
     if (payload) return { blogPost: payload };
     else
     return {
-      blogPost: await require(`@/assets/content/game/${params.game}.json`),
+      blogPost: await require(`@/assets/content/misc/${params.misc}.json`),
     };
   },
   components: {

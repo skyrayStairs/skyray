@@ -39,7 +39,7 @@ collections:
       - label: "Original Author Image"
         name: "original_author"
         widget: "image"
-        default: "/img/author_default.jpg"
+        default: "/img/blank-profile.jpg"
         media_library:
           config:
             multiple: false
@@ -75,7 +75,43 @@ collections:
       - label: "Original Author Image"
         name: "original_author"
         widget: "image"
-        default: "/img/author_default.jpg"
+        default: "/img/blank-profile.jpg"
+        media_library:
+          config:
+            multiple: false
+  - name: 'misc'
+    label: 'misc'
+    identifier_field: "en_title"
+    format: 'json'
+    folder: 'assets/content/misc'
+    create: true
+    slug: '{{year}}-{{month}}-{{day}}-{{slug}}'
+    editor:
+      preview: false
+    fields:
+      - { label: 'EN Title', name: 'en_title', widget: 'string' }
+      - { label: 'KR Title', name: 'kr_title', widget: 'string' }
+      - { label: 'EN Author', name: 'en_author', widget: 'string' }
+      - { label: 'KR Author', name: 'kr_author', widget: 'string' }
+      - { label: 'Publish Date', name: 'date', widget: 'datetime' }
+      - { label: 'Tags', name: 'tags', widget: 'list' }
+      - { label: 'EN Description', name: 'en_description', widget: 'string' }
+      - { label: 'KR Description', name: 'kr_description', widget: 'string' }
+      - { label: 'EN Body', name: 'en_body', widget: 'markdown' }
+      - { label: 'KR Body', name: 'kr_body', widget: 'markdown' }
+      - { label: "Category", name: "category", widget: "hidden", default: "tech" }
+      - {label: "Translation", name: "translation", widget: "boolean", default: false}
+      - label: "Featured Image"
+        name: "thumbnail"
+        widget: "image"
+        default: "/img/code-1970468_640.png"
+        media_library:
+          config:
+            multiple: true
+      - label: "Original Author Image"
+        name: "original_author"
+        widget: "image"
+        default: "/img/blank-profile.png"
         media_library:
           config:
             multiple: false
