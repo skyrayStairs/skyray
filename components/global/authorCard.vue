@@ -26,7 +26,7 @@ export default {
     props: {
         auth_image: {
             type: String,
-            default: "img/author_default.jpg"
+            default: "img/blank-profile.png"
         },
         auth_name: {
             type: String

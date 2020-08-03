@@ -74,10 +74,10 @@ export const actions = {
     for (let post of miscPosts) {
       let date = post.date.split("T")[0]
       date = date.slice(0, date.length - 3)
-      if (gameByDates[date]) {
-        gameByDates[date][posts].push(post)
+      if (miscByDates[date]) {
+        miscByDates[date][posts].push(post)
       } else {
-        gameByDates[date] = {open: false, posts:[post]}
+        miscByDates[date] = {open: false, posts:[post]}
       }
     }
 
@@ -104,11 +104,10 @@ export const getters = {
     if(!state.posts[type][date]) {
       return null
     }
-
     if (end != 0) {
-      return state.posts[type][date][posts].slice(start, end)
+      return state.posts[type][date]["posts"].slice(start, end)
     } else {
-      return state.posts[type][date][posts]
+      return state.posts[type][date]["posts"]
     }
   },
 }

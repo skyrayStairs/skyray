@@ -9,7 +9,7 @@
                     <fa class="menu_toggle" icon="angle-up" aria-hidden="true"></fa> 
                     <fa class="menu_toggle displayed" icon="angle-down" aria-hidden="true"></fa>
                     <ul class="not_displayed">
-                        <li v-for="(post, i) of menuItems[date]" :key="`${date}-${i}`">
+                        <li v-for="(post, i) of menuItems[date]['posts']" :key="`${date}-${i}`">
                             <a><nuxt-link :to="`${post.target}/${post.slug}`">{{post[`${curLang}_title`]}}</nuxt-link></a>
                         </li>
                     </ul>
@@ -41,7 +41,6 @@
                     event.target.children[1].classList.toggle("displayed")
                     event.target.lastElementChild.classList.toggle("not_displayed")
                     this.$emit("date_clicked", event.target.attributes.value.value)
-                    console.log(event)
                 }
             }
         },
