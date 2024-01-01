@@ -1,9 +1,9 @@
 <div class="flex container" id="header">
     <div class="flex container flex-row grid-rows-2 justify-between" id="gnb">
-        <div class="flex basis-28 align-baseline" id="left_top_text">
+        <div class="flex basis-24 align-baseline" id="left_top_text">
             <div class="mx-auto my-auto">기록</div>
         </div>
-        <div class="flex container basis-28" id="nav_bar">
+        <div class="flex container basis-24" id="nav_bar">
             <nav class="mx-auto my-auto">
                 <a href="/">home</a>
             </nav>
