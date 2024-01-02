@@ -1,7 +1,7 @@
 <div class="flex content-center flex-col" id="page">
-    <div class="my-auto mx-auto carousel rounded-box" id="center_card">
+    <div class="my-auto mx-auto carousel" id="center_card">
         {#each carouselImages as img}
-            <div class="carousel-item">
+            <div class="carousel-item w-full">
                 <img src={img} alt="Loading" id="image" />
             </div>
         {/each}
@@ -13,7 +13,8 @@
 <script lang="ts">
     import { onMount } from "svelte";
 
-    let carouselImages: string[] = []
+    let carouselImages: string[] = [];
+    var carouselTimer;
     
     onMount(() => {
         // 610/970
@@ -24,7 +25,23 @@
                 carouselImages = carouselImages;
             })
         };
+
+        setAutoIntervalCarousel(carouselImages.length);
     })
+
+    function setAutoIntervalCarousel(imageSize : number) {
+        const carouselBox = document.getElementById("center_card");
+        let slide = 0;
+
+        carouselTimer = setInterval(() => {
+            if (slide >= carouselBox.scrollWidth) {
+                slide = 0;
+            } else {
+                slide += (carouselBox.scrollWidth/carouselImages.length);
+            }
+            carouselBox.scrollLeft = slide;
+        }, 4000);
+    }
 </script>
 
 <style lang="postcss">
@@ -50,7 +67,6 @@
         aspect-ratio: 610/970;
         border-width: 6px;
         max-width: 670px;
-        height: 100%;
         background-size: cover;
         border-color: #F0EDCC;
         border-radius: 2rem;

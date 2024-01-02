@@ -1,11 +1,11 @@
-<div class="flex container" id="header">
+<div class="flex container flex-row" id="header">
     <div class="flex container flex-row grid-rows-2 justify-between" id="gnb">
-        <div class="flex basis-24 align-baseline" id="left_top_text">
-            <div class="mx-auto my-auto">기록</div>
+        <div class="flex basis-24 md:mt-0 lg:mt-4" id="left_top_text">
+            <div class="mx-auto mt-auto">기록</div>
         </div>
-        <div class="flex container basis-24" id="nav_bar">
-            <nav class="mx-auto my-auto">
-                <a href="/">home</a>
+        <div class="flex" id="nav_bar">
+            <nav class="flex container mx-auto mb-auto justify-between">
+                <a class="mr-2" href="/">home</a>
             </nav>
         </div>
     </div>
@@ -36,11 +36,14 @@
         word-wrap: break-word;
         writing-mode: vertical-lr;
         text-orientation: upright;
-        font-size: 1.5rem;
+        align-self: center;
+        font-size: 2.5rem;
     }
 
     #nav_bar {
+        margin-top: 2rem;
         margin-right: 2.5%;
+        align-self: start;
     }
 
     #footer {
