@@ -1,3 +1,8 @@
+<script>
+    import "../app.css"
+    let { children } = $props();
+</script>
+
 <div class="flex container flex-row" id="header">
     <div class="flex container flex-row grid-rows-2 justify-between" id="gnb">
         <div class="flex basis-24 md:mt-0 lg:mt-4" id="left_top_text">
@@ -10,12 +15,10 @@
         </div>
     </div>
 </div>
-<slot id="slot" />
+<div id="slot">
+    {@render children()}
+</div>
 <div class="flex container" id="footer"></div>
-
-<script>
-    import "../app.css"
-</script>
 
 <style>
     #header {
@@ -56,4 +59,3 @@
         height: 85vh;
     }
 </style>
-

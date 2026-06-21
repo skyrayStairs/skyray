@@ -6,23 +6,22 @@
             </div>
         {/each}
     </div>
-    
+
 </div>
 
 
 <script lang="ts">
     import { onMount } from "svelte";
 
-    let carouselImages: string[] = [];
-    var carouselTimer;
-    
+    let carouselImages: string[] = $state([]);
+    let carouselTimer: ReturnType<typeof setInterval>;
+
     onMount(() => {
         // 610/970
         const imageModules = import.meta.glob("$lib/assets/img/vertical/*.jpg");
         for (const modulePath in imageModules) {
             imageModules[modulePath]().then(({default: imageUrl }) => {
                 carouselImages.push(imageUrl);
-                carouselImages = carouselImages;
             })
         };
 
@@ -70,8 +69,8 @@
         background-size: cover;
         border-color: #F0EDCC;
         border-radius: 2rem;
-    } 
-    
+    }
+
     #image {
         object-fit: cover;
     }
