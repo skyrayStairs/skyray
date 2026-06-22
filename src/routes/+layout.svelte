@@ -100,11 +100,18 @@
 
     #left_top_text {
         color: #02343F;
-        word-wrap: break-word;
-        writing-mode: vertical-lr;
-        text-orientation: upright;
         align-self: center;
-        font-size: 2.5rem;
+        -webkit-writing-mode: vertical-lr;
+        writing-mode: vertical-lr;
+        -webkit-text-orientation: upright;
+        text-orientation: upright;
+        /* keep the 2 chars in one vertical column; break-word let iOS wrap them side-by-side */
+        white-space: nowrap;
+        /* stop iOS Safari from auto-inflating the glyphs ("too big" on iPhone) */
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+        /* scale with header real estate; caps at the original 2.5rem on desktop */
+        font-size: clamp(1.25rem, 5vh, 2.5rem);
     }
 
     #left_top_text a {

@@ -52,6 +52,14 @@
 		})
 	})
 
+	// Spells in the current filtered view not yet in the set.
+	const addableCount = $derived(filteredSpells.filter((s) => !currentSetNames.has(s.name)).length)
+
+	function addAll() {
+		// onAdd (parent) dedupes against the set, so adding the whole filtered list is safe.
+		for (const spell of filteredSpells) onAdd(spell)
+	}
+
 	function resetFilters() {
 		searchQuery = ''
 		filterLevels = new Set()
@@ -227,12 +235,19 @@
 
 			<!-- Results list -->
 			<div class="flex-1 overflow-y-auto">
-				<p class="px-3 py-1.5 text-xs text-gray-500 border-b sticky top-0 bg-base-100">
-					{filteredSpells.length} spell{filteredSpells.length !== 1 ? 's' : ''}
-					{#if filterLevels.size + filterSchools.size + filterEffectTypes.size + filterCastingTimes.size + filterRanges.size + filterDurations.size + filterClasses.size > 0}
-						<span class="text-primary ml-1">(filtered)</span>
-					{/if}
-				</p>
+				<div class="px-3 py-1.5 border-b sticky top-0 bg-base-100 z-10 flex items-center justify-between gap-2">
+					<span class="text-xs text-gray-500">
+						{filteredSpells.length} spell{filteredSpells.length !== 1 ? 's' : ''}
+						{#if filterLevels.size + filterSchools.size + filterEffectTypes.size + filterCastingTimes.size + filterRanges.size + filterDurations.size + filterClasses.size > 0}
+							<span class="text-primary ml-1">(filtered)</span>
+						{/if}
+					</span>
+					<button
+						class="btn btn-xs btn-primary flex-shrink-0"
+						onclick={addAll}
+						disabled={addableCount === 0}
+					>+ Add all{addableCount > 0 ? ` (${addableCount})` : ''}</button>
+				</div>
 				{#each filteredSpells as spell (spell.name)}
 					<button
 						class="w-full text-left px-3 py-2 hover:bg-base-200 border-b flex items-center justify-between gap-2"

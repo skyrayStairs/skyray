@@ -5,12 +5,16 @@
 		spell,
 		onDelete,
 		expanded = false,
-		onToggleExpand
+		onToggleExpand,
+		folded = false,
+		onToggleFold
 	}: {
 		spell: SpellEntry
 		onDelete?: () => void
 		expanded?: boolean
 		onToggleExpand?: () => void
+		folded?: boolean
+		onToggleFold?: () => void
 	} = $props()
 
 	const SCHOOL_CLASSES: Record<string, string> = {
@@ -42,7 +46,9 @@
 	$effect(() => {
 		if (!descriptionEl) return
 		const check = () => {
-			hasOverflow = descriptionEl!.scrollHeight > descriptionEl!.clientHeight + 1
+			// element may unmount (card folded) before a queued observer callback fires
+			if (!descriptionEl) return
+			hasOverflow = descriptionEl.scrollHeight > descriptionEl.clientHeight + 1
 		}
 		const ro = new ResizeObserver(check)
 		ro.observe(descriptionEl)
@@ -58,33 +64,45 @@
 -->
 <div
 	class="rounded-lg border-4 p-1.5 shadow-md flex flex-col {schoolClasses}"
-	class:h-full={!expanded}
-	class:h-auto={expanded}
+	class:h-full={!expanded && !folded}
+	class:h-auto={expanded || folded}
 	class:shadow-2xl={expanded}
 >
-	<!-- Title + delete button inline -->
-	<div class="bg-white rounded px-2 py-1 mb-1 shrink-0 flex items-center gap-1 min-w-0">
-		<p class="flex-1 font-bold text-sm tracking-wider uppercase leading-tight text-center min-w-0 break-words">{spell.name}</p>
+	<!-- Title bar: fold toggle (left, like delete on right), title (centered), delete (right). -->
+	<div class="relative bg-white rounded px-2 py-1 shrink-0 flex items-center min-w-0" class:mb-1={!folded}>
+		{#if onToggleFold}
+			<button
+				class="absolute left-1 top-1/2 -translate-y-1/2 leading-none text-xs text-gray-400 opacity-50 hover:opacity-90 px-0.5"
+				onclick={onToggleFold}
+				aria-label={folded ? 'Expand card' : 'Fold card'}
+				title={folded ? 'Expand card' : 'Fold card'}
+			>{folded ? '▸' : '◂'}</button>
+		{/if}
+		<p class="w-full font-bold text-sm tracking-wider uppercase leading-tight text-center px-5 min-w-0 break-words">{spell.name}</p>
 		{#if onDelete}
-			{#if showDeleteConfirm}
-				<button
-					class="btn btn-xs btn-error shrink-0"
-					onclick={() => { onDelete?.(); showDeleteConfirm = false }}
-				>Remove</button>
-				<button
-					class="btn btn-xs btn-ghost text-gray-500 shrink-0"
-					onclick={() => (showDeleteConfirm = false)}
-				>✕</button>
-			{:else}
-				<button
-					class="btn btn-xs btn-ghost shrink-0 text-gray-400 opacity-40 hover:opacity-80 min-h-0 h-auto p-0.5"
-					onclick={() => (showDeleteConfirm = true)}
-					aria-label="Remove spell"
-				>✕</button>
-			{/if}
+			<div class="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
+				{#if showDeleteConfirm}
+					<button
+						class="btn btn-error min-h-0 h-auto py-0 px-2 text-[10px] leading-tight"
+						onclick={() => { onDelete?.(); showDeleteConfirm = false }}
+					>Remove</button>
+					<button
+						class="text-gray-500 hover:text-gray-700 text-xs leading-none px-0.5"
+						onclick={() => (showDeleteConfirm = false)}
+						aria-label="Cancel"
+					>✕</button>
+				{:else}
+					<button
+						class="text-gray-400 opacity-40 hover:opacity-80 text-xs leading-none px-0.5"
+						onclick={() => (showDeleteConfirm = true)}
+						aria-label="Remove spell"
+					>✕</button>
+				{/if}
+			</div>
 		{/if}
 	</div>
 
+	{#if !folded}
 	<!-- 2x2 grid -->
 	<div class="grid grid-cols-2 gap-px mb-1 shrink-0">
 		<div class="bg-white p-1.5">
@@ -156,4 +174,5 @@
 			{schoolLabel} · {levelLabel}{spell.ritual ? ' (R)' : ''}
 		</p>
 	</div>
+	{/if}
 </div>

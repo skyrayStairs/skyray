@@ -15,6 +15,8 @@
 	let setSearch = $state('')
 	let cardHeight = $state(0)
 	let expandedCardName = $state<string | null>(null)
+	let foldedCards = $state<Set<string>>(new Set())
+	let scrollIndex = $state(0)
 
 	let stickyBarEl: HTMLElement | undefined
 
@@ -25,6 +27,20 @@
 			? spellSet.filter((s) => s.name.toLowerCase().includes(setSearch.toLowerCase()))
 			: spellSet
 	)
+
+	// Whole-card fold (independent of the per-card description expand).
+	const allFolded = $derived(spellSet.length > 0 && spellSet.every((s) => foldedCards.has(s.name)))
+
+	function toggleFold(name: string) {
+		const next = new Set(foldedCards)
+		if (next.has(name)) next.delete(name)
+		else next.add(name)
+		foldedCards = next
+	}
+
+	function toggleFoldAll() {
+		foldedCards = allFolded ? new Set() : new Set(spellSet.map((s) => s.name))
+	}
 
 	function updateLayout() {
 		if (!stickyBarEl) return
@@ -116,13 +132,18 @@
 	function scrollCards(dir: 'up' | 'down') {
 		const slot = document.getElementById('slot')
 		if (!slot) return
-		// Use bounding rect diff between first two wrappers — exact row height including gap
-		const wrappers = slot.querySelectorAll<HTMLElement>('[data-card-wrapper]')
-		const amount =
-			wrappers.length >= 2
-				? wrappers[1].getBoundingClientRect().top - wrappers[0].getBoundingClientRect().top
-				: cardHeight
-		slot.scrollBy({ top: dir === 'down' ? amount : -amount, behavior: 'smooth' })
+		// Fixed step = one card row: wrapper height + the 8px grid row-gap.
+		// cardHeight is recomputed on every resize, so the step tracks screen size.
+		const pitch = (cardHeight || slot.clientHeight) + 8
+		const maxScroll = Math.max(0, slot.scrollHeight - slot.clientHeight)
+		const maxIndex = Math.ceil(maxScroll / pitch)
+		// Resync if the user scrolled manually away from our tracked row.
+		if (Math.abs(slot.scrollTop - scrollIndex * pitch) > pitch / 2) {
+			scrollIndex = Math.round(slot.scrollTop / pitch)
+		}
+		// Snap to an absolute multiple of pitch so rapid clicks never land mid-card.
+		scrollIndex = Math.min(Math.max(scrollIndex + (dir === 'down' ? 1 : -1), 0), maxIndex)
+		slot.scrollTo({ top: Math.min(scrollIndex * pitch, maxScroll), behavior: 'smooth' })
 	}
 </script>
 
@@ -153,6 +174,13 @@
 				class="btn btn-xs sm:btn-sm btn-primary shrink-0"
 				onclick={() => (sheetOpen = true)}
 			>+ Add</button>
+
+			{#if spellSet.length > 0}
+				<button
+					class="btn btn-xs sm:btn-sm btn-outline shrink-0"
+					onclick={toggleFoldAll}
+				>{allFolded ? 'Expand all' : 'Fold all'}</button>
+			{/if}
 
 			{#if spellSet.length > 0}
 				{#if showDeleteAllConfirm}
@@ -213,13 +241,13 @@
 		</div>
 	{:else}
 		<div
-			class="grid gap-2 p-2"
+			class="grid gap-2 p-2 items-start"
 			style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr))"
 		>
 			{#each filteredSet as spell (spell.name)}
 				<div
 					data-card-wrapper
-					style={expandedCardName !== spell.name && cardHeight > 0 ? `height: ${cardHeight}px` : ''}
+					style={!foldedCards.has(spell.name) && expandedCardName !== spell.name && cardHeight > 0 ? `height: ${cardHeight}px` : ''}
 				>
 					<SpellCard
 						{spell}
@@ -228,6 +256,8 @@
 						onToggleExpand={() => {
 							expandedCardName = expandedCardName === spell.name ? null : spell.name
 						}}
+						folded={foldedCards.has(spell.name)}
+						onToggleFold={() => toggleFold(spell.name)}
 					/>
 				</div>
 			{/each}
