@@ -5,9 +5,12 @@
 	import AddSpellSheet from '$lib/components/dnd/AddSpellSheet.svelte'
 
 	const LS_KEY = 'dnd-spell-set'
+	const LS_PREPARED = 'dnd-prepared'
 	const LS_NOTICE_KEY = 'dnd-spell-set-notice-seen'
 
-	let spellSet = $state<SpellEntry[]>([])
+	let spellSet = $state<SpellEntry[]>([]) // = Known (the full collection)
+	let preparedNames = $state<Set<string>>(new Set())
+	let activeTab = $state<'prepared' | 'known'>('prepared')
 	let sheetOpen = $state(false)
 	let showNotice = $state(false)
 	let showDeleteAllConfirm = $state(false)
@@ -18,18 +21,53 @@
 	let foldedCards = $state<Set<string>>(new Set())
 	let scrollIndex = $state(0)
 
+	type SortKey = 'none' | 'level' | 'class' | 'school'
+	const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+		{ key: 'none', label: 'Default' },
+		{ key: 'level', label: 'Level' },
+		{ key: 'class', label: 'Class' },
+		{ key: 'school', label: 'School' }
+	]
+	let sortKey = $state<SortKey>('none')
+	let sortDir = $state<'asc' | 'desc'>('asc')
+	let sortMenuOpen = $state(false)
+
 	let stickyBarEl: HTMLElement | undefined
 
 	const currentSetNames = $derived(new Set(spellSet.map((s) => s.name)))
 
-	const filteredSet = $derived(
-		setSearch
-			? spellSet.filter((s) => s.name.toLowerCase().includes(setSearch.toLowerCase()))
-			: spellSet
+	const preparedCount = $derived(spellSet.filter((s) => preparedNames.has(s.name)).length)
+
+	// Base list for the active tab: Prepared = prepared subset of Known; Known = everything.
+	const baseSet = $derived(
+		activeTab === 'prepared' ? spellSet.filter((s) => preparedNames.has(s.name)) : spellSet
 	)
 
-	// Whole-card fold (independent of the per-card description expand).
-	const allFolded = $derived(spellSet.length > 0 && spellSet.every((s) => foldedCards.has(s.name)))
+	const filteredSet = $derived(
+		setSearch
+			? baseSet.filter((s) => s.name.toLowerCase().includes(setSearch.toLowerCase()))
+			: baseSet
+	)
+
+	// Non-destructive sort: reorders only the displayed list, not the saved set.
+	function primaryClass(s: SpellEntry): string {
+		return s.classes.length ? [...s.classes].sort()[0] : ''
+	}
+
+	const displaySet = $derived.by(() => {
+		if (sortKey === 'none') return filteredSet
+		const dir = sortDir === 'asc' ? 1 : -1
+		return [...filteredSet].sort((a, b) => {
+			let cmp = 0
+			if (sortKey === 'level') cmp = a.level - b.level
+			else if (sortKey === 'school') cmp = a.school.localeCompare(b.school)
+			else cmp = primaryClass(a).localeCompare(primaryClass(b))
+			return (cmp || a.name.localeCompare(b.name)) * dir
+		})
+	})
+
+	// Whole-card fold (independent of the per-card description expand); applies to visible cards.
+	const allFolded = $derived(displaySet.length > 0 && displaySet.every((s) => foldedCards.has(s.name)))
 
 	function toggleFold(name: string) {
 		const next = new Set(foldedCards)
@@ -39,7 +77,26 @@
 	}
 
 	function toggleFoldAll() {
-		foldedCards = allFolded ? new Set() : new Set(spellSet.map((s) => s.name))
+		// only affect the cards visible in the active tab; leave the other tab's folds intact
+		const visible = displaySet.map((s) => s.name)
+		const next = new Set(foldedCards)
+		if (allFolded) for (const n of visible) next.delete(n)
+		else for (const n of visible) next.add(n)
+		foldedCards = next
+	}
+
+	function prepare(name: string) {
+		if (preparedNames.has(name)) return
+		const next = new Set(preparedNames)
+		next.add(name)
+		preparedNames = next
+	}
+
+	function unprepare(name: string) {
+		if (!preparedNames.has(name)) return
+		const next = new Set(preparedNames)
+		next.delete(name)
+		preparedNames = next
 	}
 
 	function updateLayout() {
@@ -67,6 +124,21 @@
 				// start fresh
 			}
 		}
+
+		const savedPrepared = localStorage.getItem(LS_PREPARED)
+		const known = new Set(spellSet.map((s) => s.name))
+		if (savedPrepared) {
+			try {
+				const names: string[] = JSON.parse(savedPrepared)
+				preparedNames = new Set(names.filter((n) => known.has(n))) // drop stale names
+			} catch {
+				preparedNames = new Set()
+			}
+		} else if (spellSet.length > 0) {
+			// migrate old users (no prepared key): everything they had counts as prepared
+			preparedNames = new Set(known)
+		}
+
 		if (!localStorage.getItem(LS_NOTICE_KEY)) {
 			showNotice = true
 		}
@@ -87,6 +159,19 @@
 		localStorage.setItem(LS_KEY, JSON.stringify(spellSet))
 	})
 
+	$effect(() => {
+		if (!initialized) return
+		localStorage.setItem(LS_PREPARED, JSON.stringify([...preparedNames]))
+	})
+
+	// Reset scroll position when switching tabs (list length differs).
+	$effect(() => {
+		activeTab // track
+		scrollIndex = 0
+		const slot = document.getElementById('slot')
+		if (slot) slot.scrollTop = 0
+	})
+
 	function addSpell(spell: SpellEntry) {
 		if (!currentSetNames.has(spell.name)) {
 			spellSet = [...spellSet, spell]
@@ -95,6 +180,7 @@
 
 	function removeSpell(name: string) {
 		spellSet = spellSet.filter((s) => s.name !== name)
+		unprepare(name) // a deleted spell can't stay prepared
 	}
 
 	function dismissNotice() {
@@ -110,7 +196,17 @@
 		reader.onload = () => {
 			try {
 				const parsed = JSON.parse(reader.result as string)
-				if (Array.isArray(parsed)) spellSet = parsed
+				if (Array.isArray(parsed)) {
+					// old shape: a bare array of spells → load as Known, mark all prepared
+					spellSet = parsed
+					preparedNames = new Set(parsed.map((s: SpellEntry) => s.name))
+				} else if (parsed && Array.isArray(parsed.known)) {
+					spellSet = parsed.known
+					const known = new Set(spellSet.map((s) => s.name))
+					preparedNames = new Set((parsed.prepared ?? []).filter((n: string) => known.has(n)))
+				} else {
+					alert('Invalid spell set file.')
+				}
 			} catch {
 				alert('Invalid spell set file.')
 			}
@@ -120,7 +216,8 @@
 	}
 
 	function handleSaveFile() {
-		const blob = new Blob([JSON.stringify(spellSet, null, 2)], { type: 'application/json' })
+		const data = { known: spellSet, prepared: [...preparedNames] }
+		const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
 		const url = URL.createObjectURL(blob)
 		const a = document.createElement('a')
 		a.href = url
@@ -157,6 +254,18 @@
 			</div>
 		{/if}
 
+		<!-- Tabs: Prepared (default) / Known -->
+		<div class="flex gap-1 mb-2">
+			<button
+				class="btn btn-xs sm:btn-sm flex-1 {activeTab === 'prepared' ? 'btn-primary' : 'btn-outline'}"
+				onclick={() => (activeTab = 'prepared')}
+			>Prepared ({preparedCount})</button>
+			<button
+				class="btn btn-xs sm:btn-sm flex-1 {activeTab === 'known' ? 'btn-primary' : 'btn-outline'}"
+				onclick={() => (activeTab = 'known')}
+			>Known ({spellSet.length})</button>
+		</div>
+
 		<!-- Row 1: action buttons -->
 		<div class="flex gap-1.5 items-center flex-nowrap">
 			<label class="btn btn-xs sm:btn-sm btn-outline cursor-pointer shrink-0">
@@ -175,7 +284,7 @@
 				onclick={() => (sheetOpen = true)}
 			>+ Add</button>
 
-			{#if spellSet.length > 0}
+			{#if displaySet.length > 0}
 				<button
 					class="btn btn-xs sm:btn-sm btn-outline shrink-0"
 					onclick={toggleFoldAll}
@@ -201,7 +310,7 @@
 			{/if}
 
 			<span class="ml-auto text-xs opacity-50 shrink-0">
-				{filteredSet.length}{filteredSet.length !== spellSet.length ? `/${spellSet.length}` : ''} spell{spellSet.length !== 1 ? 's' : ''}
+				{filteredSet.length}{filteredSet.length !== baseSet.length ? `/${baseSet.length}` : ''} spell{baseSet.length !== 1 ? 's' : ''}
 			</span>
 		</div>
 
@@ -213,27 +322,72 @@
 				bind:value={setSearch}
 				class="input input-xs flex-1 bg-white border-[#02343F]/30"
 			/>
+
+			<div class="relative shrink-0">
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => (sortMenuOpen = !sortMenuOpen)}
+					disabled={displaySet.length === 0}
+					aria-haspopup="true"
+					aria-expanded={sortMenuOpen}
+				>Sort{sortKey !== 'none' ? ` ${sortDir === 'asc' ? '↑' : '↓'}` : ''}</button>
+
+				{#if sortMenuOpen}
+					<button
+						class="fixed inset-0 z-10 cursor-default"
+						onclick={() => (sortMenuOpen = false)}
+						aria-label="Close sort menu"
+						tabindex="-1"
+					></button>
+					<div class="absolute right-0 mt-1 z-20 w-36 rounded border border-[#02343F]/20 bg-white py-1 text-sm shadow-lg">
+						{#each SORT_OPTIONS as opt}
+							<button
+								class="flex w-full items-center justify-between px-3 py-1.5 text-left hover:bg-[#02343F]/5"
+								onclick={() => (sortKey = opt.key)}
+							>
+								<span>{opt.label}</span>
+								{#if sortKey === opt.key}<span>✓</span>{/if}
+							</button>
+						{/each}
+						<div class="my-1 border-t border-[#02343F]/10"></div>
+						<button
+							class="flex w-full items-center justify-between px-3 py-1.5 text-left hover:bg-[#02343F]/5 disabled:opacity-40"
+							onclick={() => (sortDir = sortDir === 'asc' ? 'desc' : 'asc')}
+							disabled={sortKey === 'none'}
+						>
+							<span>Direction</span>
+							<span>{sortDir === 'asc' ? '↑ Asc' : '↓ Desc'}</span>
+						</button>
+					</div>
+				{/if}
+			</div>
+
 			<button
 				class="btn btn-xs btn-square btn-outline shrink-0"
 				onclick={() => scrollCards('up')}
 				aria-label="Previous card"
-				disabled={spellSet.length === 0}
+				disabled={displaySet.length === 0}
 			>▲</button>
 			<button
 				class="btn btn-xs btn-square btn-outline shrink-0"
 				onclick={() => scrollCards('down')}
 				aria-label="Next card"
-				disabled={spellSet.length === 0}
+				disabled={displaySet.length === 0}
 			>▼</button>
 		</div>
 	</div>
 
 	<!-- Cards area -->
 	{#if filteredSet.length === 0}
-		<div class="flex flex-col items-center justify-center py-24 opacity-40 flex-1">
-			{#if spellSet.length === 0}
-				<p class="text-xl mb-2">No spells yet</p>
-				<p class="text-sm">Tap "+ Add" to build your set</p>
+		<div class="flex flex-col items-center justify-center py-24 opacity-40 flex-1 text-center px-6">
+			{#if baseSet.length === 0}
+				{#if activeTab === 'prepared'}
+					<p class="text-xl mb-2">No prepared spells</p>
+					<p class="text-sm">Swipe a card right in <strong>Known</strong> to prepare it</p>
+				{:else}
+					<p class="text-xl mb-2">No spells yet</p>
+					<p class="text-sm">Tap "+ Add" to build your set</p>
+				{/if}
 			{:else}
 				<p class="text-xl mb-2">No matches</p>
 				<p class="text-sm">Try a different search</p>
@@ -244,7 +398,7 @@
 			class="grid gap-2 p-2 items-start"
 			style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr))"
 		>
-			{#each filteredSet as spell (spell.name)}
+			{#each displaySet as spell (spell.name)}
 				<div
 					data-card-wrapper
 					style={!foldedCards.has(spell.name) && expandedCardName !== spell.name && cardHeight > 0 ? `height: ${cardHeight}px` : ''}
@@ -258,6 +412,9 @@
 						}}
 						folded={foldedCards.has(spell.name)}
 						onToggleFold={() => toggleFold(spell.name)}
+						dimmed={activeTab === 'known' && preparedNames.has(spell.name)}
+						onSwipeRight={() => prepare(spell.name)}
+						onSwipeLeft={() => unprepare(spell.name)}
 					/>
 				</div>
 			{/each}

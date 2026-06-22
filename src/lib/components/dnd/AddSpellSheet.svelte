@@ -49,7 +49,7 @@
 			if (filterDurations.size > 0 && !filterDurations.has(bucketDuration(spell.duration))) return false
 			if (filterClasses.size > 0 && !spell.classes.some((c) => filterClasses.has(c))) return false
 			return true
-		})
+		}).sort((a, b) => a.level - b.level || a.name.localeCompare(b.name))
 	})
 
 	// Spells in the current filtered view not yet in the set.
