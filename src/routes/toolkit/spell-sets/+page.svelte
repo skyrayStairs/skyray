@@ -18,7 +18,10 @@
 	let setSearch = $state('')
 	let cardHeight = $state(0)
 	let expandedCardName = $state<string | null>(null)
-	let foldedCards = $state<Set<string>>(new Set())
+	// Fold state is tracked per tab: a spell that is both Known and Prepared would
+	// otherwise share one fold flag, so "Fold/Expand all" would leak across tabs.
+	let foldedPrepared = $state<Set<string>>(new Set())
+	let foldedKnown = $state<Set<string>>(new Set())
 	let scrollIndex = $state(0)
 
 	type SortKey = 'none' | 'level' | 'class' | 'school'
@@ -66,14 +69,22 @@
 		})
 	})
 
+	// Fold set for the active tab only — keeps Prepared/Known fold state independent.
+	const foldedCards = $derived(activeTab === 'prepared' ? foldedPrepared : foldedKnown)
+
 	// Whole-card fold (independent of the per-card description expand); applies to visible cards.
 	const allFolded = $derived(displaySet.length > 0 && displaySet.every((s) => foldedCards.has(s.name)))
+
+	function setFolded(next: Set<string>) {
+		if (activeTab === 'prepared') foldedPrepared = next
+		else foldedKnown = next
+	}
 
 	function toggleFold(name: string) {
 		const next = new Set(foldedCards)
 		if (next.has(name)) next.delete(name)
 		else next.add(name)
-		foldedCards = next
+		setFolded(next)
 	}
 
 	function toggleFoldAll() {
@@ -82,7 +93,7 @@
 		const next = new Set(foldedCards)
 		if (allFolded) for (const n of visible) next.delete(n)
 		else for (const n of visible) next.add(n)
-		foldedCards = next
+		setFolded(next)
 	}
 
 	function prepare(name: string) {
@@ -394,9 +405,15 @@
 			{/if}
 		</div>
 	{:else}
+		<!--
+		  overflow-x: clip contains the swipe transform so a dragged card can't widen the
+		  page and make #slot scroll sideways (which then eats further swipes on mobile).
+		  Must be `clip`, not `hidden`: `hidden` would coerce overflow-y to auto, turning the
+		  grid into its own vertical scroller and breaking #slot scroll + cardHeight math.
+		-->
 		<div
 			class="grid gap-2 p-2 items-start"
-			style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr))"
+			style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); overflow-x: clip"
 		>
 			{#each displaySet as spell (spell.name)}
 				<div
