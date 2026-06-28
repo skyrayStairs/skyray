@@ -10,7 +10,8 @@
 		onToggleFold,
 		dimmed = false,
 		onSwipeLeft,
-		onSwipeRight
+		onSwipeRight,
+		onDoubleTap
 	}: {
 		spell: SpellEntry
 		onDelete?: () => void
@@ -21,6 +22,7 @@
 		dimmed?: boolean
 		onSwipeLeft?: () => void
 		onSwipeRight?: () => void
+		onDoubleTap?: () => void
 	} = $props()
 
 	const SCHOOL_CLASSES: Record<string, string> = {
@@ -48,6 +50,10 @@
 	let startX = 0
 	let startY = 0
 	const SWIPE_COMMIT = 80
+	// Double-tap toggles prepared/known. A tap = pointerup that never crossed the
+	// 10px drag threshold (axis stayed null), so it can't be confused with a swipe.
+	let lastTapTime = 0
+	const DOUBLE_TAP_MS = 300
 
 	function handlePointerDown(e: PointerEvent) {
 		if (e.button > 0) return // ignore non-primary mouse buttons
@@ -88,7 +94,16 @@
 
 	function handlePointerUp(e: PointerEvent) {
 		if (pointerId === null || e.pointerId !== pointerId) return
+		const wasTap = axis === null // released without ever crossing into a drag
 		endDrag(true)
+		if (wasTap && onDoubleTap) {
+			if (e.timeStamp - lastTapTime < DOUBLE_TAP_MS) {
+				onDoubleTap()
+				lastTapTime = 0 // consume, so a 3rd tap starts a fresh pair
+			} else {
+				lastTapTime = e.timeStamp
+			}
+		}
 	}
 
 	function handlePointerCancel(e: PointerEvent) {
@@ -209,9 +224,16 @@
 	  - Expanded: auto height, no overflow clipping — shows all text
 	-->
 	<div class="relative mb-1" class:flex-1={!expanded} class:min-h-0={!expanded}>
+		<!--
+		  touch-pan-y (touch-action: pan-y): touch-action does NOT inherit, so this
+		  scroll box would default to `auto` and, once its content overflows (short
+		  cards at tablet height), claim diagonal touches for native vertical scroll —
+		  firing pointercancel and killing the horizontal prepare/unprepare swipe. Reserve
+		  horizontal for the card's pointer handler; vertical still scrolls the box.
+		-->
 		<div
 			bind:this={descriptionEl}
-			class="bg-white rounded px-2 py-1.5 text-xs leading-snug"
+			class="bg-white rounded px-2 py-1.5 text-xs leading-snug touch-pan-y"
 			class:h-full={!expanded}
 			class:overflow-y-auto={!expanded}
 		>

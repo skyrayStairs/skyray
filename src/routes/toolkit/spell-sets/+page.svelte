@@ -110,6 +110,12 @@
 		preparedNames = next
 	}
 
+	// Double-tap shortcut for the swipe: flip prepared state either direction.
+	function togglePrepare(name: string) {
+		if (preparedNames.has(name)) unprepare(name)
+		else prepare(name)
+	}
+
 	function updateLayout() {
 		if (!stickyBarEl) return
 		const slot = document.getElementById('slot')
@@ -394,7 +400,7 @@
 			{#if baseSet.length === 0}
 				{#if activeTab === 'prepared'}
 					<p class="text-xl mb-2">No prepared spells</p>
-					<p class="text-sm">Swipe a card right in <strong>Known</strong> to prepare it</p>
+					<p class="text-sm">In <strong>Known</strong>, swipe a card right or double-tap it to prepare it</p>
 				{:else}
 					<p class="text-xl mb-2">No spells yet</p>
 					<p class="text-sm">Tap "+ Add" to build your set</p>
@@ -432,6 +438,7 @@
 						dimmed={activeTab === 'known' && preparedNames.has(spell.name)}
 						onSwipeRight={() => prepare(spell.name)}
 						onSwipeLeft={() => unprepare(spell.name)}
+						onDoubleTap={() => togglePrepare(spell.name)}
 					/>
 				</div>
 			{/each}
