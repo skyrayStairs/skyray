@@ -3,6 +3,7 @@
 	import type { SpellEntry } from '$lib/types/spell'
 	import SpellCard from '$lib/components/dnd/SpellCard.svelte'
 	import AddSpellSheet from '$lib/components/dnd/AddSpellSheet.svelte'
+	import { downloadJson, readJsonFile } from '$lib/utils/fileIO'
 
 	const LS_KEY = 'dnd-spell-set'
 	const LS_PREPARED = 'dnd-prepared'
@@ -205,42 +206,33 @@
 		localStorage.setItem(LS_NOTICE_KEY, '1')
 	}
 
-	function handleLoadFile(e: Event) {
+	async function handleLoadFile(e: Event) {
 		const input = e.target as HTMLInputElement
 		const file = input.files?.[0]
 		if (!file) return
-		const reader = new FileReader()
-		reader.onload = () => {
-			try {
-				const parsed = JSON.parse(reader.result as string)
-				if (Array.isArray(parsed)) {
-					// old shape: a bare array of spells → load as Known, mark all prepared
-					spellSet = parsed
-					preparedNames = new Set(parsed.map((s: SpellEntry) => s.name))
-				} else if (parsed && Array.isArray(parsed.known)) {
-					spellSet = parsed.known
-					const known = new Set(spellSet.map((s) => s.name))
-					preparedNames = new Set((parsed.prepared ?? []).filter((n: string) => known.has(n)))
-				} else {
-					alert('Invalid spell set file.')
-				}
-			} catch {
+		try {
+			const parsed = (await readJsonFile(file)) as
+				| SpellEntry[]
+				| { known?: SpellEntry[]; prepared?: string[] }
+			if (Array.isArray(parsed)) {
+				// old shape: a bare array of spells → load as Known, mark all prepared
+				spellSet = parsed
+				preparedNames = new Set(parsed.map((s: SpellEntry) => s.name))
+			} else if (parsed && Array.isArray(parsed.known)) {
+				spellSet = parsed.known
+				const known = new Set(spellSet.map((s) => s.name))
+				preparedNames = new Set((parsed.prepared ?? []).filter((n: string) => known.has(n)))
+			} else {
 				alert('Invalid spell set file.')
 			}
-			input.value = ''
+		} catch {
+			alert('Invalid spell set file.')
 		}
-		reader.readAsText(file)
+		input.value = ''
 	}
 
 	function handleSaveFile() {
-		const data = { known: spellSet, prepared: [...preparedNames] }
-		const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-		const url = URL.createObjectURL(blob)
-		const a = document.createElement('a')
-		a.href = url
-		a.download = 'my-spell-set.json'
-		a.click()
-		URL.revokeObjectURL(url)
+		downloadJson('my-spell-set.json', { known: spellSet, prepared: [...preparedNames] })
 	}
 
 	function scrollCards(dir: 'up' | 'down') {

@@ -5,6 +5,7 @@
     let { children } = $props();
     let drawerOpen = $state(false)
     let toolkitExpanded = $state(false)
+    let playgroundExpanded = $state(false)
 </script>
 
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape') drawerOpen = false }} />
@@ -74,6 +75,26 @@
                     <ul transition:slide={{ duration: 200 }} class="sub-nav">
                         <li>
                             <a href="/toolkit/spell-sets" onclick={() => drawerOpen = false}>Spell Sets</a>
+                        </li>
+                    </ul>
+                {/if}
+            </li>
+
+            <!-- Playground — text navigates, chevron toggles children -->
+            <li>
+                <div class="toolkit-row">
+                    <a href="/playground" onclick={() => drawerOpen = false}>Playground</a>
+                    <button
+                        class="chevron-btn"
+                        onclick={() => playgroundExpanded = !playgroundExpanded}
+                        aria-label={playgroundExpanded ? 'Collapse' : 'Expand'}
+                    >{playgroundExpanded ? '▲' : '▼'}</button>
+                </div>
+
+                {#if playgroundExpanded}
+                    <ul transition:slide={{ duration: 200 }} class="sub-nav">
+                        <li>
+                            <a href="/playground/guitar-routine" onclick={() => drawerOpen = false}>Guitar Routine</a>
                         </li>
                     </ul>
                 {/if}

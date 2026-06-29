@@ -13,3 +13,6 @@ vite.config.ts.timestamp-*
 graphify-out/
 .claude/
 CLAUDE.md
+
+# Playwright test artifacts
+test-results/
