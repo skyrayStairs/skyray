@@ -63,6 +63,28 @@ const MINOR_6: Shape = {
 	]
 }
 
+// ---- Chords, 5th-string root (A-shape barre grips; 6th string muted) ----
+const MAJOR_5: Shape = {
+	rootString: 5,
+	offsets: [
+		{ string: 5, fret: 0, interval: 'R' },
+		{ string: 4, fret: 2, interval: '5' },
+		{ string: 3, fret: 2, interval: 'R' },
+		{ string: 2, fret: 2, interval: '3' },
+		{ string: 1, fret: 0, interval: '5' }
+	]
+}
+const MINOR_5: Shape = {
+	rootString: 5,
+	offsets: [
+		{ string: 5, fret: 0, interval: 'R' },
+		{ string: 4, fret: 2, interval: '5' },
+		{ string: 3, fret: 2, interval: 'R' },
+		{ string: 2, fret: 1, interval: 'b3' },
+		{ string: 1, fret: 0, interval: '5' }
+	]
+}
+
 // ---- 7th chords, 6th-string root (drop-3, strings 6-4-3-2) ----
 const SEVENTH_6: Record<SeventhType, Shape> = {
 	maj7: {
@@ -245,7 +267,8 @@ const MAJ_PENTA_5: Shape = {
 	]
 }
 
-export function chordShape(quality: 'major' | 'minor'): Shape {
+export function chordShape(quality: 'major' | 'minor', rootString: 6 | 5 = 6): Shape {
+	if (rootString === 5) return quality === 'major' ? MAJOR_5 : MINOR_5
 	return quality === 'major' ? MAJOR_6 : MINOR_6
 }
 export function scaleShape(type: ScaleType): Shape {
@@ -285,6 +308,8 @@ export function placeShape(shape: Shape, rootPc: number): Position[] {
 export const ALL_SHAPES: Shape[] = [
 	MAJOR_6,
 	MINOR_6,
+	MAJOR_5,
+	MINOR_5,
 	...Object.values(SEVENTH_6),
 	...Object.values(SEVENTH_5),
 	MAJOR_SCALE_5,

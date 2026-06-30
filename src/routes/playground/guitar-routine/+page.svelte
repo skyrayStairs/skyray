@@ -9,6 +9,8 @@
 	import { beep } from '$lib/audio/beep'
 	import { downloadJson, readJsonFile } from '$lib/utils/fileIO'
 	import { formatMmss, formatMmssMs } from '$lib/utils/time'
+	import { uid } from '$lib/utils/id'
+	import { gnbState } from '$lib/stores/gnb.svelte'
 
 	const LS_ROUTINES = 'guitar-routines'
 	const LS_ACTIVE = 'guitar-active-routine-id'
@@ -37,8 +39,12 @@
 		if (savedA && routines.some((r) => r.id === savedA)) activeId = savedA
 		else if (routines.length) activeId = routines[0].id
 		initialized = true
-		// Cleanup on unmount: kill any running audio/timer (SPA nav leaves this page mounted-then-destroyed).
-		return () => teardownAudio()
+		// Cleanup on unmount: kill any running audio/timer (SPA nav leaves this page mounted-then-destroyed)
+		// and never leave the global nav hidden after navigating away.
+		return () => {
+			teardownAudio()
+			gnbState.hidden = false
+		}
 	})
 
 	$effect(() => {
@@ -128,9 +134,9 @@
 			} else {
 				// Fresh ids so an imported routine never collides with an existing one.
 				const imported: Routine = {
-					id: crypto.randomUUID(),
+					id: uid(),
 					name: parsed.name,
-					exercises: parsed.exercises.map((ex, i) => ({ ...makeExercise(i), ...ex, id: crypto.randomUUID() }))
+					exercises: parsed.exercises.map((ex, i) => ({ ...makeExercise(i), ...ex, id: uid() }))
 				}
 				routines = [...routines, imported]
 				activeId = imported.id
@@ -182,6 +188,7 @@
 		running = false
 		remainingSec = exercises[0].durationSec
 		mode = 'run'
+		gnbState.hidden = true // exercise view starts with the nav hidden; user can toggle it back
 	}
 
 	function ensureAudio() {
@@ -337,6 +344,7 @@
 		teardownAudio()
 		finished = false
 		mode = 'edit'
+		gnbState.hidden = false // restore the nav when leaving the exercise view
 	}
 </script>
 
@@ -442,6 +450,12 @@
 	{:else}
 		<!-- ===== Run mode ===== -->
 		<div class="flex flex-col items-center justify-center flex-1 px-6 py-8 gap-6 text-center min-h-full">
+			<button
+				class="btn btn-xs btn-ghost self-end"
+				onclick={() => (gnbState.hidden = !gnbState.hidden)}
+				aria-pressed={gnbState.hidden}
+			>{gnbState.hidden ? '▼ Show nav' : '▲ Hide nav'}</button>
+
 			<div class="text-sm opacity-60">
 				Exercise {currentIndex + 1} / {exercises.length}
 			</div>

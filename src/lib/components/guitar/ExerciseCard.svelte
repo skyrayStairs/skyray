@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { makeFretboard, type Exercise, type FretboardConfig, type VideoConfig } from '$lib/types/guitar'
 	import { formatMmss, parseMmss } from '$lib/utils/time'
+	import { uid } from '$lib/utils/id'
 	import { parseYouTubeId } from '$lib/video/parseId'
 	import { putVideoBlob, deleteVideoBlob } from '$lib/storage/videoBlobs'
 	import VideoLooper from './VideoLooper.svelte'
@@ -60,7 +61,7 @@
 		const file = input.files?.[0]
 		input.value = ''
 		if (!file) return
-		const fileId = crypto.randomUUID()
+		const fileId = uid()
 		try {
 			await putVideoBlob(fileId, file) // store bytes BEFORE writing the reference
 		} catch {

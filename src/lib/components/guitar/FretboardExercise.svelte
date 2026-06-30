@@ -11,13 +11,14 @@
 	import {
 		NATURALS,
 		NOTE_NAMES,
+		STRING_OPEN_PC,
 		freqAt,
 		fretsForPc,
 		naturalsOnString,
 		noteName,
 		type StringNum
 	} from '$lib/music/notes'
-	import { chordShape, placeShape, seventhShape } from '$lib/music/shapes'
+	import { chordShape, placeShape, seventhShape, type Shape } from '$lib/music/shapes'
 	import { scaleLayout, type ScalePosition } from '$lib/music/positions'
 	import { Metronome, type MetronomeConfig } from '$lib/audio/metronome'
 	import { tone } from '$lib/audio/beep'
@@ -46,6 +47,19 @@
 	function setRoot(raw: string) {
 		onChange?.({ ...config, rootPc: ((parseInt(raw, 10) % 12) + 12) % 12 })
 	}
+	// Movable grip → markers, normalized so the lowest fretted note sits at fret 1 (root-agnostic).
+	function shapeMarkers(shape: Shape): Marker[] {
+		const minOff = Math.min(...shape.offsets.map((o) => o.fret))
+		return shape.offsets.map((o) => ({
+			string: o.string,
+			fret: o.fret - minOff + 1,
+			label: o.interval,
+			role: o.interval === 'R' ? 'root' : 'note'
+		}))
+	}
+	function absentStrings(markers: Marker[]): number[] {
+		return [1, 2, 3, 4, 5, 6].filter((s) => !markers.some((m) => m.string === s))
+	}
 
 	// ---- chord: major + minor side by side, 6th-string root ----
 	const chordData = $derived.by(() => {
@@ -69,20 +83,23 @@
 		return { markers, title, ...windowOf(markers, true, false) }
 	})
 
-	// ---- seventh: all five types for BOTH 6th- and 5th-string roots, shapes only ----
-	const sevenths = $derived.by(() => {
-		const rootPc = config.rootPc ?? 7
-		return ([6, 5] as const).map((rs) => ({
-			rs,
-			boards: SEVENTH_LABELS.map((t) => {
-				const markers = placeShape(seventhShape(t.key, rs), rootPc).map((p) => ({
-					...p,
-					label: p.interval
-				}))
-				return { label: `${noteName(rootPc)}${t.label}`, markers, ...windowOf(markers, false, true) }
+	// ---- seventh: major/minor + all five 7th types for BOTH 6th- and 5th-string roots.
+	// Root-agnostic movable grips: every board is the same fixed 4-fret window, no fret numbers,
+	// the root finger stays highlighted so 6th- vs 5th-string root reads at a glance. ----
+	const sevenths = $derived.by(() =>
+		([6, 5] as const).map((rs) => {
+			const triads = (['major', 'minor'] as const).map((q) => ({
+				label: q === 'major' ? 'Major' : 'Minor',
+				shape: chordShape(q, rs)
+			}))
+			const sevs = SEVENTH_LABELS.map((t) => ({ label: t.label, shape: seventhShape(t.key, rs) }))
+			const boards = [...triads, ...sevs].map(({ label, shape }) => {
+				const markers = shapeMarkers(shape)
+				return { label, markers, minFret: 1, maxFret: 4, muted: absentStrings(markers) }
 			})
-		}))
-	})
+			return { rs, boards }
+		})
+	)
 
 	// ---- scale: four scale types, each a full-neck map with the standard OVERLAPPING position
 	// boxes (pentatonic = 5 boxes, 2 notes/string; diatonic = 3-notes-per-string positions).
@@ -205,18 +222,45 @@
 		}
 		return { prompt: `${nt.name} / ${nt.solfege}`, answer: `${nt.name} (${nt.solfege})`, markers, ...windowOf(markers, true, false) }
 	}
+	// Resolve the quiz root string from the setting ('both' → random 6/5).
+	function resolveRs(): 6 | 5 {
+		const q = config.quizRootString ?? 'both'
+		return q === 'both' ? (pick([6, 5]) as 6 | 5) : q
+	}
+	// A chord question: pick a root FRET that keeps the whole grip inside frets 1–12, then derive
+	// the pitch class — so the root name stays random but the shape never falls off the board.
+	function chordItem(shape: Shape, rs: 6 | 5, typeLabel: string): QuizItem {
+		const offs = shape.offsets.map((o) => o.fret)
+		const loF = Math.max(1, 1 - Math.min(...offs))
+		const hiF = Math.min(12, 12 - Math.max(...offs))
+		const rootFret = loF + Math.floor(Math.random() * (hiF - loF + 1))
+		const rootPc = (STRING_OPEN_PC[rs] + rootFret) % 12
+		const name = `${noteName(rootPc)}${typeLabel}`
+		const markers = placeShape(shape, rootPc).map((p) => ({ ...p, label: p.interval }))
+		return {
+			prompt: `${name} · ${rs}th-string root`,
+			answer: name,
+			markers,
+			minFret: 1,
+			maxFret: 12,
+			muted: absentStrings(markers)
+		}
+	}
 	function seventhItem(): QuizItem {
 		const type = pick(SEVENTH_LABELS).key
-		const rs = pick([6, 5]) as 6 | 5
-		const rootPc = Math.floor(Math.random() * 12)
-		const name = `${noteName(rootPc)}${seventhLabel(type)}`
-		const markers = placeShape(seventhShape(type, rs), rootPc).map((p) => ({ ...p, label: p.interval }))
-		return { prompt: `${name} · ${rs}th-string root`, answer: name, markers, ...windowOf(markers, false, true) }
+		const rs = resolveRs()
+		return chordItem(seventhShape(type, rs), rs, seventhLabel(type))
+	}
+	function triadItem(): QuizItem {
+		const q = pick(['major', 'minor'] as const)
+		const rs = resolveRs()
+		return chordItem(chordShape(q, rs), rs, ` ${q}`)
 	}
 	function randomItem(): QuizItem {
 		const pools: (() => QuizItem)[] = []
 		if (config.includeNotes ?? true) pools.push(noteItem)
 		if (config.includeSevenths ?? true) pools.push(seventhItem)
+		if (config.includeTriads ?? true) pools.push(triadItem)
 		if (pools.length === 0) pools.push(noteItem)
 		return pick(pools)()
 	}
@@ -285,10 +329,11 @@
 	<div class="flex flex-col items-center gap-3 min-h-[18rem] justify-center">
 		<div class="text-4xl sm:text-5xl font-bold" style="font-family: KNUTRUTHTTF">{current?.prompt}</div>
 		{#if phase === 'guess'}
+			<Fretboard positions={[]} minFret={1} maxFret={12} muted={[]} />
 			<div class="text-sm opacity-60">Guess… {Math.ceil(remaining)}s</div>
 		{:else if current}
 			<div class="text-sm opacity-70">Answer: <strong>{current.answer}</strong></div>
-			<Fretboard positions={current.markers} minFret={current.minFret} maxFret={current.maxFret} muted={current.muted} />
+			<Fretboard positions={current.markers} minFret={1} maxFret={12} muted={current.muted} />
 			<div class="text-xs opacity-50">Next in {Math.ceil(remaining)}s</div>
 		{/if}
 	</div>
@@ -306,24 +351,23 @@
 		<p class="text-xs opacity-50">● root · ○ chord tones — major & minor, 6th-string root</p>
 	</div>
 {:else if config.view === 'seventh'}
-	<div class="flex flex-col items-center gap-4">
-		{@render rootPicker()}
+	<div class="flex flex-col items-center gap-2">
 		{#each sevenths as group}
-			<div class="flex flex-col items-center gap-2 w-full">
-				<h3 class="text-base font-bold" style="font-family: KNUTRUTHTTF">
-					{noteName(config.rootPc ?? 7)} 7th chords — {group.rs}th-string root
+			<div class="flex flex-col items-center gap-0.5 w-full">
+				<h3 class="text-sm font-bold" style="font-family: KNUTRUTHTTF">
+					Major / minor / 7th shapes — {group.rs}th-string root
 				</h3>
-				<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 w-full">
+				<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-x-2 gap-y-0.5 w-full">
 					{#each group.boards as c}
-						<div class="flex flex-col items-center gap-1">
-							<div class="font-medium text-sm">{c.label}</div>
+						<div class="flex flex-col items-center gap-0 leading-tight">
+							<div class="font-medium text-xs">{c.label}</div>
 							<Fretboard positions={c.markers} minFret={c.minFret} maxFret={c.maxFret} muted={c.muted} bare={true} />
 						</div>
 					{/each}
 				</div>
 			</div>
 		{/each}
-		<p class="text-xs opacity-50">All five 7th-chord shapes for 6th & 5th-string roots — shapes only.</p>
+		<p class="text-[0.65rem] opacity-50">Movable grips (root dot filled) for 6th & 5th-string roots — shapes only, no fret numbers.</p>
 	</div>
 {:else if config.view === 'scale'}
 	<div class="flex flex-col items-center gap-4">

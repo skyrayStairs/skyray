@@ -27,15 +27,18 @@
 	const COL = 38
 	const ROW = 26
 	const PAD_L = 26
-	const PAD_T = 26 // headroom for fret numbers drawn above the 1st string
 	const PAD_R = 12
-	const PAD_B = 34
+	// Full diagrams reserve headroom for fret numbers above the 1st string and numbers/inlays below
+	// the 6th. Bare diagrams draw none of those, so they only need room for the edge note circles
+	// (r≈9.5) — trimming this lets a grid of bare shapes pack tighter vertically.
+	const PAD_T = $derived(bare ? 12 : 26)
+	const PAD_B = $derived(bare ? 12 : 34)
 
 	const lo = $derived(Math.max(1, minFret))
 	const cols = $derived(maxFret - lo + 1)
 	const width = $derived(PAD_L + cols * COL + PAD_R)
-	const height = PAD_T + 5 * ROW + PAD_B
-	const boardBottom = PAD_T + 5 * ROW
+	const height = $derived(PAD_T + 5 * ROW + PAD_B)
+	const boardBottom = $derived(PAD_T + 5 * ROW)
 
 	const stringY = (s: number) => PAD_T + (s - 1) * ROW
 	const boundaryX = (b: number) => PAD_L + (b - (lo - 1)) * COL
@@ -88,8 +91,8 @@
 			x2={boundaryX(b)}
 			y2={stringY(6)}
 			stroke="#02343F"
-			stroke-width={b === 0 ? 4 : 1}
-			opacity={b === 0 ? 0.9 : 0.45}
+			stroke-width={!bare && b === 0 ? 4 : 1}
+			opacity={!bare && b === 0 ? 0.9 : 0.45}
 		/>
 	{/each}
 
@@ -126,7 +129,7 @@
 	<!-- open / muted markers left of the nut -->
 	{#each [1, 2, 3, 4, 5, 6] as s}
 		{#if muted.includes(s)}
-			<text x={PAD_L - 13} y={stringY(s) + 3} text-anchor="middle" font-size="11" fill="#02343F" opacity="0.5">×</text>
+			<text x={PAD_L - 13} y={stringY(s) + 4} text-anchor="middle" font-size="14" font-weight="bold" fill="#02343F" opacity="0.95">×</text>
 		{/if}
 	{/each}
 	{#each openMarks as p}

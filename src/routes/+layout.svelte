@@ -1,6 +1,7 @@
 <script>
     import "../app.css"
     import { fly, fade, slide } from 'svelte/transition'
+    import { gnbState } from '$lib/stores/gnb.svelte'
 
     let { children } = $props();
     let drawerOpen = $state(false)
@@ -10,7 +11,7 @@
 
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape') drawerOpen = false }} />
 
-<div class="flex container flex-row" id="header">
+<div class="flex container flex-row" id="header" class:nav-hidden={gnbState.hidden}>
     <div class="flex container flex-row grid-rows-2 justify-between" id="gnb">
         <div class="flex basis-24 md:mt-0 lg:mt-4" id="left_top_text">
             <a class="mx-auto mt-auto" href="/" aria-label="Home">기록</a>
@@ -29,11 +30,11 @@
     </div>
 </div>
 
-<div id="slot">
+<div id="slot" class:nav-hidden={gnbState.hidden}>
     {@render children()}
 </div>
 
-<div class="flex container" id="footer"></div>
+<div class="flex container" id="footer" class:nav-hidden={gnbState.hidden}></div>
 
 {#if drawerOpen}
     <button
@@ -155,6 +156,16 @@
     #slot {
         height: 85vh;
         overflow-y: auto;
+    }
+
+    /* Run-mode exercise view hides the global nav + footer and reclaims their height. */
+    #header.nav-hidden,
+    #footer.nav-hidden {
+        display: none;
+    }
+
+    #slot.nav-hidden {
+        height: 100vh;
     }
 
     .hamburger {

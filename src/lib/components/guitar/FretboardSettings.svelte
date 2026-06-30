@@ -33,7 +33,7 @@
 		</div>
 	</div>
 
-	{#if config.view === 'chord' || config.view === 'scale' || config.view === 'seventh'}
+	{#if config.view === 'chord' || config.view === 'scale'}
 		<label class="flex flex-col gap-0.5 max-w-[10rem]">
 			<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Root</span>
 			<select
@@ -49,11 +49,11 @@
 
 		{#if config.view === 'chord'}
 			<p class="text-xs opacity-50">Shows major & minor shapes (6th-string root); change root live while running.</p>
-		{:else if config.view === 'scale'}
-			<p class="text-xs opacity-50">Shows all four scales full-neck; change root & play each live while running.</p>
 		{:else}
-			<p class="text-xs opacity-50">Shows all five 7th shapes for 6th & 5th-string roots — shapes only.</p>
+			<p class="text-xs opacity-50">Shows all four scales full-neck; change root & play each live while running.</p>
 		{/if}
+	{:else if config.view === 'seventh'}
+		<p class="text-xs opacity-50">Movable major / minor / 7th grips for 6th & 5th-string roots — shapes only, no fret numbers (root-agnostic).</p>
 	{:else if config.view === 'notemap'}
 		<p class="text-xs opacity-50">Shows every natural note (C–B) on the 6th & 5th strings, frets 0–12.</p>
 	{:else if config.view === 'quiz'}
@@ -75,7 +75,31 @@
 					checked={config.includeSevenths ?? true}
 					onchange={(e) => onUpdate({ includeSevenths: (e.target as HTMLInputElement).checked })}
 				/>
-				7th chords (with root string)
+				7th chords
+			</label>
+			<label class="flex items-center gap-2 text-sm">
+				<input
+					type="checkbox"
+					class="checkbox checkbox-sm"
+					checked={config.includeTriads ?? true}
+					onchange={(e) => onUpdate({ includeTriads: (e.target as HTMLInputElement).checked })}
+				/>
+				Major / minor chords
+			</label>
+			<label class="flex flex-col gap-0.5 max-w-[10rem]">
+				<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Chord root string</span>
+				<select
+					class="select select-xs sm:select-sm select-bordered bg-white border-[#02343F]/30"
+					value={String(config.quizRootString ?? 'both')}
+					onchange={(e) => {
+						const v = (e.target as HTMLSelectElement).value
+						onUpdate({ quizRootString: v === 'both' ? 'both' : (parseInt(v, 10) as 6 | 5) })
+					}}
+				>
+					<option value="both">Both (6th & 5th)</option>
+					<option value="6">6th string</option>
+					<option value="5">5th string</option>
+				</select>
 			</label>
 			<label class="flex flex-col gap-0.5 max-w-[10rem]">
 				<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Guess time (sec)</span>

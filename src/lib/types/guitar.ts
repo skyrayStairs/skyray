@@ -3,6 +3,8 @@
 // A Routine is an ordered list of Exercises played in sequence. Each Exercise has a
 // countdown timer plus its own metronome settings.
 
+import { uid } from '$lib/utils/id'
+
 export type Subdivision = 'quarter' | 'eighth' | 'sixteenth' // ticks per beat = 1 | 2 | 4
 
 export interface Exercise {
@@ -33,6 +35,8 @@ export interface FretboardConfig {
 	rootString?: 6 | 5 // chord=6, scale=5 (fixed); seventh = user 6|5
 	includeNotes?: boolean // quiz: draw natural notes
 	includeSevenths?: boolean // quiz: draw 7th-chord names
+	includeTriads?: boolean // quiz: draw plain major/minor chords
+	quizRootString?: 6 | 5 | 'both' // quiz: root string for chord questions
 	guessSec?: number // quiz: time to guess before reveal
 	bpm?: number // scale: playback tempo
 }
@@ -105,7 +109,7 @@ export const TICKS_PER_BEAT: Record<Subdivision, number> = {
 
 export function makeExercise(index: number): Exercise {
 	return {
-		id: crypto.randomUUID(),
+		id: uid(),
 		name: `Exercise ${index + 1}`,
 		durationSec: 60,
 		bpm: 100,
@@ -117,7 +121,7 @@ export function makeExercise(index: number): Exercise {
 
 export function makeRoutine(index: number): Routine {
 	return {
-		id: crypto.randomUUID(),
+		id: uid(),
 		name: `Routine ${index + 1}`,
 		exercises: []
 	}
@@ -133,6 +137,8 @@ export function makeFretboard(view: FretView): FretboardConfig {
 		rootString: view === 'scale' ? 5 : 6,
 		includeNotes: true,
 		includeSevenths: true,
+		includeTriads: true,
+		quizRootString: 'both',
 		guessSec: 5,
 		bpm: 80
 	}
@@ -140,7 +146,7 @@ export function makeFretboard(view: FretView): FretboardConfig {
 
 export function makeVideoLoop(index: number, startSec = 0, endSec = 10, rate = 1): VideoLoop {
 	return {
-		id: crypto.randomUUID(),
+		id: uid(),
 		label: `Loop ${index + 1}`,
 		startSec,
 		endSec,
