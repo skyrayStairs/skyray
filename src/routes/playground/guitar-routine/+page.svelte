@@ -6,7 +6,7 @@
 	import MetronomeSettings from '$lib/components/guitar/MetronomeSettings.svelte'
 	import FretboardExercise from '$lib/components/guitar/FretboardExercise.svelte'
 	import { Metronome, type MetronomeConfig } from '$lib/audio/metronome'
-	import { beep } from '$lib/audio/beep'
+	import { beep, bell } from '$lib/audio/beep'
 	import { downloadJson, readJsonFile } from '$lib/utils/fileIO'
 	import { formatMmss, formatMmssMs } from '$lib/utils/time'
 	import { uid } from '$lib/utils/id'
@@ -160,6 +160,14 @@
 	let rafId: number | null = null // drives the ms countdown display
 	let segmentStart = 0 // performance.now() when the current running segment began
 	let remainingAtSegmentStart = 0 // remaining seconds captured at segment start
+	let lastBellSec = -1 // last whole-second the countdown bell rang at (dedupe within a second)
+
+	// Begin a countdown segment from the current remainingSec, re-arming the last-5s bell.
+	function armSegment() {
+		remainingAtSegmentStart = remainingSec
+		segmentStart = performance.now()
+		lastBellSec = -1
+	}
 
 	const runExercise = $derived(exercises[currentIndex] ?? null)
 	const nextExercise = $derived(exercises[currentIndex + 1] ?? null)
@@ -187,6 +195,7 @@
 		finished = false
 		running = false
 		remainingSec = exercises[0].durationSec
+		lastBellSec = -1
 		mode = 'run'
 		gnbState.hidden = true // exercise view starts with the nav hidden; user can toggle it back
 	}
@@ -220,6 +229,12 @@
 				return
 			}
 			remainingSec = rem
+			// Ring a bell once per second through the final 5 seconds (at 5,4,3,2,1 remaining).
+			const sec = Math.ceil(rem)
+			if (sec <= 5 && sec !== lastBellSec) {
+				lastBellSec = sec
+				if (audioCtx) bell(audioCtx)
+			}
 			rafId = requestAnimationFrame(frame)
 		}
 		rafId = requestAnimationFrame(frame)
@@ -233,12 +248,14 @@
 
 	function start() {
 		if (running || finished || !exercises.length) return
-		ensureAudio()
+		ensureAudio() // unlock audio so the countdown bell can ring (even for video/fretboard)
 		running = true
-		remainingAtSegmentStart = remainingSec
-		segmentStart = performance.now()
-		metro?.configure(cfgFor(exercises[currentIndex]))
-		metro?.start()
+		armSegment()
+		// Only metronome exercises tick; video/fretboard run the countdown (+bell) without clicks.
+		if (ownsRoutineTimer(exercises[currentIndex])) {
+			metro?.configure(cfgFor(exercises[currentIndex]))
+			metro?.start()
+		}
 		startDisplayLoop()
 	}
 
@@ -252,12 +269,14 @@
 		stopDisplayLoop()
 	}
 
-	// Only a metronome exercise owns the routine countdown; video & fretboard exercises don't.
+	// A metronome exercise auto-chains (its countdown flows straight into the next exercise).
+	// Video & fretboard steps don't auto-chain — they have their own opt-in countdown instead.
 	function ownsRoutineTimer(ex: Exercise) {
 		return !ex.video && !ex.fretboard
 	}
 
-	// An untimed exercise has no countdown — the timed chain halts there and waits for manual Skip.
+	// Landing on a video/fretboard step halts the metronome chain. Its countdown sits at the step's
+	// duration until the user starts it (then it advances on its own) or skips.
 	function haltUntimed() {
 		running = false
 		stopDisplayLoop()
@@ -272,15 +291,14 @@
 		if (currentIndex < exercises.length - 1) {
 			currentIndex += 1
 			const ex = exercises[currentIndex]
-			if (!ownsRoutineTimer(ex)) {
-				haltUntimed()
-				return
-			}
 			remainingSec = ex.durationSec
-			remainingAtSegmentStart = remainingSec
-			segmentStart = performance.now()
-			metro?.configure(cfgFor(ex))
-			metro?.start() // running stays true → seamless into next exercise
+			armSegment()
+			if (ownsRoutineTimer(ex)) {
+				metro?.configure(cfgFor(ex))
+				metro?.start() // running stays true → seamless into next metronome exercise
+			} else {
+				haltUntimed() // arrive on a video/fretboard step: wait for the user to Start its timer
+			}
 		} else {
 			finishRun()
 		}
@@ -299,9 +317,8 @@
 		const ex = exercises[currentIndex]
 		if (!ex) return
 		remainingSec = ex.durationSec
-		remainingAtSegmentStart = remainingSec
-		segmentStart = performance.now()
-		if (running) {
+		armSegment()
+		if (running && ownsRoutineTimer(ex)) {
 			metro?.stop()
 			metro?.configure(cfgFor(ex))
 			metro?.start()
@@ -314,13 +331,12 @@
 		currentIndex = target
 		finished = false
 		const ex = exercises[currentIndex]
+		remainingSec = ex.durationSec
+		armSegment()
 		if (!ownsRoutineTimer(ex)) {
 			haltUntimed() // moving onto a video/fretboard exercise stops the metronome chain
 			return
 		}
-		remainingSec = ex.durationSec
-		remainingAtSegmentStart = remainingSec
-		segmentStart = performance.now()
 		if (running) {
 			metro?.stop()
 			metro?.configure(cfgFor(ex))
@@ -449,6 +465,40 @@
 		{/if}
 	{:else}
 		<!-- ===== Run mode ===== -->
+		{#snippet countdownBar()}
+			<!-- Opt-in countdown for video/fretboard steps: same machinery as the metronome timer,
+				 minus the clicks. Rings the last-5s bell; on zero it advances (or finishes). -->
+			<div class="flex flex-col items-center gap-2 w-full max-w-md">
+				<span class="text-[0.65rem] uppercase tracking-wide opacity-50">Exercise timer</span>
+				{#if finished}
+					<div class="text-3xl font-mono">Done</div>
+				{:else}
+					<div class="font-mono tabular-nums leading-none">
+						<span class="text-4xl sm:text-5xl">{formatMmss(Math.floor(remainingSec))}</span><span
+							class="text-xl sm:text-2xl opacity-70">.{formatMmssMs(remainingSec).split('.')[1]}</span
+						>
+					</div>
+					<div class="w-full h-2 bg-[#02343F]/15 rounded-full overflow-hidden">
+						<div
+							class="h-full bg-[#02343F] transition-[width] duration-100"
+							style="width: {runProgress * 100}%"
+						></div>
+					</div>
+				{/if}
+				<div class="flex gap-2">
+					{#if finished}
+						<button class="btn btn-sm btn-primary" onclick={enterRun}>↻ Restart</button>
+					{:else if running}
+						<button class="btn btn-sm btn-primary" onclick={pause}>⏸ Pause</button>
+					{:else}
+						<button class="btn btn-sm btn-primary" onclick={start}>▶ Start</button>
+					{/if}
+					<button class="btn btn-sm btn-outline" onclick={resetExercise} disabled={finished}
+						>↺ Reset</button
+					>
+				</div>
+			</div>
+		{/snippet}
 		<div class="flex flex-col items-center justify-center flex-1 px-6 py-8 gap-6 text-center min-h-full">
 			<button
 				class="btn btn-xs btn-ghost self-end"
@@ -465,7 +515,7 @@
 			</h2>
 
 			{#if runExercise?.video}
-				<!-- Video loop exercise: no countdown, no metronome, no auto-advance -->
+				<!-- Video/audio loop exercise: own opt-in countdown (no metronome chain auto-advance) -->
 				{#key runExercise.id}
 					<div class="w-full max-w-2xl text-left">
 						<VideoLooper
@@ -475,6 +525,8 @@
 						/>
 					</div>
 				{/key}
+
+				{@render countdownBar()}
 
 				<div class="flex gap-2 flex-wrap justify-center mt-2">
 					<button class="btn btn-sm btn-outline" onclick={() => jump(-1)} disabled={currentIndex === 0}
@@ -488,7 +540,7 @@
 					<button class="btn btn-sm btn-ghost" onclick={exitRun}>✕ Exit</button>
 				</div>
 			{:else if runExercise?.fretboard}
-				<!-- Fretboard exercise: diagram or quiz; no metronome, no auto-advance -->
+				<!-- Fretboard exercise (diagram or quiz): own opt-in countdown, no metronome -->
 				{#key runExercise.id}
 					<div class="w-full max-w-2xl">
 						<FretboardExercise
@@ -497,6 +549,8 @@
 						/>
 					</div>
 				{/key}
+
+				{@render countdownBar()}
 
 				<div class="flex gap-2 flex-wrap justify-center mt-2">
 					<button class="btn btn-sm btn-outline" onclick={() => jump(-1)} disabled={currentIndex === 0}

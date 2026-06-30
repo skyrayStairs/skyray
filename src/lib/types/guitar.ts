@@ -72,7 +72,8 @@ export interface VideoLoop {
 
 export type VideoSource =
 	| { kind: 'youtube'; videoId: string }
-	| { kind: 'file'; fileId: string; fileName: string } // bytes stored in IndexedDB under fileId
+	// bytes stored in IndexedDB under fileId. mediaKind picks the player element; missing = legacy video.
+	| { kind: 'file'; fileId: string; fileName: string; mediaKind?: 'audio' | 'video' }
 
 export interface VideoConfig {
 	source: VideoSource
@@ -87,7 +88,7 @@ export interface VideoConfig {
 export const YT_PLAYBACK_RATES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const
 
 // A native <video> accepts any playbackRate, so file loops get a continuous slider.
-export const FILE_RATE_RANGE = { min: 0.1, max: 2, step: 0.05 } as const
+export const FILE_RATE_RANGE = { min: 0.1, max: 2, step: 0.01 } as const
 
 export interface Routine {
 	id: string

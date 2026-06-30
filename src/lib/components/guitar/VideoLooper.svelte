@@ -24,7 +24,7 @@
 	} = $props()
 
 	let mountEl = $state<HTMLDivElement>() // YouTube replaces this with its iframe
-	let videoEl = $state<HTMLVideoElement>() // native player for local files
+	let mediaEl = $state<HTMLMediaElement>() // native <video> or <audio> for local files
 	let controller: LoopPlayer | null = null
 	let ready = $state(false) // controller built and usable
 
@@ -43,6 +43,7 @@
 	let swRaf: number | null = null // rAF id driving the ms stopwatch
 
 	const isYouTube = $derived(video.source.kind === 'youtube')
+	const isAudio = $derived(video.source.kind === 'file' && video.source.mediaKind === 'audio')
 
 	onMount(() => {
 		buildController().catch((e) => (errorMsg = String(e)))
@@ -70,8 +71,8 @@
 				missingBlob = true
 				return
 			}
-			if (!videoEl) return
-			controller = new FileController(videoEl, blob, video.preservesPitch ?? true)
+			if (!mediaEl) return
+			controller = new FileController(mediaEl, blob, video.preservesPitch ?? true)
 		}
 		controller.onStateChange = handlePlaying
 		ready = true
@@ -211,7 +212,7 @@
 	<!-- Player surface -->
 	{#if missingBlob}
 		<div class="rounded bg-amber-50 border border-amber-300 text-amber-900 text-sm p-3">
-			Video file not found in this browser{video.source.kind === 'file'
+			Media file not found in this browser{video.source.kind === 'file'
 				? ` (“${video.source.fileName}”)`
 				: ''}. Re-select it in the exercise editor.
 		</div>
@@ -223,9 +224,12 @@
 		<div class="w-full aspect-video bg-black rounded overflow-hidden">
 			<div bind:this={mountEl} class="w-full h-full"></div>
 		</div>
+	{:else if isAudio}
+		<!-- svelte-ignore a11y_media_has_caption -->
+		<audio bind:this={mediaEl} controls class="w-full"></audio>
 	{:else}
 		<!-- svelte-ignore a11y_media_has_caption -->
-		<video bind:this={videoEl} controls class="w-full aspect-video bg-black rounded"></video>
+		<video bind:this={mediaEl} controls class="w-full aspect-video bg-black rounded"></video>
 	{/if}
 
 	<!-- File-only: pitch preservation -->
@@ -387,6 +391,6 @@
 		+ Add loop {ready ? 'from current time' : ''}
 	</button>
 	{#if mode === 'edit' && video.source.kind === 'file'}
-		<p class="text-xs opacity-50">Note: exporting this routine to a file won't include the video.</p>
+		<p class="text-xs opacity-50">Note: exporting this routine to a file won't include the media.</p>
 	{/if}
 </div>

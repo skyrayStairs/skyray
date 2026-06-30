@@ -65,13 +65,14 @@
 		try {
 			await putVideoBlob(fileId, file) // store bytes BEFORE writing the reference
 		} catch {
-			videoErr = 'Could not store the video (storage full?).'
+			videoErr = 'Could not store the media (storage full?).'
 			return
 		}
 		videoErr = ''
+		const mediaKind = file.type.startsWith('audio/') ? 'audio' : 'video' // empty MIME → video (plays audio too)
 		onUpdate({
 			video: {
-				source: { kind: 'file', fileId, fileName: file.name },
+				source: { kind: 'file', fileId, fileName: file.name, mediaKind },
 				loops: [],
 				preservesPitch: true
 			}
@@ -136,20 +137,7 @@
 		>
 	</div>
 
-	{#if exercise.video}
-		<!-- Video loop exercise: metronome/timer don't apply -->
-		<VideoLooper video={exercise.video} mode="edit" onChange={updateVideo} />
-		<button class="btn btn-xs btn-outline btn-error self-start" onclick={removeVideo}
-			>Remove video</button
-		>
-	{:else if exercise.fretboard}
-		<!-- Fretboard exercise: metronome/timer don't apply -->
-		<FretboardSettings config={exercise.fretboard} onUpdate={updateFretboard} />
-		<button class="btn btn-xs btn-outline btn-error self-start" onclick={removeFretboard}
-			>Remove fretboard</button
-		>
-	{:else}
-		<!-- Timer -->
+	{#snippet timerField()}
 		<label class="flex flex-col gap-0.5 max-w-[8rem]">
 			<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Timer</span>
 			<input
@@ -162,6 +150,24 @@
 				class="input input-xs sm:input-sm input-bordered bg-white border-[#02343F]/30 text-center"
 			/>
 		</label>
+	{/snippet}
+
+	{#if exercise.video}
+		<!-- Video/audio loop exercise: countdown timer applies (run mode), metronome doesn't -->
+		{@render timerField()}
+		<VideoLooper video={exercise.video} mode="edit" onChange={updateVideo} />
+		<button class="btn btn-xs btn-outline btn-error self-start" onclick={removeVideo}
+			>Remove video</button
+		>
+	{:else if exercise.fretboard}
+		<!-- Fretboard exercise: countdown timer applies (run mode), metronome doesn't -->
+		{@render timerField()}
+		<FretboardSettings config={exercise.fretboard} onUpdate={updateFretboard} />
+		<button class="btn btn-xs btn-outline btn-error self-start" onclick={removeFretboard}
+			>Remove fretboard</button
+		>
+	{:else}
+		{@render timerField()}
 
 		<MetronomeSettings {exercise} {onUpdate} />
 
@@ -178,7 +184,7 @@
 				<button class="btn btn-xs btn-outline shrink-0" onclick={addYouTube}>Add YouTube</button>
 				<label class="btn btn-xs btn-outline cursor-pointer shrink-0">
 					Local file
-					<input type="file" accept="video/*" class="hidden" onchange={addFile} />
+					<input type="file" accept="video/*,audio/*" class="hidden" onchange={addFile} />
 				</label>
 			</div>
 			<button class="btn btn-xs btn-outline self-start mt-1" onclick={makeFretboardExercise}

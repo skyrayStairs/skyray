@@ -1,29 +1,29 @@
 import type { VideoLoop } from '$lib/types/guitar'
 import type { LoopPlayer } from './LoopPlayer'
 
-type PitchVideo = HTMLVideoElement & {
+type PitchMedia = HTMLMediaElement & {
 	preservesPitch?: boolean
 	webkitPreservesPitch?: boolean
 	mozPreservesPitch?: boolean
 }
 
-// Wraps a native <video>. Unlike YouTube, playbackRate is arbitrary and preservesPitch lets the
-// user slow down without the chipmunk effect. A-B loop runs on rAF (timeupdate's ~4Hz is too
-// coarse for a short lick).
+// Wraps a native <video> or <audio> (both are HTMLMediaElement). Unlike YouTube, playbackRate is
+// arbitrary and preservesPitch lets the user slow down without the chipmunk effect. A-B loop runs
+// on rAF (timeupdate's ~4Hz is too coarse for a short lick).
 export class FileController implements LoopPlayer {
 	ready: Promise<void>
 	onStateChange?: (playing: boolean) => void
 
-	private video: HTMLVideoElement
+	private video: HTMLMediaElement
 	private loop: VideoLoop | null = null
 	private rafId: number | null = null
 	private objectUrl: string
 
-	constructor(video: HTMLVideoElement, blob: Blob, preservesPitch: boolean) {
+	constructor(video: HTMLMediaElement, blob: Blob, preservesPitch: boolean) {
 		this.video = video
 		this.objectUrl = URL.createObjectURL(blob)
 		video.src = this.objectUrl
-		video.playsInline = true
+		if (video instanceof HTMLVideoElement) video.playsInline = true
 		video.loop = true // default (no active region): loop the whole video at its end
 		this.setPreservesPitch(preservesPitch)
 		video.addEventListener('play', this.handlePlay)
@@ -38,7 +38,7 @@ export class FileController implements LoopPlayer {
 	private handlePause = () => this.onStateChange?.(false)
 
 	setPreservesPitch(value: boolean): void {
-		const v = this.video as PitchVideo
+		const v = this.video as PitchMedia
 		v.preservesPitch = value
 		v.webkitPreservesPitch = value
 		v.mozPreservesPitch = value
