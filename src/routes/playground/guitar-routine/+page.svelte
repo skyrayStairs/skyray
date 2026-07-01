@@ -154,6 +154,9 @@
 	let finished = $state(false)
 	let pulseBeat = $state(-1) // beat index currently sounding (visual indicator)
 	let runSettingsOpen = $state(false) // live metronome editor panel in run mode
+	// Timer hit 0 on a quiz/video step; we're waiting for it to reach a natural boundary before
+	// advancing (req 7). While true the countdown is frozen at 0 and the child keeps playing.
+	let pendingAdvance = $state(false)
 
 	let audioCtx: AudioContext | null = null
 	let metro: Metronome | null = null
@@ -191,6 +194,7 @@
 
 	function enterRun() {
 		if (!exercises.length) return
+		pendingAdvance = false
 		currentIndex = 0
 		finished = false
 		running = false
@@ -198,6 +202,7 @@
 		lastBellSec = -1
 		mode = 'run'
 		gnbState.hidden = true // exercise view starts with the nav hidden; user can toggle it back
+		start() // req 4: the timer starts on entering (Run click is the audio-unlocking gesture)
 	}
 
 	function ensureAudio() {
@@ -224,7 +229,7 @@
 			const rem = computeRemaining()
 			if (rem <= 0) {
 				remainingSec = 0
-				onExerciseComplete() // advance (running stays true) or finish/halt (running false)
+				onExerciseComplete() // advance inline (running stays true) or defer/finish (running false)
 				rafId = running ? requestAnimationFrame(frame) : null
 				return
 			}
@@ -269,44 +274,78 @@
 		stopDisplayLoop()
 	}
 
-	// A metronome exercise auto-chains (its countdown flows straight into the next exercise).
-	// Video & fretboard steps don't auto-chain — they have their own opt-in countdown instead.
+	// A metronome exercise auto-chains (its countdown flows straight into the next exercise). Video &
+	// fretboard steps have no clicks, but their countdown now auto-runs the same way (req 4).
 	function ownsRoutineTimer(ex: Exercise) {
 		return !ex.video && !ex.fretboard
 	}
 
-	// Landing on a video/fretboard step halts the metronome chain. Its countdown sits at the step's
-	// duration until the user starts it (then it advances on its own) or skips.
-	function haltUntimed() {
+	// Quiz & video-loop steps finish gracefully: at timer 0 we wait for the current card/loop to reach
+	// a natural boundary (req 7) instead of cutting it off. Everything else advances instantly.
+	function needsGracefulFinish(ex: Exercise) {
+		return !!ex.video || (!!ex.fretboard && ex.fretboard.view === 'quiz')
+	}
+
+	// Called from inside the rAF frame when the countdown reaches 0.
+	function onExerciseComplete() {
+		if (needsGracefulFinish(exercises[currentIndex])) {
+			pendingAdvance = true // freeze; the child keeps playing until its boundary (onChildBoundary)
+			running = false // frame stops (rafId=null) since running is now false
+			metro?.stop()
+			return
+		}
+		advanceInline()
+	}
+
+	// In-frame advance: keep counting straight into the next step — no fresh display loop, so the
+	// running rAF simply reschedules itself (avoids a double-speed countdown).
+	function advanceInline() {
+		metro?.stop()
+		if (audioCtx) beep(audioCtx)
+		if (currentIndex >= exercises.length - 1) {
+			finishRun()
+			return
+		}
+		currentIndex += 1
+		pendingAdvance = false
+		const ex = exercises[currentIndex]
+		remainingSec = ex.durationSec
+		armSegment()
+		if (ownsRoutineTimer(ex)) {
+			metro?.configure(cfgFor(ex))
+			metro?.start() // running stays true → seamless into the next metronome step
+		} else {
+			pulseBeat = -1 // video/fretboard: countdown keeps running, just no clicks
+		}
+	}
+
+	// The child quiz/video-loop reached a natural boundary while we were waiting to advance (req 7).
+	// This fires outside the page rAF, so we start the next step fresh via goToExercise.
+	function onChildBoundary() {
+		if (!pendingAdvance) return
+		pendingAdvance = false
+		if (audioCtx) beep(audioCtx)
+		if (currentIndex < exercises.length - 1) goToExercise(currentIndex + 1)
+		else finishRun()
+	}
+
+	// Move to a fresh exercise and auto-start its timer (req 4). Used by Prev/Skip and deferred advance.
+	function goToExercise(index: number) {
+		pendingAdvance = false
+		currentIndex = index
+		finished = false
 		running = false
 		stopDisplayLoop()
 		metro?.stop()
-		audioCtx?.suspend()
 		pulseBeat = -1
-	}
-
-	function onExerciseComplete() {
-		metro?.stop()
-		if (audioCtx) beep(audioCtx)
-		if (currentIndex < exercises.length - 1) {
-			currentIndex += 1
-			const ex = exercises[currentIndex]
-			remainingSec = ex.durationSec
-			armSegment()
-			if (ownsRoutineTimer(ex)) {
-				metro?.configure(cfgFor(ex))
-				metro?.start() // running stays true → seamless into next metronome exercise
-			} else {
-				haltUntimed() // arrive on a video/fretboard step: wait for the user to Start its timer
-			}
-		} else {
-			finishRun()
-		}
+		remainingSec = exercises[index].durationSec
+		start()
 	}
 
 	function finishRun() {
 		running = false
 		finished = true
+		pendingAdvance = false
 		stopDisplayLoop()
 		metro?.stop()
 		audioCtx?.suspend()
@@ -316,6 +355,10 @@
 	function resetExercise() {
 		const ex = exercises[currentIndex]
 		if (!ex) return
+		if (pendingAdvance) {
+			goToExercise(currentIndex) // was waiting to advance → restart this step from the top
+			return
+		}
 		remainingSec = ex.durationSec
 		armSegment()
 		if (running && ownsRoutineTimer(ex)) {
@@ -328,24 +371,12 @@
 	function jump(dir: -1 | 1) {
 		const target = currentIndex + dir
 		if (target < 0 || target >= exercises.length) return
-		currentIndex = target
-		finished = false
-		const ex = exercises[currentIndex]
-		remainingSec = ex.durationSec
-		armSegment()
-		if (!ownsRoutineTimer(ex)) {
-			haltUntimed() // moving onto a video/fretboard exercise stops the metronome chain
-			return
-		}
-		if (running) {
-			metro?.stop()
-			metro?.configure(cfgFor(ex))
-			metro?.start()
-		}
+		goToExercise(target)
 	}
 
 	function teardownAudio() {
 		running = false
+		pendingAdvance = false
 		stopDisplayLoop()
 		metro?.stop()
 		metro = null
@@ -367,7 +398,9 @@
 <div class="flex flex-col bg-[#F0EDCC] text-[#02343F] min-h-full">
 	{#if mode === 'edit'}
 		<!-- ===== Edit mode ===== -->
-		<div class="sticky top-0 z-10 bg-[#F0EDCC] border-b border-[#02343F]/20 px-3 py-2 sm:px-4 shrink-0 flex flex-col gap-2">
+		<div
+			class="sticky top-0 z-10 bg-[#F0EDCC] border-b border-[#02343F]/20 px-3 py-2 sm:px-4 shrink-0 flex flex-col gap-2"
+		>
 			<!-- Routine library control -->
 			<div class="flex gap-1.5 items-center flex-wrap">
 				<select
@@ -383,7 +416,8 @@
 						<option value={r.id}>{r.name}</option>
 					{/each}
 				</select>
-				<button class="btn btn-xs sm:btn-sm btn-primary shrink-0" onclick={newRoutine}>+ New</button>
+				<button class="btn btn-xs sm:btn-sm btn-primary shrink-0" onclick={newRoutine}>+ New</button
+				>
 				<button
 					class="btn btn-xs sm:btn-sm btn-outline shrink-0"
 					onclick={startRename}
@@ -407,8 +441,12 @@
 						}}
 						class="input input-xs sm:input-sm input-bordered flex-1 bg-white border-[#02343F]/30"
 					/>
-					<button class="btn btn-xs sm:btn-sm btn-primary shrink-0" onclick={commitRename}>Save</button>
-					<button class="btn btn-xs sm:btn-sm btn-ghost shrink-0" onclick={() => (renaming = false)}>Cancel</button>
+					<button class="btn btn-xs sm:btn-sm btn-primary shrink-0" onclick={commitRename}
+						>Save</button
+					>
+					<button class="btn btn-xs sm:btn-sm btn-ghost shrink-0" onclick={() => (renaming = false)}
+						>Cancel</button
+					>
 				</div>
 			{/if}
 
@@ -438,12 +476,16 @@
 
 		<!-- Exercise list -->
 		{#if !activeRoutine}
-			<div class="flex flex-col items-center justify-center py-24 opacity-40 flex-1 text-center px-6">
+			<div
+				class="flex flex-col items-center justify-center py-24 opacity-40 flex-1 text-center px-6"
+			>
 				<p class="text-xl mb-2">No routine selected</p>
 				<p class="text-sm">Tap "+ New" to create your first routine</p>
 			</div>
 		{:else if exercises.length === 0}
-			<div class="flex flex-col items-center justify-center py-24 opacity-40 flex-1 text-center px-6">
+			<div
+				class="flex flex-col items-center justify-center py-24 opacity-40 flex-1 text-center px-6"
+			>
 				<p class="text-xl mb-2">No exercises yet</p>
 				<p class="text-sm">Tap "+ Add exercise" to build this routine</p>
 			</div>
@@ -472,10 +514,13 @@
 				<span class="text-[0.65rem] uppercase tracking-wide opacity-50">Exercise timer</span>
 				{#if finished}
 					<div class="text-3xl font-mono">Done</div>
+				{:else if pendingAdvance}
+					<div class="text-2xl font-mono">Finishing…</div>
 				{:else}
 					<div class="font-mono tabular-nums leading-none">
 						<span class="text-4xl sm:text-5xl">{formatMmss(Math.floor(remainingSec))}</span><span
-							class="text-xl sm:text-2xl opacity-70">.{formatMmssMs(remainingSec).split('.')[1]}</span
+							class="text-xl sm:text-2xl opacity-70"
+							>.{formatMmssMs(remainingSec).split('.')[1]}</span
 						>
 					</div>
 					<div class="w-full h-2 bg-[#02343F]/15 rounded-full overflow-hidden">
@@ -488,6 +533,8 @@
 				<div class="flex gap-2">
 					{#if finished}
 						<button class="btn btn-sm btn-primary" onclick={enterRun}>↻ Restart</button>
+					{:else if pendingAdvance}
+						<button class="btn btn-sm btn-primary" disabled>⏳ Finishing…</button>
 					{:else if running}
 						<button class="btn btn-sm btn-primary" onclick={pause}>⏸ Pause</button>
 					{:else}
@@ -499,12 +546,14 @@
 				</div>
 			</div>
 		{/snippet}
-		<div class="flex flex-col items-center justify-center flex-1 px-6 py-8 gap-6 text-center min-h-full">
+		<div
+			class="flex flex-col items-center justify-center flex-1 px-6 py-8 gap-6 text-center min-h-full"
+		>
 			<button
 				class="btn btn-xs btn-ghost self-end"
 				onclick={() => (gnbState.hidden = !gnbState.hidden)}
-				aria-pressed={gnbState.hidden}
-			>{gnbState.hidden ? '▼ Show nav' : '▲ Hide nav'}</button>
+				aria-pressed={gnbState.hidden}>{gnbState.hidden ? '▼ Show nav' : '▲ Hide nav'}</button
+			>
 
 			<div class="text-sm opacity-60">
 				Exercise {currentIndex + 1} / {exercises.length}
@@ -521,6 +570,8 @@
 						<VideoLooper
 							video={runExercise.video}
 							mode="run"
+							finishing={pendingAdvance}
+							onFinished={onChildBoundary}
 							onChange={(v) => runExercise && updateExercise(runExercise.id, { video: v })}
 						/>
 					</div>
@@ -529,8 +580,10 @@
 				{@render countdownBar()}
 
 				<div class="flex gap-2 flex-wrap justify-center mt-2">
-					<button class="btn btn-sm btn-outline" onclick={() => jump(-1)} disabled={currentIndex === 0}
-						>⏮ Prev</button
+					<button
+						class="btn btn-sm btn-outline"
+						onclick={() => jump(-1)}
+						disabled={currentIndex === 0}>⏮ Prev</button
 					>
 					<button
 						class="btn btn-sm btn-outline"
@@ -545,6 +598,8 @@
 					<div class="w-full max-w-2xl">
 						<FretboardExercise
 							config={runExercise.fretboard}
+							finishing={pendingAdvance}
+							onFinished={onChildBoundary}
 							onChange={(v) => runExercise && updateExercise(runExercise.id, { fretboard: v })}
 						/>
 					</div>
@@ -553,8 +608,10 @@
 				{@render countdownBar()}
 
 				<div class="flex gap-2 flex-wrap justify-center mt-2">
-					<button class="btn btn-sm btn-outline" onclick={() => jump(-1)} disabled={currentIndex === 0}
-						>⏮ Prev</button
+					<button
+						class="btn btn-sm btn-outline"
+						onclick={() => jump(-1)}
+						disabled={currentIndex === 0}>⏮ Prev</button
 					>
 					<button
 						class="btn btn-sm btn-outline"
@@ -569,14 +626,18 @@
 				{:else}
 					<div class="font-mono tabular-nums leading-none">
 						<span class="text-6xl sm:text-8xl">{formatMmss(Math.floor(remainingSec))}</span><span
-							class="text-3xl sm:text-5xl opacity-70">.{formatMmssMs(remainingSec).split('.')[1]}</span
+							class="text-3xl sm:text-5xl opacity-70"
+							>.{formatMmssMs(remainingSec).split('.')[1]}</span
 						>
 					</div>
 				{/if}
 
 				<!-- Progress bar -->
 				<div class="w-full max-w-md h-2 bg-[#02343F]/15 rounded-full overflow-hidden">
-					<div class="h-full bg-[#02343F] transition-[width] duration-100" style="width: {runProgress * 100}%"></div>
+					<div
+						class="h-full bg-[#02343F] transition-[width] duration-100"
+						style="width: {runProgress * 100}%"
+					></div>
 				</div>
 
 				<!-- Tempo + beat indicator -->
@@ -602,15 +663,19 @@
 				{/if}
 
 				{#if nextExercise && !finished}
-					<div class="text-sm opacity-50">Next: {nextExercise.name} ({formatMmss(nextExercise.durationSec)})</div>
+					<div class="text-sm opacity-50">
+						Next: {nextExercise.name} ({formatMmss(nextExercise.durationSec)})
+					</div>
 				{:else if !finished}
 					<div class="text-sm opacity-50">Last exercise</div>
 				{/if}
 
 				<!-- Controls -->
 				<div class="flex gap-2 flex-wrap justify-center mt-2">
-					<button class="btn btn-sm btn-outline" onclick={() => jump(-1)} disabled={currentIndex === 0}
-						>⏮ Prev</button
+					<button
+						class="btn btn-sm btn-outline"
+						onclick={() => jump(-1)}
+						disabled={currentIndex === 0}>⏮ Prev</button
 					>
 					{#if finished}
 						<button class="btn btn-sm btn-primary" onclick={enterRun}>↻ Restart</button>
@@ -619,7 +684,9 @@
 					{:else}
 						<button class="btn btn-sm btn-primary" onclick={start}>▶ Start</button>
 					{/if}
-					<button class="btn btn-sm btn-outline" onclick={resetExercise} disabled={finished}>↺ Reset</button>
+					<button class="btn btn-sm btn-outline" onclick={resetExercise} disabled={finished}
+						>↺ Reset</button
+					>
 					<button
 						class="btn btn-sm btn-outline"
 						onclick={() => jump(1)}
@@ -634,7 +701,8 @@
 						<button
 							class="btn btn-xs btn-ghost"
 							onclick={() => (runSettingsOpen = !runSettingsOpen)}
-						>{runSettingsOpen ? '▲ Hide settings' : '⚙ Settings'}</button>
+							>{runSettingsOpen ? '▲ Hide settings' : '⚙ Settings'}</button
+						>
 						{#if runSettingsOpen}
 							<div class="mt-2 text-left rounded border border-[#02343F]/20 bg-white/60 p-2">
 								<MetronomeSettings exercise={runExercise} onUpdate={liveUpdateExercise} />

@@ -16,11 +16,16 @@
 	let {
 		video,
 		mode,
-		onChange
+		onChange,
+		finishing = false,
+		onFinished
 	}: {
 		video: VideoConfig
 		mode: 'edit' | 'run'
 		onChange: (next: VideoConfig) => void
+		// Run-mode: the routine timer ran out and is waiting for the current loop to finish (req 7).
+		finishing?: boolean
+		onFinished?: () => void
 	} = $props()
 
 	let mountEl = $state<HTMLDivElement>() // YouTube replaces this with its iframe
@@ -44,6 +49,23 @@
 
 	const isYouTube = $derived(video.source.kind === 'youtube')
 	const isAudio = $derived(video.source.kind === 'file' && video.source.mediaKind === 'audio')
+
+	// ---- graceful finish (req 7): when the routine timer runs out, don't cut the loop off mid-lick.
+	// If an A-B loop is actively playing, wait for the next B→A wrap; otherwise finish immediately.
+	let awaitingBoundary = $state(false)
+	$effect(() => {
+		if (!finishing) {
+			awaitingBoundary = false
+			return
+		}
+		if (playing && activeLoopId != null) {
+			awaitingBoundary = true // wait for the next B→A wrap (fired via controller.onLoopEnd)
+		} else {
+			// Nothing to wait for (paused, or whole-video play-through) → finish now.
+			awaitingBoundary = false
+			onFinished?.()
+		}
+	})
 
 	onMount(() => {
 		buildController().catch((e) => (errorMsg = String(e)))
@@ -75,6 +97,12 @@
 			controller = new FileController(mediaEl, blob, video.preservesPitch ?? true)
 		}
 		controller.onStateChange = handlePlaying
+		controller.onLoopEnd = () => {
+			if (awaitingBoundary) {
+				awaitingBoundary = false
+				onFinished?.()
+			}
+		}
 		ready = true
 		// Apply the persisted active loop (or whole-video play-through when none). Wait for the
 		// player to actually exist (YT creates it async) and arm WITHOUT autoplay — there's no
@@ -145,10 +173,18 @@
 	function setActive(loop: VideoLoop | null) {
 		commit({ activeLoopId: loop ? loop.id : null })
 		controller?.setActiveLoop(loop)
+		if (!loop) controller?.setRate(1) // deactivating all loops → back to normal speed (req 2)
 		resetStopwatch()
 	}
 	function toggleActive(loop: VideoLoop) {
 		setActive(activeLoopId === loop.id ? null : loop)
+	}
+
+	// Restart a loop from its A point (req 3). Activates it if it wasn't already, then re-seeks + plays.
+	function restartLoop(loop: VideoLoop) {
+		if (activeLoopId !== loop.id) commit({ activeLoopId: loop.id })
+		controller?.setActiveLoop(loop, true)
+		resetStopwatch()
 	}
 
 	function togglePlay() {
@@ -198,6 +234,7 @@
 		})
 		if (wasActive) {
 			controller?.setActiveLoop(null)
+			controller?.setRate(1) // deleting the active loop → play through at normal speed (req 2)
 			resetStopwatch()
 		}
 	}
@@ -261,13 +298,20 @@
 				>
 			</div>
 		</div>
-		{#if video.loops.length === 0}
-			<p class="text-sm opacity-50">No loops yet — add them in the exercise editor.</p>
-		{:else if activeLoopId === null}
-			<p class="text-sm opacity-50">
-				Playing through (loops at the end). Activate a loop below to practice it.
-			</p>
-		{/if}
+		<!-- Always render a hint line, and reserve two lines' height, so activating/deactivating a loop
+			 never changes the component height — even if the messages wrap differently (req 1). -->
+		<div class="min-h-[2.5rem] text-sm opacity-50">
+			{#if video.loops.length === 0}
+				<p>No loops yet — add them in the exercise editor.</p>
+			{:else if activeLoopId === null}
+				<p>Playing through (loops at the end). Activate a loop below to practice it.</p>
+			{:else}
+				<p>
+					Looping “{video.loops.find((l) => l.id === activeLoopId)?.label}” — deactivate to play
+					through.
+				</p>
+			{/if}
+		</div>
 	{/if}
 
 	<!-- Loop list (foldable rows) -->
@@ -282,12 +326,23 @@
 				<!-- Row header -->
 				<div class="flex items-center gap-1.5 p-1.5">
 					<button
-						class="btn btn-xs shrink-0 {activeLoopId === loop.id ? 'btn-primary' : 'btn-outline'}"
+						class="btn btn-xs shrink-0 w-20 {activeLoopId === loop.id
+							? 'btn-primary'
+							: 'btn-outline'}"
 						onclick={() => toggleActive(loop)}
 						aria-pressed={activeLoopId === loop.id}
 						title={activeLoopId === loop.id ? 'Tap to deactivate' : 'Tap to activate'}
 						>{activeLoopId === loop.id ? 'Active' : 'Activate'}</button
 					>
+					{#if mode === 'run'}
+						<button
+							class="btn btn-xs btn-ghost shrink-0"
+							onclick={() => restartLoop(loop)}
+							disabled={!!missingBlob || !ready}
+							title="Start this loop from the beginning"
+							aria-label="Start loop from beginning">⏮</button
+						>
+					{/if}
 					<button
 						class="flex-1 text-left min-w-0"
 						onclick={() => (expandedLoopId = expanded ? null : loop.id)}
@@ -320,39 +375,37 @@
 							class="input input-xs input-bordered bg-white border-[#02343F]/30"
 						/>
 						<div class="grid grid-cols-2 gap-2">
-								<div class="flex flex-col gap-0.5">
-									<span class="text-[0.65rem] uppercase tracking-wide opacity-60">A (start)</span>
-									<div class="flex gap-1">
-										<input
-											type="text"
-											inputmode="decimal"
-											value={formatMmssMs(loop.startSec)}
-											onchange={(e) =>
-												setBoundText(loop, 'A', (e.target as HTMLInputElement).value)}
-											class="input input-xs input-bordered bg-white border-[#02343F]/30 w-20 text-center"
-										/>
-										<button class="btn btn-xs btn-outline" onclick={() => setBound(loop, 'A')}
-											>@now</button
-										>
-									</div>
-								</div>
-								<div class="flex flex-col gap-0.5">
-									<span class="text-[0.65rem] uppercase tracking-wide opacity-60">B (end)</span>
-									<div class="flex gap-1">
-										<input
-											type="text"
-											inputmode="decimal"
-											value={formatMmssMs(loop.endSec)}
-											onchange={(e) =>
-												setBoundText(loop, 'B', (e.target as HTMLInputElement).value)}
-											class="input input-xs input-bordered bg-white border-[#02343F]/30 w-20 text-center"
-										/>
-										<button class="btn btn-xs btn-outline" onclick={() => setBound(loop, 'B')}
-											>@now</button
-										>
-									</div>
+							<div class="flex flex-col gap-0.5">
+								<span class="text-[0.65rem] uppercase tracking-wide opacity-60">A (start)</span>
+								<div class="flex gap-1">
+									<input
+										type="text"
+										inputmode="decimal"
+										value={formatMmssMs(loop.startSec)}
+										onchange={(e) => setBoundText(loop, 'A', (e.target as HTMLInputElement).value)}
+										class="input input-xs input-bordered bg-white border-[#02343F]/30 w-20 text-center"
+									/>
+									<button class="btn btn-xs btn-outline" onclick={() => setBound(loop, 'A')}
+										>@now</button
+									>
 								</div>
 							</div>
+							<div class="flex flex-col gap-0.5">
+								<span class="text-[0.65rem] uppercase tracking-wide opacity-60">B (end)</span>
+								<div class="flex gap-1">
+									<input
+										type="text"
+										inputmode="decimal"
+										value={formatMmssMs(loop.endSec)}
+										onchange={(e) => setBoundText(loop, 'B', (e.target as HTMLInputElement).value)}
+										class="input input-xs input-bordered bg-white border-[#02343F]/30 w-20 text-center"
+									/>
+									<button class="btn btn-xs btn-outline" onclick={() => setBound(loop, 'B')}
+										>@now</button
+									>
+								</div>
+							</div>
+						</div>
 						<!-- Per-loop speed -->
 						<div class="flex flex-col gap-1">
 							<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Speed</span>
@@ -391,6 +444,8 @@
 		+ Add loop {ready ? 'from current time' : ''}
 	</button>
 	{#if mode === 'edit' && video.source.kind === 'file'}
-		<p class="text-xs opacity-50">Note: exporting this routine to a file won't include the media.</p>
+		<p class="text-xs opacity-50">
+			Note: exporting this routine to a file won't include the media.
+		</p>
 	{/if}
 </div>

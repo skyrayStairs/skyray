@@ -11,6 +11,7 @@ export function snapRate(rate: number, available: number[]): number {
 export class YouTubeController implements LoopPlayer {
 	ready: Promise<void>
 	onStateChange?: (playing: boolean) => void
+	onLoopEnd?: () => void
 
 	private player: YTPlayer | null = null
 	private loop: VideoLoop | null = null
@@ -64,6 +65,7 @@ export class YouTubeController implements LoopPlayer {
 			if (!this.player || !this.loop) return
 			if (this.player.getCurrentTime() >= this.loop.endSec) {
 				this.player.seekTo(this.loop.startSec, true)
+				this.onLoopEnd?.()
 			}
 		}, 150)
 	}

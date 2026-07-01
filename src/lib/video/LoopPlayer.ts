@@ -7,6 +7,9 @@ import type { VideoLoop } from '$lib/types/guitar'
 export interface LoopPlayer {
 	ready: Promise<void>
 	onStateChange?: (playing: boolean) => void
+	// Fired each time an active A-B loop wraps from B back to A (one loop iteration completed).
+	// Used to defer a routine advance until the current loop repetition finishes.
+	onLoopEnd?: () => void
 	// Arm the A-B loop (or whole-video loop when null). autoplay=false arms without starting
 	// playback — used when applying a persisted active loop on mount (no user gesture yet).
 	setActiveLoop(loop: VideoLoop | null, autoplay?: boolean): void

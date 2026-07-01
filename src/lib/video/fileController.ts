@@ -13,6 +13,7 @@ type PitchMedia = HTMLMediaElement & {
 export class FileController implements LoopPlayer {
 	ready: Promise<void>
 	onStateChange?: (playing: boolean) => void
+	onLoopEnd?: () => void
 
 	private video: HTMLMediaElement
 	private loop: VideoLoop | null = null
@@ -59,6 +60,7 @@ export class FileController implements LoopPlayer {
 			if (!this.loop) return
 			if (this.video.currentTime >= this.loop.endSec) {
 				this.video.currentTime = this.loop.startSec
+				this.onLoopEnd?.()
 			}
 			this.rafId = requestAnimationFrame(tick)
 		}

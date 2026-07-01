@@ -26,10 +26,15 @@
 
 	let {
 		config,
-		onChange
+		onChange,
+		finishing = false,
+		onFinished
 	}: {
 		config: FretboardConfig
 		onChange?: (next: FretboardConfig) => void
+		// Run-mode quiz: the routine timer ran out and is waiting for the current card to finish (req 7).
+		finishing?: boolean
+		onFinished?: () => void
 	} = $props()
 
 	type Marker = { string: number; fret: number; label: string; role: 'root' | 'note' }
@@ -41,7 +46,9 @@
 		const fretted = markers.filter((m) => m.fret >= 1).map((m) => m.fret)
 		const minFret = fullNeck ? 1 : fretted.length ? Math.max(1, Math.min(...fretted) - 1) : 1
 		const maxFret = fullNeck ? 12 : fretted.length ? Math.max(...fretted) + 1 : 5
-		const muted = muteAbsent ? [1, 2, 3, 4, 5, 6].filter((s) => !markers.some((m) => m.string === s)) : []
+		const muted = muteAbsent
+			? [1, 2, 3, 4, 5, 6].filter((s) => !markers.some((m) => m.string === s))
+			: []
 		return { minFret, maxFret, muted }
 	}
 	function setRoot(raw: string) {
@@ -76,7 +83,12 @@
 		const markers: Marker[] = []
 		for (const s of [6, 5] as StringNum[]) {
 			for (const n of naturalsOnString(s)) {
-				markers.push({ string: s, fret: n.fret, label: n.name, role: n.name === 'C' ? 'root' : 'note' })
+				markers.push({
+					string: s,
+					fret: n.fret,
+					label: n.name,
+					role: n.name === 'C' ? 'root' : 'note'
+				})
 			}
 		}
 		const title = 'Natural notes — 6th & 5th strings (frets 0–12)'
@@ -151,9 +163,11 @@
 	let metro: Metronome | null = null
 	let step = 0
 
-	const activeScale = $derived(playingType ? scales.find((s) => s.type === playingType) ?? null : null)
+	const activeScale = $derived(
+		playingType ? (scales.find((s) => s.type === playingType) ?? null) : null
+	)
 	const activeEntry = $derived(
-		activeScale && activeIdx >= 0 ? activeScale.playOrder[activeIdx] ?? null : null
+		activeScale && activeIdx >= 0 ? (activeScale.playOrder[activeIdx] ?? null) : null
 	)
 	const activeHighlight = $derived(
 		activeEntry ? { string: activeEntry.string, fret: activeEntry.fret } : null
@@ -214,13 +228,25 @@
 	function pick<T>(arr: T[]): T {
 		return arr[Math.floor(Math.random() * arr.length)]
 	}
+	let lastNotePc = -1 // req 6: don't ask the same note twice in a row
 	function noteItem(): QuizItem {
-		const nt = pick(NATURALS)
-		const markers: Marker[] = []
-		for (const s of [6, 5] as StringNum[]) {
-			for (const f of fretsForPc(s, nt.pc, 12)) markers.push({ string: s, fret: f, label: nt.name, role: 'root' })
+		let nt = pick(NATURALS)
+		if (NATURALS.length > 1) while (nt.pc === lastNotePc) nt = pick(NATURALS)
+		lastNotePc = nt.pc
+		// req 5: pick a single root string and state it (parallel to the chord prompts).
+		const rs = resolveRs()
+		const markers: Marker[] = fretsForPc(rs, nt.pc, 12).map((f) => ({
+			string: rs,
+			fret: f,
+			label: nt.name,
+			role: 'root' as const
+		}))
+		return {
+			prompt: `${nt.name} / ${nt.solfege} · ${rs}th-string`,
+			answer: `${nt.name} (${nt.solfege})`,
+			markers,
+			...windowOf(markers, true, false)
 		}
-		return { prompt: `${nt.name} / ${nt.solfege}`, answer: `${nt.name} (${nt.solfege})`, markers, ...windowOf(markers, true, false) }
 	}
 	// Resolve the quiz root string from the setting ('both' → random 6/5).
 	function resolveRs(): 6 | 5 {
@@ -288,8 +314,16 @@
 	function frame() {
 		remaining = Math.max(0, phaseDur - (performance.now() - phaseStart) / 1000)
 		if (remaining <= 0) {
-			if (phase === 'guess') startReveal()
-			else startGuess()
+			if (phase === 'guess') {
+				startReveal()
+			} else if (finishing) {
+				// req 7: routine timer expired — stop after this card's answer shows, let the page advance.
+				rafId = null
+				onFinished?.()
+				return
+			} else {
+				startGuess()
+			}
 		}
 		rafId = requestAnimationFrame(frame)
 	}
@@ -327,7 +361,9 @@
 
 {#if config.view === 'quiz'}
 	<div class="flex flex-col items-center gap-3 min-h-[18rem] justify-center">
-		<div class="text-4xl sm:text-5xl font-bold" style="font-family: KNUTRUTHTTF">{current?.prompt}</div>
+		<div class="text-4xl sm:text-5xl font-bold" style="font-family: KNUTRUTHTTF">
+			{current?.prompt}
+		</div>
 		{#if phase === 'guess'}
 			<Fretboard positions={[]} minFret={1} maxFret={12} muted={[]} />
 			<div class="text-sm opacity-60">Guess… {Math.ceil(remaining)}s</div>
@@ -344,7 +380,12 @@
 			{#each chordData.boards as c}
 				<div class="flex flex-col items-center gap-1">
 					<div class="font-medium">{c.label}</div>
-					<Fretboard positions={c.markers} minFret={c.minFret} maxFret={c.maxFret} muted={c.muted} />
+					<Fretboard
+						positions={c.markers}
+						minFret={c.minFret}
+						maxFret={c.maxFret}
+						muted={c.muted}
+					/>
 				</div>
 			{/each}
 		</div>
@@ -361,13 +402,21 @@
 					{#each group.boards as c}
 						<div class="flex flex-col items-center gap-0 leading-tight">
 							<div class="font-medium text-xs">{c.label}</div>
-							<Fretboard positions={c.markers} minFret={c.minFret} maxFret={c.maxFret} muted={c.muted} bare={true} />
+							<Fretboard
+								positions={c.markers}
+								minFret={c.minFret}
+								maxFret={c.maxFret}
+								muted={c.muted}
+								bare={true}
+							/>
 						</div>
 					{/each}
 				</div>
 			</div>
 		{/each}
-		<p class="text-[0.65rem] opacity-50">Movable grips (root dot filled) for 6th & 5th-string roots — shapes only, no fret numbers.</p>
+		<p class="text-[0.65rem] opacity-50">
+			Movable grips (root dot filled) for 6th & 5th-string roots — shapes only, no fret numbers.
+		</p>
 	</div>
 {:else if config.view === 'scale'}
 	<div class="flex flex-col items-center gap-4">
@@ -412,8 +461,8 @@
 			</div>
 		{/each}
 		<p class="text-xs opacity-50">
-			Tap the neck to spotlight the nearest position (boxes overlap and share notes). Play runs
-			each position up & down, then moves to the next.
+			Tap the neck to spotlight the nearest position (boxes overlap and share notes). Play runs each
+			position up & down, then moves to the next.
 		</p>
 	</div>
 {:else}
