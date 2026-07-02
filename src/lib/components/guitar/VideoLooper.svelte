@@ -7,7 +7,7 @@
 		type VideoConfig,
 		type VideoLoop
 	} from '$lib/types/guitar'
-	import { formatMmssMs, parseMmssMs } from '$lib/utils/time'
+	import { formatMmssMs } from '$lib/utils/time'
 	import { getVideoBlob } from '$lib/storage/videoBlobs'
 	import type { LoopPlayer } from '$lib/video/LoopPlayer'
 	import { YouTubeController } from '$lib/video/youtubeController'
@@ -201,15 +201,39 @@
 		if (!controller) return
 		await whenReady()
 		const t = Math.round(Math.max(0, controller.getCurrentTime()) * 1000) / 1000 // ms precision
-		if (which === 'A') updateLoop(loop.id, { startSec: Math.min(t, loop.endSec - 0.1) })
-		else updateLoop(loop.id, { endSec: Math.max(t, loop.startSec + 0.1) })
+		setBoundSecs(loop, which, t)
 	}
 
-	function setBoundText(loop: VideoLoop, which: 'A' | 'B', text: string) {
-		const secs = parseMmssMs(text)
-		if (secs === null) return
+	function setBoundSecs(loop: VideoLoop, which: 'A' | 'B', secs: number) {
 		if (which === 'A') updateLoop(loop.id, { startSec: Math.min(secs, loop.endSec - 0.1) })
 		else updateLoop(loop.id, { endSec: Math.max(secs, loop.startSec + 0.1) })
+	}
+
+	// ---- 3-box (m / s / ms) timestamp editor per bound (req 2) ----
+	type TimePart = 'm' | 's' | 'ms'
+	const PART_MAX: Record<TimePart, number> = { m: 999, s: 59, ms: 999 }
+
+	// Seconds → { m, s, ms }, mirroring formatMmssMs's flooring so the boxes match the label.
+	function splitTime(totalSec: number) {
+		const totalMs = Math.max(0, Math.floor(totalSec * 1000))
+		return {
+			m: Math.floor(totalMs / 60000),
+			s: Math.floor((totalMs % 60000) / 1000),
+			ms: totalMs % 1000
+		}
+	}
+	// Highlight the whole number on focus so the user types over it instead of deleting (req 2).
+	function selectAllOnFocus(e: FocusEvent) {
+		;(e.target as HTMLInputElement).select()
+	}
+	function commitPart(loop: VideoLoop, which: 'A' | 'B', part: TimePart, e: Event) {
+		const el = e.target as HTMLInputElement
+		let v = parseInt(el.value, 10)
+		if (Number.isNaN(v)) v = 0
+		v = Math.min(PART_MAX[part], Math.max(0, v)) // clamp to the box's range
+		el.value = String(v) // reflect the clamp even when the model value is unchanged
+		const parts = { ...splitTime(which === 'A' ? loop.startSec : loop.endSec), [part]: v }
+		setBoundSecs(loop, which, parts.m * 60 + parts.s + parts.ms / 1000)
 	}
 
 	async function addLoop() {
@@ -314,6 +338,50 @@
 		</div>
 	{/if}
 
+	<!-- A/B timestamp as m / s / ms boxes (req 2). Select-all on focus, clamped per box. -->
+	{#snippet boundBoxes(loop: VideoLoop, which: 'A' | 'B', label: string)}
+		{@const parts = splitTime(which === 'A' ? loop.startSec : loop.endSec)}
+		<div class="flex flex-col gap-0.5">
+			<span class="text-[0.65rem] uppercase tracking-wide opacity-60">{label}</span>
+			<div class="flex items-end gap-1 flex-wrap">
+				<label class="flex items-end gap-0.5">
+					<input
+						type="text"
+						inputmode="numeric"
+						value={parts.m}
+						onfocus={selectAllOnFocus}
+						onchange={(e) => commitPart(loop, which, 'm', e)}
+						class="input input-xs input-bordered bg-white border-[#02343F]/30 w-12 text-center"
+					/>
+					<span class="text-[0.65rem] opacity-50 pb-1.5">m</span>
+				</label>
+				<label class="flex items-end gap-0.5">
+					<input
+						type="text"
+						inputmode="numeric"
+						value={parts.s}
+						onfocus={selectAllOnFocus}
+						onchange={(e) => commitPart(loop, which, 's', e)}
+						class="input input-xs input-bordered bg-white border-[#02343F]/30 w-12 text-center"
+					/>
+					<span class="text-[0.65rem] opacity-50 pb-1.5">s</span>
+				</label>
+				<label class="flex items-end gap-0.5">
+					<input
+						type="text"
+						inputmode="numeric"
+						value={parts.ms}
+						onfocus={selectAllOnFocus}
+						onchange={(e) => commitPart(loop, which, 'ms', e)}
+						class="input input-xs input-bordered bg-white border-[#02343F]/30 w-14 text-center"
+					/>
+					<span class="text-[0.65rem] opacity-50 pb-1.5">ms</span>
+				</label>
+				<button class="btn btn-xs btn-outline" onclick={() => setBound(loop, which)}>@now</button>
+			</div>
+		</div>
+	{/snippet}
+
 	<!-- Loop list (foldable rows) -->
 	<div class="flex flex-col gap-1.5">
 		{#each video.loops as loop, i (loop.id)}
@@ -374,37 +442,9 @@
 							placeholder="Loop name"
 							class="input input-xs input-bordered bg-white border-[#02343F]/30"
 						/>
-						<div class="grid grid-cols-2 gap-2">
-							<div class="flex flex-col gap-0.5">
-								<span class="text-[0.65rem] uppercase tracking-wide opacity-60">A (start)</span>
-								<div class="flex gap-1">
-									<input
-										type="text"
-										inputmode="decimal"
-										value={formatMmssMs(loop.startSec)}
-										onchange={(e) => setBoundText(loop, 'A', (e.target as HTMLInputElement).value)}
-										class="input input-xs input-bordered bg-white border-[#02343F]/30 w-20 text-center"
-									/>
-									<button class="btn btn-xs btn-outline" onclick={() => setBound(loop, 'A')}
-										>@now</button
-									>
-								</div>
-							</div>
-							<div class="flex flex-col gap-0.5">
-								<span class="text-[0.65rem] uppercase tracking-wide opacity-60">B (end)</span>
-								<div class="flex gap-1">
-									<input
-										type="text"
-										inputmode="decimal"
-										value={formatMmssMs(loop.endSec)}
-										onchange={(e) => setBoundText(loop, 'B', (e.target as HTMLInputElement).value)}
-										class="input input-xs input-bordered bg-white border-[#02343F]/30 w-20 text-center"
-									/>
-									<button class="btn btn-xs btn-outline" onclick={() => setBound(loop, 'B')}
-										>@now</button
-									>
-								</div>
-							</div>
+						<div class="flex flex-col gap-2">
+							{@render boundBoxes(loop, 'A', 'A (start)')}
+							{@render boundBoxes(loop, 'B', 'B (end)')}
 						</div>
 						<!-- Per-loop speed -->
 						<div class="flex flex-col gap-1">

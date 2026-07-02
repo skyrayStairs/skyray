@@ -116,6 +116,48 @@
 		})
 	}
 
+	// ---- Drag-to-reorder (edit mode) — complements the up/down arrows -------
+	let dragIndex = $state<number | null>(null)
+	let dragOverIndex = $state<number | null>(null)
+
+	function reorderExercise(from: number, to: number) {
+		if (from === to) return
+		updateActive((r) => {
+			if (from < 0 || from >= r.exercises.length || to < 0 || to >= r.exercises.length) return r
+			const next = [...r.exercises]
+			const [moved] = next.splice(from, 1)
+			next.splice(to, 0, moved) // drop lands the card at the hovered slot
+			return { ...r, exercises: next }
+		})
+	}
+
+	function onExerciseDragStart(e: DragEvent, i: number) {
+		dragIndex = i
+		if (e.dataTransfer) {
+			e.dataTransfer.effectAllowed = 'move'
+			e.dataTransfer.setData('text/plain', String(i))
+			// Drag the whole card, not just the grab handle, as the ghost image.
+			const card = (e.currentTarget as HTMLElement).closest('[data-exercise-card]')
+			if (card) e.dataTransfer.setDragImage(card, 24, 24)
+		}
+	}
+	function onExerciseDragOver(e: DragEvent, i: number) {
+		if (dragIndex === null) return
+		e.preventDefault() // allow drop
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+		dragOverIndex = i
+	}
+	function onExerciseDrop(e: DragEvent, i: number) {
+		e.preventDefault()
+		if (dragIndex !== null) reorderExercise(dragIndex, i)
+		dragIndex = null
+		dragOverIndex = null
+	}
+	function onExerciseDragEnd() {
+		dragIndex = null
+		dragOverIndex = null
+	}
+
 	// ---- File I/O ----------------------------------------------------------
 	function handleSaveFile() {
 		if (!activeRoutine) return
@@ -158,7 +200,7 @@
 	// advancing (req 7). While true the countdown is frozen at 0 and the child keeps playing.
 	let pendingAdvance = $state(false)
 
-	let audioCtx: AudioContext | null = null
+	let audioCtx = $state<AudioContext | null>(null) // $state so the quiz reveal-bell prop stays reactive
 	let metro: Metronome | null = null
 	let rafId: number | null = null // drives the ms countdown display
 	let segmentStart = 0 // performance.now() when the current running segment began
@@ -497,10 +539,16 @@
 						index={i}
 						canMoveUp={i > 0}
 						canMoveDown={i < exercises.length - 1}
+						dragging={dragIndex === i}
+						dropTarget={dragOverIndex === i && dragIndex !== i}
 						onUpdate={(patch) => updateExercise(ex.id, patch)}
 						onRemove={() => removeExercise(ex.id)}
 						onMoveUp={() => moveExercise(i, -1)}
 						onMoveDown={() => moveExercise(i, 1)}
+						onDragStart={(e) => onExerciseDragStart(e, i)}
+						onDragOver={(e) => onExerciseDragOver(e, i)}
+						onDrop={(e) => onExerciseDrop(e, i)}
+						onDragEnd={onExerciseDragEnd}
 					/>
 				{/each}
 			</div>
@@ -600,6 +648,7 @@
 							config={runExercise.fretboard}
 							finishing={pendingAdvance}
 							onFinished={onChildBoundary}
+							revealCtx={audioCtx}
 							onChange={(v) => runExercise && updateExercise(runExercise.id, { fretboard: v })}
 						/>
 					</div>

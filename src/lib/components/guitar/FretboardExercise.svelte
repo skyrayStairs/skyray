@@ -21,20 +21,23 @@
 	import { chordShape, placeShape, seventhShape, type Shape } from '$lib/music/shapes'
 	import { scaleLayout, type ScalePosition } from '$lib/music/positions'
 	import { Metronome, type MetronomeConfig } from '$lib/audio/metronome'
-	import { tone } from '$lib/audio/beep'
+	import { tone, bell } from '$lib/audio/beep'
 	import Fretboard from './Fretboard.svelte'
 
 	let {
 		config,
 		onChange,
 		finishing = false,
-		onFinished
+		onFinished,
+		revealCtx
 	}: {
 		config: FretboardConfig
 		onChange?: (next: FretboardConfig) => void
 		// Run-mode quiz: the routine timer ran out and is waiting for the current card to finish (req 7).
 		finishing?: boolean
 		onFinished?: () => void
+		// Page-owned (already unlocked) AudioContext used to ring the reveal bell.
+		revealCtx?: AudioContext | null
 	} = $props()
 
 	type Marker = { string: number; fret: number; label: string; role: 'root' | 'note' }
@@ -310,6 +313,7 @@
 		phaseDur = REVEAL_SEC
 		phaseStart = performance.now()
 		remaining = phaseDur
+		if (revealCtx) bell(revealCtx) // req 3: ring a bell the moment the answer shows
 	}
 	function frame() {
 		remaining = Math.max(0, phaseDur - (performance.now() - phaseStart) / 1000)

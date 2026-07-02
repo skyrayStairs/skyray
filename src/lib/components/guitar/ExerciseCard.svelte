@@ -13,19 +13,31 @@
 		index,
 		canMoveUp,
 		canMoveDown,
+		dragging = false,
+		dropTarget = false,
 		onUpdate,
 		onRemove,
 		onMoveUp,
-		onMoveDown
+		onMoveDown,
+		onDragStart,
+		onDragOver,
+		onDrop,
+		onDragEnd
 	}: {
 		exercise: Exercise
 		index: number
 		canMoveUp: boolean
 		canMoveDown: boolean
+		dragging?: boolean // this card is the one being dragged
+		dropTarget?: boolean // this card is the current drag-over drop slot
 		onUpdate: (patch: Partial<Exercise>) => void
 		onRemove: () => void
 		onMoveUp: () => void
 		onMoveDown: () => void
+		onDragStart?: (e: DragEvent) => void
+		onDragOver?: (e: DragEvent) => void
+		onDrop?: (e: DragEvent) => void
+		onDragEnd?: () => void
 	} = $props()
 
 	// Local text mirror for the mm:ss field; the canonical value is durationSec.
@@ -107,9 +119,27 @@
 	}
 </script>
 
-<div class="rounded-lg border-2 border-[#02343F]/20 bg-white p-2 sm:p-3 shadow-md flex flex-col gap-2">
-	<!-- Header: order number, name, reorder + remove -->
+<div
+	data-exercise-card
+	role="listitem"
+	ondragover={onDragOver}
+	ondrop={onDrop}
+	class="rounded-lg border-2 bg-white p-2 sm:p-3 shadow-md flex flex-col gap-2 transition-[opacity,box-shadow]
+		{dragging ? 'opacity-40' : ''}
+		{dropTarget ? 'border-[#02343F] ring-2 ring-[#02343F]' : 'border-[#02343F]/20'}"
+>
+	<!-- Header: drag handle, order number, name, reorder + remove -->
 	<div class="flex items-center gap-1.5">
+		<span
+			draggable="true"
+			ondragstart={onDragStart}
+			ondragend={onDragEnd}
+			class="cursor-grab active:cursor-grabbing select-none shrink-0 px-0.5 leading-none text-[#02343F]/40 hover:text-[#02343F]/70"
+			role="button"
+			tabindex="-1"
+			aria-label="Drag to reorder"
+			title="Drag to reorder">⠿</span
+		>
 		<span class="text-xs opacity-50 w-5 shrink-0 text-center">{index + 1}</span>
 		<input
 			type="text"
