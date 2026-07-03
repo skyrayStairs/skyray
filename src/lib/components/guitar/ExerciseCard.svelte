@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { makeFretboard, type Exercise, type FretboardConfig, type VideoConfig } from '$lib/types/guitar'
-	import { formatMmss, parseMmss } from '$lib/utils/time'
 	import { uid } from '$lib/utils/id'
 	import { parseYouTubeId } from '$lib/video/parseId'
 	import { putVideoBlob, deleteVideoBlob } from '$lib/storage/videoBlobs'
@@ -40,17 +39,27 @@
 		onDragEnd?: () => void
 	} = $props()
 
-	// Local text mirror for the mm:ss field; the canonical value is durationSec.
-	let durationText = $state(formatMmss(exercise.durationSec))
+	// ---- timer (m / s boxes, mirroring the loop A/B editor minus the ms box) ----
+	// Canonical value is durationSec; the boxes are a live view of it. undefined enabled = on (legacy).
+	const timerOn = $derived(exercise.timerEnabled !== false)
+	const durParts = $derived({
+		m: Math.floor(Math.max(0, Math.floor(exercise.durationSec)) / 60),
+		s: Math.max(0, Math.floor(exercise.durationSec)) % 60
+	})
+	const PART_MAX: Record<'m' | 's', number> = { m: 999, s: 59 }
 
-	function commitDuration() {
-		const secs = parseMmss(durationText)
-		if (secs === null) {
-			durationText = formatMmss(exercise.durationSec) // reject: restore last good value
-			return
-		}
-		onUpdate({ durationSec: secs })
-		durationText = formatMmss(secs)
+	// Highlight the whole number on focus so the user types over it instead of deleting.
+	function selectAllOnFocus(e: FocusEvent) {
+		;(e.target as HTMLInputElement).select()
+	}
+	function commitPart(part: 'm' | 's', e: Event) {
+		const el = e.target as HTMLInputElement
+		let v = parseInt(el.value, 10)
+		if (Number.isNaN(v)) v = 0
+		v = Math.min(PART_MAX[part], Math.max(0, v)) // clamp to the box's range
+		el.value = String(v) // reflect the clamp even when the model value is unchanged
+		const parts = { ...durParts, [part]: v }
+		onUpdate({ durationSec: parts.m * 60 + parts.s })
 	}
 
 	// ---- video loop ----
@@ -167,38 +176,62 @@
 		>
 	</div>
 
+	<!-- Timer applies to every exercise type; opt-out disables the run-mode countdown for this step. -->
 	{#snippet timerField()}
-		<label class="flex flex-col gap-0.5 max-w-[8rem]">
-			<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Timer</span>
-			<input
-				type="text"
-				inputmode="numeric"
-				bind:value={durationText}
-				onchange={commitDuration}
-				onblur={commitDuration}
-				placeholder="m:ss"
-				class="input input-xs sm:input-sm input-bordered bg-white border-[#02343F]/30 text-center"
-			/>
-		</label>
+		<div class="flex flex-col gap-1">
+			<label class="flex items-center gap-1.5 cursor-pointer w-fit">
+				<input
+					type="checkbox"
+					class="checkbox checkbox-xs"
+					checked={timerOn}
+					onchange={(e) => onUpdate({ timerEnabled: (e.target as HTMLInputElement).checked })}
+				/>
+				<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Timer</span>
+			</label>
+			{#if timerOn}
+				<div class="flex items-end gap-1">
+					<label class="flex items-end gap-0.5">
+						<input
+							type="text"
+							inputmode="numeric"
+							value={durParts.m}
+							onfocus={selectAllOnFocus}
+							onchange={(e) => commitPart('m', e)}
+							class="input input-xs sm:input-sm input-bordered bg-white border-[#02343F]/30 w-12 text-center"
+						/>
+						<span class="text-[0.65rem] opacity-50 pb-1.5">m</span>
+					</label>
+					<label class="flex items-end gap-0.5">
+						<input
+							type="text"
+							inputmode="numeric"
+							value={durParts.s}
+							onfocus={selectAllOnFocus}
+							onchange={(e) => commitPart('s', e)}
+							class="input input-xs sm:input-sm input-bordered bg-white border-[#02343F]/30 w-12 text-center"
+						/>
+						<span class="text-[0.65rem] opacity-50 pb-1.5">s</span>
+					</label>
+				</div>
+			{:else}
+				<span class="text-xs opacity-50">No timer — advance manually in run mode.</span>
+			{/if}
+		</div>
 	{/snippet}
 
+	{@render timerField()}
+
 	{#if exercise.video}
-		<!-- Video/audio loop exercise: countdown timer applies (run mode), metronome doesn't -->
-		{@render timerField()}
 		<VideoLooper video={exercise.video} mode="edit" onChange={updateVideo} />
 		<button class="btn btn-xs btn-outline btn-error self-start" onclick={removeVideo}
 			>Remove video</button
 		>
 	{:else if exercise.fretboard}
-		<!-- Fretboard exercise: countdown timer applies (run mode), metronome doesn't -->
-		{@render timerField()}
 		<FretboardSettings config={exercise.fretboard} onUpdate={updateFretboard} />
 		<button class="btn btn-xs btn-outline btn-error self-start" onclick={removeFretboard}
 			>Remove fretboard</button
 		>
 	{:else}
-		{@render timerField()}
-
 		<MetronomeSettings {exercise} {onUpdate} />
 
 		<!-- Convert to a video loop exercise -->

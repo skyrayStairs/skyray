@@ -10,13 +10,14 @@ export type Subdivision = 'quarter' | 'eighth' | 'sixteenth' // ticks per beat =
 export interface Exercise {
 	id: string
 	name: string // custom, user-editable
-	durationSec: number // stored as seconds; edited in the UI as mm:ss
+	durationSec: number // stored as seconds; edited in the UI as m / s boxes
+	timerEnabled?: boolean // opt-out flag; undefined = on (legacy routines). Off = no countdown, manual advance.
 	bpm: number
 	subdivision: Subdivision // how often the metronome ticks
 	beatsPerMeasure: number // measure length (time-signature numerator)
 	accentBeats: number[] // 0-based beat indices that are "on beat" (louder tick)
-	video?: VideoConfig // when present, this is a video-loop exercise (no metronome/timer)
-	fretboard?: FretboardConfig // when present, this is a fretboard exercise (no metronome/timer)
+	video?: VideoConfig // when present, this is a video-loop exercise (countdown applies, no metronome)
+	fretboard?: FretboardConfig // when present, this is a fretboard exercise (countdown applies, no metronome)
 }
 
 // ---- Fretboard trainer -----------------------------------------------------
@@ -113,6 +114,7 @@ export function makeExercise(index: number): Exercise {
 		id: uid(),
 		name: `Exercise ${index + 1}`,
 		durationSec: 60,
+		timerEnabled: true,
 		bpm: 100,
 		subdivision: 'quarter',
 		beatsPerMeasure: 4,

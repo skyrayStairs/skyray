@@ -217,7 +217,7 @@
 	const runExercise = $derived(exercises[currentIndex] ?? null)
 	const nextExercise = $derived(exercises[currentIndex + 1] ?? null)
 	const runProgress = $derived(
-		runExercise && runExercise.durationSec > 0
+		runExercise && timerOn(runExercise) && runExercise.durationSec > 0
 			? 1 - Math.min(1, remainingSec / runExercise.durationSec)
 			: 0
 	)
@@ -272,7 +272,10 @@
 			if (rem <= 0) {
 				remainingSec = 0
 				onExerciseComplete() // advance inline (running stays true) or defer/finish (running false)
-				rafId = running ? requestAnimationFrame(frame) : null
+				// Keep the loop alive only while still counting down a timer-on step. If the inline
+				// advance landed on a timer-off exercise, stop here — it plays without a countdown.
+				// (Read the raw array, not runExercise: currentIndex was just mutated synchronously.)
+				rafId = running && timerOn(exercises[currentIndex]) ? requestAnimationFrame(frame) : null
 				return
 			}
 			remainingSec = rem
@@ -303,7 +306,8 @@
 			metro?.configure(cfgFor(exercises[currentIndex]))
 			metro?.start()
 		}
-		startDisplayLoop()
+		// Timer opted out → play freely (metronome keeps ticking) with no countdown / no auto-advance.
+		if (timerOn(exercises[currentIndex])) startDisplayLoop()
 	}
 
 	function pause() {
@@ -320,6 +324,12 @@
 	// fretboard steps have no clicks, but their countdown now auto-runs the same way (req 4).
 	function ownsRoutineTimer(ex: Exercise) {
 		return !ex.video && !ex.fretboard
+	}
+
+	// Per-exercise opt-out: undefined = on (legacy routines). Off = no countdown / no auto-advance;
+	// the step just plays (metronome keeps ticking) until the user hits Skip.
+	function timerOn(ex: Exercise | null | undefined) {
+		return !!ex && ex.timerEnabled !== false
 	}
 
 	// Quiz & video-loop steps finish gracefully: at timer 0 we wait for the current card/loop to reach
@@ -556,11 +566,14 @@
 	{:else}
 		<!-- ===== Run mode ===== -->
 		{#snippet countdownBar()}
-			<!-- Opt-in countdown for video/fretboard steps: same machinery as the metronome timer,
-				 minus the clicks. Rings the last-5s bell; on zero it advances (or finishes). -->
+			<!-- Countdown for video/fretboard steps: same machinery as the metronome timer, minus the
+				 clicks. Rings the last-5s bell; on zero it advances (or finishes). Opt-out → "No timer". -->
 			<div class="flex flex-col items-center gap-2 w-full max-w-md">
 				<span class="text-[0.65rem] uppercase tracking-wide opacity-50">Exercise timer</span>
-				{#if finished}
+				{#if !timerOn(runExercise)}
+					<div class="text-2xl font-mono opacity-60">No timer</div>
+					<div class="text-xs opacity-50">Play freely — use Skip to advance.</div>
+				{:else if finished}
 					<div class="text-3xl font-mono">Done</div>
 				{:else if pendingAdvance}
 					<div class="text-2xl font-mono">Finishing…</div>
@@ -578,20 +591,22 @@
 						></div>
 					</div>
 				{/if}
-				<div class="flex gap-2">
-					{#if finished}
-						<button class="btn btn-sm btn-primary" onclick={enterRun}>↻ Restart</button>
-					{:else if pendingAdvance}
-						<button class="btn btn-sm btn-primary" disabled>⏳ Finishing…</button>
-					{:else if running}
-						<button class="btn btn-sm btn-primary" onclick={pause}>⏸ Pause</button>
-					{:else}
-						<button class="btn btn-sm btn-primary" onclick={start}>▶ Start</button>
-					{/if}
-					<button class="btn btn-sm btn-outline" onclick={resetExercise} disabled={finished}
-						>↺ Reset</button
-					>
-				</div>
+				{#if timerOn(runExercise)}
+					<div class="flex gap-2">
+						{#if finished}
+							<button class="btn btn-sm btn-primary" onclick={enterRun}>↻ Restart</button>
+						{:else if pendingAdvance}
+							<button class="btn btn-sm btn-primary" disabled>⏳ Finishing…</button>
+						{:else if running}
+							<button class="btn btn-sm btn-primary" onclick={pause}>⏸ Pause</button>
+						{:else}
+							<button class="btn btn-sm btn-primary" onclick={start}>▶ Start</button>
+						{/if}
+						<button class="btn btn-sm btn-outline" onclick={resetExercise} disabled={finished}
+							>↺ Reset</button
+						>
+					</div>
+				{/if}
 			</div>
 		{/snippet}
 		<div
@@ -612,7 +627,7 @@
 			</h2>
 
 			{#if runExercise?.video}
-				<!-- Video/audio loop exercise: own opt-in countdown (no metronome chain auto-advance) -->
+				<!-- Video/audio loop exercise: own countdown (opt-out-able), no metronome chain -->
 				{#key runExercise.id}
 					<div class="w-full max-w-2xl text-left">
 						<VideoLooper
@@ -641,7 +656,7 @@
 					<button class="btn btn-sm btn-ghost" onclick={exitRun}>✕ Exit</button>
 				</div>
 			{:else if runExercise?.fretboard}
-				<!-- Fretboard exercise (diagram or quiz): own opt-in countdown, no metronome -->
+				<!-- Fretboard exercise (diagram or quiz): own countdown (opt-out-able), no metronome -->
 				{#key runExercise.id}
 					<div class="w-full max-w-2xl">
 						<FretboardExercise
@@ -672,6 +687,8 @@
 			{:else}
 				{#if finished}
 					<div class="text-5xl sm:text-7xl font-mono">Done</div>
+				{:else if !timerOn(runExercise)}
+					<div class="text-4xl sm:text-6xl font-mono opacity-60">No timer</div>
 				{:else}
 					<div class="font-mono tabular-nums leading-none">
 						<span class="text-6xl sm:text-8xl">{formatMmss(Math.floor(remainingSec))}</span><span
@@ -681,13 +698,15 @@
 					</div>
 				{/if}
 
-				<!-- Progress bar -->
-				<div class="w-full max-w-md h-2 bg-[#02343F]/15 rounded-full overflow-hidden">
-					<div
-						class="h-full bg-[#02343F] transition-[width] duration-100"
-						style="width: {runProgress * 100}%"
-					></div>
-				</div>
+				<!-- Progress bar (timer steps only) -->
+				{#if timerOn(runExercise)}
+					<div class="w-full max-w-md h-2 bg-[#02343F]/15 rounded-full overflow-hidden">
+						<div
+							class="h-full bg-[#02343F] transition-[width] duration-100"
+							style="width: {runProgress * 100}%"
+						></div>
+					</div>
+				{/if}
 
 				<!-- Tempo + beat indicator -->
 				{#if runExercise}
@@ -713,7 +732,9 @@
 
 				{#if nextExercise && !finished}
 					<div class="text-sm opacity-50">
-						Next: {nextExercise.name} ({formatMmss(nextExercise.durationSec)})
+						Next: {nextExercise.name} ({timerOn(nextExercise)
+							? formatMmss(nextExercise.durationSec)
+							: 'no timer'})
 					</div>
 				{:else if !finished}
 					<div class="text-sm opacity-50">Last exercise</div>
