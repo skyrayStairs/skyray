@@ -74,7 +74,8 @@
 			kind: next,
 			video: undefined,
 			fretboard: undefined,
-			steps: undefined
+			steps: undefined,
+			metronomeEnabled: undefined // multistep-only opt-in; don't carry a stray true onto other kinds
 		}
 		if (next === 'fretboard') patch.fretboard = makeFretboard('chord')
 		else if (next === 'multistep') patch.steps = [makeStep()]
@@ -337,6 +338,21 @@
 		{/if}
 	{:else if kind === 'multistep'}
 		<MultistepEditor steps={exercise.steps ?? []} onChange={updateSteps} />
+		<!-- Opt-in metronome: one tempo clicked across every step (default off; legacy multistep stays silent). -->
+		<div class="flex flex-col gap-1 border-t border-[#02343F]/10 pt-2">
+			<label class="flex items-center gap-1.5 cursor-pointer w-fit">
+				<input
+					type="checkbox"
+					class="checkbox checkbox-xs"
+					checked={exercise.metronomeEnabled === true}
+					onchange={(e) => onUpdate({ metronomeEnabled: (e.target as HTMLInputElement).checked })}
+				/>
+				<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Metronome</span>
+			</label>
+			{#if exercise.metronomeEnabled}
+				<MetronomeSettings {exercise} {onUpdate} />
+			{/if}
+		</div>
 	{:else}
 		<MetronomeSettings {exercise} {onUpdate} />
 	{/if}

@@ -459,10 +459,27 @@
 		stopDisplayLoop()
 	}
 
-	// Only a metronome exercise drives the audible click chain. Video / fretboard / multistep run their
-	// countdown(s) without the metronome.
+	// Which exercises drive the audible click chain: every metronome exercise, plus a multistep exercise
+	// that opted IN (metronomeEnabled). The click ticks seamlessly across steps/reps/rests at one tempo.
+	// Video / fretboard (and opted-out multistep) run their countdown(s) without the metronome.
 	function ownsRoutineTimer(ex: Exercise) {
-		return exerciseKind(ex) === 'metronome'
+		if (exerciseKind(ex) === 'metronome') return true
+		return isMultistep(ex) && ex.metronomeEnabled === true
+	}
+
+	// Toggle the running multistep exercise's metronome live (run-mode ⚙ panel). Persists + starts/stops
+	// the click on the fly; liveUpdateExercise already reconfigures a running metro from the patch.
+	function toggleRunMetronome(on: boolean) {
+		if (!runExercise) return
+		liveUpdateExercise({ metronomeEnabled: on })
+		if (!running) return
+		if (on) {
+			metro?.configure(cfgFor(runExercise))
+			metro?.start()
+		} else {
+			metro?.stop()
+			pulseBeat = -1
+		}
 	}
 
 	// A multistep exercise: its own timer is disabled; the ordered steps' timers drive advancement.
@@ -1148,7 +1165,58 @@
 					{/if}
 				{/if}
 
+				<!-- Metronome (opt-in) beat indicator — sits above the transport, like the metronome kind -->
+				{#if runExercise?.metronomeEnabled && !finished}
+					<div class="flex flex-col items-center gap-2">
+						<div class="text-sm opacity-60">
+							{runExercise.bpm} BPM · {runExercise.subdivision === 'quarter'
+								? '1/4'
+								: runExercise.subdivision === 'eighth'
+									? '1/8'
+									: '1/16'} ticks
+						</div>
+						<div class="flex gap-1.5">
+							{#each Array(runExercise.beatsPerMeasure) as _, beat}
+								<div
+									class="w-4 h-4 rounded-full border-2 border-[#02343F] transition-all duration-75
+										{pulseBeat === beat ? 'bg-[#02343F] scale-125' : 'bg-transparent'}
+										{runExercise.accentBeats.includes(beat) ? 'border-[#02343F]' : 'border-[#02343F]/30'}"
+								></div>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
 				{@render fullControls()}
+
+				<!-- Live metronome editor incl. an on/off toggle (changes apply on the fly) -->
+				{#if runExercise && !finished}
+					<div class="w-full max-w-md">
+						<button
+							class="btn btn-xs btn-ghost"
+							onclick={() => (runSettingsOpen = !runSettingsOpen)}
+							>{runSettingsOpen ? '▲ Hide metronome' : '⚙ Metronome'}</button
+						>
+						{#if runSettingsOpen}
+							<div
+								class="mt-2 text-left rounded border border-[#02343F]/20 bg-white/60 p-2 flex flex-col gap-2"
+							>
+								<label class="flex items-center gap-1.5 cursor-pointer w-fit">
+									<input
+										type="checkbox"
+										class="checkbox checkbox-xs"
+										checked={runExercise.metronomeEnabled === true}
+										onchange={(e) => toggleRunMetronome((e.target as HTMLInputElement).checked)}
+									/>
+									<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Metronome</span>
+								</label>
+								{#if runExercise.metronomeEnabled}
+									<MetronomeSettings exercise={runExercise} onUpdate={liveUpdateExercise} />
+								{/if}
+							</div>
+						{/if}
+					</div>
+				{/if}
 			{:else}
 				{#if finished}
 					<div class="text-5xl sm:text-7xl font-mono">Done</div>

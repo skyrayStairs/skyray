@@ -34,6 +34,7 @@ export interface Exercise {
 	video?: VideoConfig // when present, this is a video-loop exercise (countdown applies, no metronome)
 	fretboard?: FretboardConfig // when present, this is a fretboard exercise (countdown applies, no metronome)
 	steps?: ExerciseStep[] // multistep exercise: the exercise timer is disabled; step timers drive advancement
+	metronomeEnabled?: boolean // multistep only: opt-IN click across all steps at one tempo (undefined = off, legacy silent)
 }
 
 // Resolve an exercise's kind, inferring from presence for legacy routines that predate the field.
