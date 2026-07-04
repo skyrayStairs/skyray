@@ -7,9 +7,23 @@ import { uid } from '$lib/utils/id'
 
 export type Subdivision = 'quarter' | 'eighth' | 'sixteenth' // ticks per beat = 1 | 2 | 4
 
+// The exercise's kind. Legacy routines predate this field; `exerciseKind()` infers it from presence.
+export type ExerciseKind = 'metronome' | 'video' | 'fretboard' | 'multistep'
+
+// One step of a multistep exercise: its own countdown, a free-text description, an optional repeat
+// count (loops the step back-to-back), and a rest gap inserted before the NEXT step.
+export interface ExerciseStep {
+	id: string
+	description: string // req 4: what to practice this step
+	durationSec: number // req 2: per-step timer
+	repeatCount: number // req 6: loop this step N times back-to-back (>= 1)
+	restSec: number // req 7: rest after this step, before the next step (0 = none)
+}
+
 export interface Exercise {
 	id: string
 	name: string // custom, user-editable
+	kind?: ExerciseKind // undefined on legacy routines; see exerciseKind()
 	durationSec: number // stored as seconds; edited in the UI as m / s boxes
 	timerEnabled?: boolean // opt-out flag; undefined = on (legacy routines). Off = no countdown, manual advance.
 	bpm: number
@@ -18,6 +32,12 @@ export interface Exercise {
 	accentBeats: number[] // 0-based beat indices that are "on beat" (louder tick)
 	video?: VideoConfig // when present, this is a video-loop exercise (countdown applies, no metronome)
 	fretboard?: FretboardConfig // when present, this is a fretboard exercise (countdown applies, no metronome)
+	steps?: ExerciseStep[] // multistep exercise: the exercise timer is disabled; step timers drive advancement
+}
+
+// Resolve an exercise's kind, inferring from presence for legacy routines that predate the field.
+export function exerciseKind(ex: Exercise): ExerciseKind {
+	return ex.kind ?? (ex.video ? 'video' : ex.fretboard ? 'fretboard' : 'metronome')
 }
 
 // ---- Fretboard trainer -----------------------------------------------------
@@ -113,13 +133,18 @@ export function makeExercise(index: number): Exercise {
 	return {
 		id: uid(),
 		name: `Exercise ${index + 1}`,
-		durationSec: 60,
+		kind: 'metronome',
+		durationSec: 300, // 5-minute default exercise timer
 		timerEnabled: true,
 		bpm: 100,
 		subdivision: 'quarter',
 		beatsPerMeasure: 4,
 		accentBeats: [0]
 	}
+}
+
+export function makeStep(): ExerciseStep {
+	return { id: uid(), description: '', durationSec: 60, repeatCount: 1, restSec: 5 }
 }
 
 export function makeRoutine(index: number): Routine {

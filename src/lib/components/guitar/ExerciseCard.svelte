@@ -1,11 +1,21 @@
 <script lang="ts">
-	import { makeFretboard, type Exercise, type FretboardConfig, type VideoConfig } from '$lib/types/guitar'
+	import {
+		exerciseKind,
+		makeFretboard,
+		makeStep,
+		type Exercise,
+		type ExerciseKind,
+		type ExerciseStep,
+		type FretboardConfig,
+		type VideoConfig
+	} from '$lib/types/guitar'
 	import { uid } from '$lib/utils/id'
 	import { parseYouTubeId } from '$lib/video/parseId'
 	import { putVideoBlob, deleteVideoBlob } from '$lib/storage/videoBlobs'
 	import VideoLooper from './VideoLooper.svelte'
 	import MetronomeSettings from './MetronomeSettings.svelte'
 	import FretboardSettings from './FretboardSettings.svelte'
+	import MultistepEditor from './MultistepEditor.svelte'
 
 	let {
 		exercise,
@@ -39,6 +49,39 @@
 		onDragEnd?: () => void
 	} = $props()
 
+	// ---- exercise kind (type selector) ----
+	const kind = $derived(exerciseKind(exercise))
+	const KIND_LABELS: { key: ExerciseKind; label: string }[] = [
+		{ key: 'metronome', label: 'Metronome' },
+		{ key: 'video', label: 'Video / audio' },
+		{ key: 'fretboard', label: 'Fretboard' },
+		{ key: 'multistep', label: 'Multistep' }
+	]
+	// Switch the exercise's type: seed the new kind's sub-config, clear the others'.
+	async function setKind(next: ExerciseKind) {
+		if (next === kind) return
+		// Leaving a local-file video frees its stored bytes (same cleanup as removeVideo).
+		if (exercise.video?.source.kind === 'file' && next !== 'video') {
+			try {
+				await deleteVideoBlob(exercise.video.source.fileId)
+			} catch {
+				/* ignore */
+			}
+		}
+		const patch: Partial<Exercise> = {
+			kind: next,
+			video: undefined,
+			fretboard: undefined,
+			steps: undefined
+		}
+		if (next === 'fretboard') patch.fretboard = makeFretboard('chord')
+		else if (next === 'multistep') patch.steps = [makeStep()]
+		onUpdate(patch)
+	}
+	function updateSteps(next: ExerciseStep[]) {
+		onUpdate({ steps: next })
+	}
+
 	// ---- timer (m / s boxes, mirroring the loop A/B editor minus the ms box) ----
 	// Canonical value is durationSec; the boxes are a live view of it. undefined enabled = on (legacy).
 	const timerOn = $derived(exercise.timerEnabled !== false)
@@ -66,6 +109,14 @@
 	let ytUrl = $state('')
 	let videoErr = $state('')
 
+	// Audio file extensions used both to un-grey files in the iOS picker (see MEDIA_ACCEPT) and to
+	// classify a picked file whose MIME the browser leaves empty (common for m4a/aac on iOS).
+	const AUDIO_EXT = /\.(m4a|mp3|aac|wav|ogg|oga|flac|opus|weba)$/i
+	// iOS Safari greys out files whose UTI it can't match from a bare `audio/*` — listing explicit
+	// extensions makes m4a & friends selectable. Desktop keeps matching on the wildcard MIME types.
+	const MEDIA_ACCEPT =
+		'video/*,audio/*,.m4a,.mp3,.aac,.wav,.ogg,.oga,.flac,.opus,.weba,.mp4,.m4v,.mov,.webm,.mkv'
+
 	function addYouTube() {
 		const id = parseYouTubeId(ytUrl)
 		if (!id) {
@@ -90,7 +141,11 @@
 			return
 		}
 		videoErr = ''
-		const mediaKind = file.type.startsWith('audio/') ? 'audio' : 'video' // empty MIME → video (plays audio too)
+		// iOS often reports an empty or non-standard MIME for m4a/aac, so fall back to the extension.
+		const isAudio =
+			file.type.startsWith('audio/') ||
+			(!file.type.startsWith('video/') && AUDIO_EXT.test(file.name))
+		const mediaKind = isAudio ? 'audio' : 'video'
 		onUpdate({
 			video: {
 				source: { kind: 'file', fileId, fileName: file.name, mediaKind },
@@ -117,14 +172,8 @@
 	}
 
 	// ---- fretboard ----
-	function makeFretboardExercise() {
-		onUpdate({ fretboard: makeFretboard('chord') })
-	}
 	function updateFretboard(patch: Partial<FretboardConfig>) {
 		onUpdate({ fretboard: { ...(exercise.fretboard as FretboardConfig), ...patch } })
-	}
-	function removeFretboard() {
-		onUpdate({ fretboard: undefined })
 	}
 </script>
 
@@ -176,7 +225,21 @@
 		>
 	</div>
 
-	<!-- Timer applies to every exercise type; opt-out disables the run-mode countdown for this step. -->
+	<!-- Type selector: picks which kind of exercise this card is (metronome / video / fretboard / multistep). -->
+	<label class="flex items-center gap-1.5">
+		<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Type</span>
+		<select
+			class="select select-xs select-bordered bg-white border-[#02343F]/30"
+			value={kind}
+			onchange={(e) => setKind((e.target as HTMLSelectElement).value as ExerciseKind)}
+		>
+			{#each KIND_LABELS as k (k.key)}
+				<option value={k.key}>{k.label}</option>
+			{/each}
+		</select>
+	</label>
+
+	<!-- Timer applies to timed exercise types; multistep uses per-step timers instead (hidden here). -->
 	{#snippet timerField()}
 		<div class="flex flex-col gap-1">
 			<label class="flex items-center gap-1.5 cursor-pointer w-fit">
@@ -219,41 +282,43 @@
 		</div>
 	{/snippet}
 
-	{@render timerField()}
+	{#if kind !== 'multistep'}
+		{@render timerField()}
+	{/if}
 
-	{#if exercise.video}
-		<VideoLooper video={exercise.video} mode="edit" onChange={updateVideo} />
-		<button class="btn btn-xs btn-outline btn-error self-start" onclick={removeVideo}
-			>Remove video</button
-		>
-	{:else if exercise.fretboard}
-		<FretboardSettings config={exercise.fretboard} onUpdate={updateFretboard} />
-		<button class="btn btn-xs btn-outline btn-error self-start" onclick={removeFretboard}
-			>Remove fretboard</button
-		>
+	{#if kind === 'video'}
+		{#if exercise.video}
+			<VideoLooper video={exercise.video} mode="edit" onChange={updateVideo} />
+			<button class="btn btn-xs btn-outline btn-error self-start" onclick={removeVideo}
+				>Remove video</button
+			>
+		{:else}
+			<!-- Empty video state: add a YouTube link or a local media file -->
+			<div class="flex flex-col gap-1">
+				<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Video / audio source</span>
+				<div class="flex gap-1.5 items-center flex-wrap">
+					<input
+						type="text"
+						bind:value={ytUrl}
+						placeholder="Paste YouTube link"
+						class="input input-xs input-bordered flex-1 bg-white border-[#02343F]/30 min-w-[10rem]"
+					/>
+					<button class="btn btn-xs btn-outline shrink-0" onclick={addYouTube}>Add YouTube</button>
+					<label class="btn btn-xs btn-outline cursor-pointer shrink-0">
+						Local file
+						<input type="file" accept={MEDIA_ACCEPT} class="hidden" onchange={addFile} />
+					</label>
+				</div>
+			</div>
+		{/if}
+	{:else if kind === 'fretboard'}
+		{#if exercise.fretboard}
+			<FretboardSettings config={exercise.fretboard} onUpdate={updateFretboard} />
+		{/if}
+	{:else if kind === 'multistep'}
+		<MultistepEditor steps={exercise.steps ?? []} onChange={updateSteps} />
 	{:else}
 		<MetronomeSettings {exercise} {onUpdate} />
-
-		<!-- Convert to a video loop exercise -->
-		<div class="flex flex-col gap-1 border-t border-[#02343F]/10 pt-2">
-			<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Or make this a video loop</span>
-			<div class="flex gap-1.5 items-center flex-wrap">
-				<input
-					type="text"
-					bind:value={ytUrl}
-					placeholder="Paste YouTube link"
-					class="input input-xs input-bordered flex-1 bg-white border-[#02343F]/30 min-w-[10rem]"
-				/>
-				<button class="btn btn-xs btn-outline shrink-0" onclick={addYouTube}>Add YouTube</button>
-				<label class="btn btn-xs btn-outline cursor-pointer shrink-0">
-					Local file
-					<input type="file" accept="video/*,audio/*" class="hidden" onchange={addFile} />
-				</label>
-			</div>
-			<button class="btn btn-xs btn-outline self-start mt-1" onclick={makeFretboardExercise}
-				>Make fretboard diagram</button
-			>
-		</div>
 	{/if}
 
 	{#if videoErr}

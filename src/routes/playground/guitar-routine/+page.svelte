@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
-	import { makeExercise, makeRoutine, type Exercise, type Routine } from '$lib/types/guitar'
+	import { exerciseKind, makeExercise, makeRoutine, type Exercise, type Routine } from '$lib/types/guitar'
 	import ExerciseCard from '$lib/components/guitar/ExerciseCard.svelte'
 	import VideoLooper from '$lib/components/guitar/VideoLooper.svelte'
 	import MetronomeSettings from '$lib/components/guitar/MetronomeSettings.svelte'
@@ -25,12 +25,20 @@
 	const activeRoutine = $derived(routines.find((r) => r.id === activeId) ?? null)
 	const exercises = $derived(activeRoutine?.exercises ?? [])
 
+	// Legacy routines predate the `kind` field; infer it so old exercises still render as the right type.
+	function migrateRoutines(list: Routine[]): Routine[] {
+		return list.map((r) => ({
+			...r,
+			exercises: (r.exercises ?? []).map((ex) => ({ ...ex, kind: exerciseKind(ex) }))
+		}))
+	}
+
 	// ---- Persistence -------------------------------------------------------
 	onMount(() => {
 		const savedR = localStorage.getItem(LS_ROUTINES)
 		if (savedR) {
 			try {
-				routines = JSON.parse(savedR)
+				routines = migrateRoutines(JSON.parse(savedR))
 			} catch {
 				routines = []
 			}
@@ -39,12 +47,40 @@
 		if (savedA && routines.some((r) => r.id === savedA)) activeId = savedA
 		else if (routines.length) activeId = routines[0].id
 		initialized = true
+		// Track the scroll position of the app's scroll container (#slot, the overflow-y:auto element in
+		// the layout) so the floating jump button knows which direction to send it.
+		slotEl = document.getElementById('slot')
+		slotEl?.addEventListener('scroll', updateScrollState, { passive: true })
+		updateScrollState()
 		// Cleanup on unmount: kill any running audio/timer (SPA nav leaves this page mounted-then-destroyed)
 		// and never leave the global nav hidden after navigating away.
 		return () => {
 			teardownAudio()
+			slotEl?.removeEventListener('scroll', updateScrollState)
 			gnbState.hidden = false
 		}
+	})
+
+	// ---- Floating scroll-to-top/bottom button (edit mode) ------------------
+	let slotEl: HTMLElement | null = null
+	let scrollAtTop = $state(true)
+	let slotScrollable = $state(false)
+
+	function updateScrollState() {
+		if (!slotEl) return
+		scrollAtTop = slotEl.scrollTop < 40
+		slotScrollable = slotEl.scrollHeight - slotEl.clientHeight > 40
+	}
+	function scrollToEdge() {
+		if (!slotEl) return
+		slotEl.scrollTo({ top: scrollAtTop ? slotEl.scrollHeight : 0, behavior: 'smooth' })
+	}
+	// The list height changes as exercises are added/removed and when switching edit/run — recompute
+	// scrollability after each such DOM update ($effect runs post-render).
+	$effect(() => {
+		void exercises.length
+		void mode
+		updateScrollState()
 	})
 
 	$effect(() => {
@@ -178,7 +214,10 @@
 				const imported: Routine = {
 					id: uid(),
 					name: parsed.name,
-					exercises: parsed.exercises.map((ex, i) => ({ ...makeExercise(i), ...ex, id: uid() }))
+					exercises: parsed.exercises.map((ex, i) => {
+						const merged = { ...makeExercise(i), ...ex, id: uid() }
+						return { ...merged, kind: exerciseKind(merged) }
+					})
 				}
 				routines = [...routines, imported]
 				activeId = imported.id
@@ -191,6 +230,11 @@
 
 	// ---- Run mode / player -------------------------------------------------
 	let currentIndex = $state(0)
+	// Multistep sub-state: which step of the current exercise, its 0-based repeat, and whether we're
+	// currently counting down the rest gap before the next step. Reset whenever a new exercise is armed.
+	let stepIndex = $state(0)
+	let stepRepeat = $state(0)
+	let resting = $state(false)
 	let running = $state(false) // counting down (vs paused)
 	let remainingSec = $state(0)
 	let finished = $state(false)
@@ -216,9 +260,17 @@
 
 	const runExercise = $derived(exercises[currentIndex] ?? null)
 	const nextExercise = $derived(exercises[currentIndex + 1] ?? null)
+	// The step currently playing in a multistep exercise (null for other kinds).
+	const runStep = $derived(isMultistep(runExercise) ? (runExercise!.steps![stepIndex] ?? null) : null)
+	// Denominator for the progress bar: the current step (or rest) for multistep, else the exercise timer.
+	const currentSegmentDuration = $derived.by(() => {
+		if (!runExercise) return 0
+		if (isMultistep(runExercise)) return resting ? (runStep?.restSec ?? 0) : (runStep?.durationSec ?? 0)
+		return runExercise.durationSec
+	})
 	const runProgress = $derived(
-		runExercise && timerOn(runExercise) && runExercise.durationSec > 0
-			? 1 - Math.min(1, remainingSec / runExercise.durationSec)
+		runExercise && runsCountdown(runExercise) && currentSegmentDuration > 0
+			? 1 - Math.min(1, remainingSec / currentSegmentDuration)
 			: 0
 	)
 
@@ -240,7 +292,7 @@
 		currentIndex = 0
 		finished = false
 		running = false
-		remainingSec = exercises[0].durationSec
+		armExercise(exercises[0])
 		lastBellSec = -1
 		mode = 'run'
 		gnbState.hidden = true // exercise view starts with the nav hidden; user can toggle it back
@@ -271,17 +323,20 @@
 			const rem = computeRemaining()
 			if (rem <= 0) {
 				remainingSec = 0
-				onExerciseComplete() // advance inline (running stays true) or defer/finish (running false)
-				// Keep the loop alive only while still counting down a timer-on step. If the inline
-				// advance landed on a timer-off exercise, stop here — it plays without a countdown.
+				// Multistep advances step→step (with repeats/rest); others advance exercise→exercise.
+				if (isMultistep(exercises[currentIndex])) onStepComplete()
+				else onExerciseComplete() // advance inline (running stays true) or defer/finish (running false)
+				// Keep the loop alive only while still counting down. If the inline advance landed on a
+				// timer-off exercise, stop here — it plays without a countdown.
 				// (Read the raw array, not runExercise: currentIndex was just mutated synchronously.)
-				rafId = running && timerOn(exercises[currentIndex]) ? requestAnimationFrame(frame) : null
+				rafId = running && runsCountdown(exercises[currentIndex]) ? requestAnimationFrame(frame) : null
 				return
 			}
 			remainingSec = rem
-			// Ring a bell once per second through the final 5 seconds (at 5,4,3,2,1 remaining).
+			// Ring a bell once per second through the final 5 seconds (at 5,4,3,2,1 remaining) of a step /
+			// exercise timer — but not during a multistep rest gap (req 5 rings the step timer only).
 			const sec = Math.ceil(rem)
-			if (sec <= 5 && sec !== lastBellSec) {
+			if (sec <= 5 && sec !== lastBellSec && !resting) {
 				lastBellSec = sec
 				if (audioCtx) bell(audioCtx)
 			}
@@ -301,13 +356,13 @@
 		ensureAudio() // unlock audio so the countdown bell can ring (even for video/fretboard)
 		running = true
 		armSegment()
-		// Only metronome exercises tick; video/fretboard run the countdown (+bell) without clicks.
+		// Only metronome exercises tick; video/fretboard/multistep run the countdown (+bell) without clicks.
 		if (ownsRoutineTimer(exercises[currentIndex])) {
 			metro?.configure(cfgFor(exercises[currentIndex]))
 			metro?.start()
 		}
 		// Timer opted out → play freely (metronome keeps ticking) with no countdown / no auto-advance.
-		if (timerOn(exercises[currentIndex])) startDisplayLoop()
+		if (runsCountdown(exercises[currentIndex])) startDisplayLoop()
 	}
 
 	function pause() {
@@ -320,10 +375,41 @@
 		stopDisplayLoop()
 	}
 
-	// A metronome exercise auto-chains (its countdown flows straight into the next exercise). Video &
-	// fretboard steps have no clicks, but their countdown now auto-runs the same way (req 4).
+	// Only a metronome exercise drives the audible click chain. Video / fretboard / multistep run their
+	// countdown(s) without the metronome.
 	function ownsRoutineTimer(ex: Exercise) {
-		return !ex.video && !ex.fretboard
+		return exerciseKind(ex) === 'metronome'
+	}
+
+	// A multistep exercise: its own timer is disabled; the ordered steps' timers drive advancement.
+	function isMultistep(ex: Exercise | null | undefined): boolean {
+		return !!ex && exerciseKind(ex) === 'multistep' && (ex.steps?.length ?? 0) > 0
+	}
+
+	// Whether the page rAF countdown should run for this exercise: always for multistep (step timers),
+	// otherwise only when its exercise timer is opted in.
+	function runsCountdown(ex: Exercise | null | undefined): boolean {
+		return isMultistep(ex) || timerOn(ex)
+	}
+
+	// Prime the countdown for a freshly-entered exercise. Single funnel used by enterRun / advanceInline /
+	// goToExercise so multistep initializes identically no matter how the exercise was reached.
+	function armExercise(ex: Exercise) {
+		if (isMultistep(ex)) {
+			stepIndex = 0
+			stepRepeat = 0
+			resting = false
+			remainingSec = ex.steps![0].durationSec
+		} else {
+			resting = false
+			remainingSec = ex.durationSec
+		}
+	}
+
+	// Label for the "Next:" preview — step count for a multistep exercise, otherwise its timer.
+	function nextLabel(ex: Exercise): string {
+		if (isMultistep(ex)) return `${ex.steps!.length} step${ex.steps!.length === 1 ? '' : 's'}`
+		return timerOn(ex) ? formatMmss(ex.durationSec) : 'no timer'
 	}
 
 	// Per-exercise opt-out: undefined = on (legacy routines). Off = no countdown / no auto-advance;
@@ -361,14 +447,56 @@
 		currentIndex += 1
 		pendingAdvance = false
 		const ex = exercises[currentIndex]
-		remainingSec = ex.durationSec
+		armExercise(ex)
 		armSegment()
 		if (ownsRoutineTimer(ex)) {
 			metro?.configure(cfgFor(ex))
 			metro?.start() // running stays true → seamless into the next metronome step
 		} else {
-			pulseBeat = -1 // video/fretboard: countdown keeps running, just no clicks
+			pulseBeat = -1 // video/fretboard/multistep: countdown keeps running, just no clicks
 		}
+	}
+
+	// Called from inside the rAF frame when a multistep step's countdown reaches 0. Walks the
+	// repeat → rest → next-step → next-exercise machine (rest only between distinct steps, req 7).
+	function onStepComplete() {
+		const ex = exercises[currentIndex]
+		const steps = ex.steps!
+		if (resting) {
+			// Rest gap finished → begin the next step.
+			resting = false
+			stepIndex += 1
+			stepRepeat = 0
+			remainingSec = steps[stepIndex].durationSec
+			armSegment()
+			if (audioCtx) beep(audioCtx)
+			return
+		}
+		const step = steps[stepIndex]
+		if (stepRepeat + 1 < step.repeatCount) {
+			// More repeats of the same step — run back-to-back with no rest (req 6).
+			stepRepeat += 1
+			remainingSec = step.durationSec
+			armSegment()
+			return
+		}
+		// All repeats of this step are done.
+		if (stepIndex + 1 < steps.length) {
+			if (step.restSec > 0) {
+				resting = true // count down the rest before the next step
+				remainingSec = step.restSec
+				armSegment()
+				return
+			}
+			stepIndex += 1
+			stepRepeat = 0
+			remainingSec = steps[stepIndex].durationSec
+			armSegment()
+			if (audioCtx) beep(audioCtx)
+			return
+		}
+		// Last step, last repeat → on to the next exercise (no trailing rest).
+		advanceInline()
 	}
 
 	// The child quiz/video-loop reached a natural boundary while we were waiting to advance (req 7).
@@ -390,7 +518,7 @@
 		stopDisplayLoop()
 		metro?.stop()
 		pulseBeat = -1
-		remainingSec = exercises[index].durationSec
+		armExercise(exercises[index])
 		start()
 	}
 
@@ -411,7 +539,7 @@
 			goToExercise(currentIndex) // was waiting to advance → restart this step from the top
 			return
 		}
-		remainingSec = ex.durationSec
+		armExercise(ex) // multistep: back to step 1; others: reset the exercise timer
 		armSegment()
 		if (running && ownsRoutineTimer(ex)) {
 			metro?.stop()
@@ -609,6 +737,31 @@
 				{/if}
 			</div>
 		{/snippet}
+
+		{#snippet fullControls()}
+			<!-- Full transport for exercises whose own countdown IS the main timer (metronome, multistep). -->
+			<div class="flex gap-2 flex-wrap justify-center mt-2">
+				<button class="btn btn-sm btn-outline" onclick={() => jump(-1)} disabled={currentIndex === 0}
+					>⏮ Prev</button
+				>
+				{#if finished}
+					<button class="btn btn-sm btn-primary" onclick={enterRun}>↻ Restart</button>
+				{:else if running}
+					<button class="btn btn-sm btn-primary" onclick={pause}>⏸ Pause</button>
+				{:else}
+					<button class="btn btn-sm btn-primary" onclick={start}>▶ Start</button>
+				{/if}
+				<button class="btn btn-sm btn-outline" onclick={resetExercise} disabled={finished}
+					>↺ Reset</button
+				>
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => jump(1)}
+					disabled={currentIndex >= exercises.length - 1}>Skip ⏭</button
+				>
+				<button class="btn btn-sm btn-ghost" onclick={exitRun}>✕ Exit</button>
+			</div>
+		{/snippet}
 		<div
 			class="flex flex-col items-center justify-center flex-1 px-6 py-8 gap-6 text-center min-h-full"
 		>
@@ -684,6 +837,52 @@
 					>
 					<button class="btn btn-sm btn-ghost" onclick={exitRun}>✕ Exit</button>
 				</div>
+			{:else if isMultistep(runExercise)}
+				<!-- Multistep exercise: per-step timers drive advancement; no exercise timer, no metronome -->
+				{#if finished}
+					<div class="text-5xl sm:text-7xl font-mono">Done</div>
+				{:else}
+					<div class="text-sm opacity-60">
+						Step {stepIndex + 1} / {runExercise?.steps?.length ?? 0}
+						{#if runStep && runStep.repeatCount > 1}
+							· Rep {stepRepeat + 1} / {runStep.repeatCount}
+						{/if}
+					</div>
+
+					{#if resting}
+						<div class="text-3xl sm:text-4xl font-mono opacity-50 uppercase tracking-wide">Rest</div>
+					{/if}
+
+					<div class="font-mono tabular-nums leading-none {resting ? 'opacity-50' : ''}">
+						<span class="text-6xl sm:text-8xl">{formatMmss(Math.floor(remainingSec))}</span><span
+							class="text-3xl sm:text-5xl opacity-70"
+							>.{formatMmssMs(remainingSec).split('.')[1]}</span
+						>
+					</div>
+
+					<div class="w-full max-w-md h-2 bg-[#02343F]/15 rounded-full overflow-hidden">
+						<div
+							class="h-full bg-[#02343F] transition-[width] duration-100"
+							style="width: {runProgress * 100}%"
+						></div>
+					</div>
+
+					{#if runStep?.description}
+						<p class="text-base sm:text-lg max-w-md whitespace-pre-wrap opacity-80">
+							{runStep.description}
+						</p>
+					{:else}
+						<p class="text-sm opacity-40">No description for this step.</p>
+					{/if}
+				{/if}
+
+				{#if nextExercise && !finished}
+					<div class="text-sm opacity-50">Next: {nextExercise.name} ({nextLabel(nextExercise)})</div>
+				{:else if !finished}
+					<div class="text-sm opacity-50">Last exercise</div>
+				{/if}
+
+				{@render fullControls()}
 			{:else}
 				{#if finished}
 					<div class="text-5xl sm:text-7xl font-mono">Done</div>
@@ -731,39 +930,13 @@
 				{/if}
 
 				{#if nextExercise && !finished}
-					<div class="text-sm opacity-50">
-						Next: {nextExercise.name} ({timerOn(nextExercise)
-							? formatMmss(nextExercise.durationSec)
-							: 'no timer'})
-					</div>
+					<div class="text-sm opacity-50">Next: {nextExercise.name} ({nextLabel(nextExercise)})</div>
 				{:else if !finished}
 					<div class="text-sm opacity-50">Last exercise</div>
 				{/if}
 
 				<!-- Controls -->
-				<div class="flex gap-2 flex-wrap justify-center mt-2">
-					<button
-						class="btn btn-sm btn-outline"
-						onclick={() => jump(-1)}
-						disabled={currentIndex === 0}>⏮ Prev</button
-					>
-					{#if finished}
-						<button class="btn btn-sm btn-primary" onclick={enterRun}>↻ Restart</button>
-					{:else if running}
-						<button class="btn btn-sm btn-primary" onclick={pause}>⏸ Pause</button>
-					{:else}
-						<button class="btn btn-sm btn-primary" onclick={start}>▶ Start</button>
-					{/if}
-					<button class="btn btn-sm btn-outline" onclick={resetExercise} disabled={finished}
-						>↺ Reset</button
-					>
-					<button
-						class="btn btn-sm btn-outline"
-						onclick={() => jump(1)}
-						disabled={currentIndex >= exercises.length - 1}>Skip ⏭</button
-					>
-					<button class="btn btn-sm btn-ghost" onclick={exitRun}>✕ Exit</button>
-				</div>
+				{@render fullControls()}
 
 				<!-- Live metronome editor (changes apply on the fly) -->
 				{#if runExercise}
@@ -782,5 +955,15 @@
 				{/if}
 			{/if}
 		</div>
+	{/if}
+
+	<!-- Floating jump-to-edge button: contextual ▼ (to bottom) / ▲ (to top), edit mode when scrollable -->
+	{#if mode === 'edit' && slotScrollable}
+		<button
+			class="btn btn-sm btn-circle btn-primary fixed bottom-4 right-4 z-20 shadow-lg"
+			onclick={scrollToEdge}
+			aria-label={scrollAtTop ? 'Scroll to bottom' : 'Scroll to top'}
+			title={scrollAtTop ? 'Scroll to bottom' : 'Scroll to top'}>{scrollAtTop ? '▼' : '▲'}</button
+		>
 	{/if}
 </div>
