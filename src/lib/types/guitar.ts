@@ -18,6 +18,7 @@ export interface ExerciseStep {
 	durationSec: number // req 2: per-step timer
 	repeatCount: number // req 6: loop this step N times back-to-back (>= 1)
 	restSec: number // req 7: rest after this step, before the next step (0 = none)
+	restBetweenReps?: boolean // opt-in: also insert restSec between repeats of THIS step (default off)
 }
 
 export interface Exercise {
@@ -89,6 +90,13 @@ export interface VideoLoop {
 	startSec: number // A
 	endSec: number // B (must be > startSec)
 	rate: number // playback speed for this loop (YouTube snaps to YT_PLAYBACK_RATES)
+	// Timed-loop sequence (opt-in via VideoConfig.timedLoops): how this loop is sized before the sequence
+	// advances. Which one applies is chosen exercise-wide by VideoConfig.loopSizing:
+	//   'reps'  → play A→B `repeatCount` full times (counted at each B boundary), then advance.
+	//   'timer' → replay A→B for `durationSec` seconds, then advance.
+	// Undefined → DEFAULT_LOOP_SEC / DEFAULT_LOOP_REPS.
+	durationSec?: number
+	repeatCount?: number
 }
 
 export type VideoSource =
@@ -103,7 +111,18 @@ export interface VideoConfig {
 	// Shared single-active flag: at most one loop is "active" (its A-B region loops). When null
 	// the video plays through normally and loops back to the start when it finishes.
 	activeLoopId?: string | null
+	// Opt-in: in run mode, auto-sequence the loops top-to-bottom (see VideoLoop for per-loop sizing).
+	// Off → the user drives loops manually (the exercise timer, if any, is the clock).
+	timedLoops?: boolean
+	// How every loop in the sequence is sized before advancing (see VideoLoop). Undefined → 'reps'.
+	loopSizing?: LoopSizing
 }
+
+export type LoopSizing = 'reps' | 'timer'
+
+// Default per-loop timer length ('timer' sizing) and rep count ('reps' sizing) when unset on a loop.
+export const DEFAULT_LOOP_SEC = 30
+export const DEFAULT_LOOP_REPS = 4
 
 // YouTube's IFrame API only honors these discrete rates; off-list values silently no-op.
 export const YT_PLAYBACK_RATES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const

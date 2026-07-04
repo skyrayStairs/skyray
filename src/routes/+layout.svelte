@@ -156,6 +156,26 @@
     #slot {
         height: 85vh;
         overflow-y: auto;
+        /* Match the page background instead of the OS default (black gutter in desktop dark mode). */
+        scrollbar-color: rgba(2, 52, 63, 0.4) #F0EDCC; /* thumb, track (Firefox) */
+    }
+
+    #slot::-webkit-scrollbar {
+        width: 12px;
+    }
+
+    #slot::-webkit-scrollbar-track {
+        background: #F0EDCC;
+    }
+
+    #slot::-webkit-scrollbar-thumb {
+        background-color: rgba(2, 52, 63, 0.35);
+        border-radius: 6px;
+        border: 3px solid #F0EDCC; /* inset the thumb so the cream track shows around it */
+    }
+
+    #slot::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(2, 52, 63, 0.55);
     }
 
     /* Run-mode exercise view hides the global nav + footer and reclaims their height. */

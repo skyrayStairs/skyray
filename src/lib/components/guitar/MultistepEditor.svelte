@@ -193,8 +193,9 @@
 					/>
 					<span class="text-[0.65rem] opacity-50 pb-1.5">reps</span>
 				</label>
-				<!-- Rest is inserted before the NEXT step, so the last step has no rest to configure. -->
-				{#if i < steps.length - 1}
+				<!-- Rest applies before the next step, and (opt-in) between this step's repeats. Show the
+					 rest field whenever either use is active for this step. -->
+				{#if i < steps.length - 1 || (step.repeatCount > 1 && step.restBetweenReps)}
 					<label class="flex items-end gap-0.5">
 						<input
 							type="text"
@@ -203,12 +204,26 @@
 							onfocus={selectAllOnFocus}
 							onchange={(e) => commitInt(step, 'restSec', e, 0)}
 							class="input input-xs input-bordered bg-white border-[#02343F]/30 w-11 text-center"
-							title="Rest before the next step"
+							title="Rest length (seconds)"
 						/>
 						<span class="text-[0.65rem] opacity-50 pb-1.5">s rest</span>
 					</label>
 				{/if}
 			</div>
+
+			<!-- Opt-in: also rest between repeats of this step (needs >1 rep). -->
+			{#if step.repeatCount > 1}
+				<label class="flex items-center gap-1.5 cursor-pointer w-fit">
+					<input
+						type="checkbox"
+						class="checkbox checkbox-xs"
+						checked={!!step.restBetweenReps}
+						onchange={(e) =>
+							updateStep(step.id, { restBetweenReps: (e.target as HTMLInputElement).checked })}
+					/>
+					<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Rest between reps</span>
+				</label>
+			{/if}
 		</div>
 	{/each}
 

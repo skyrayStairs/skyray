@@ -1,13 +1,16 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
 	import {
+		DEFAULT_LOOP_SEC,
+		DEFAULT_LOOP_REPS,
 		FILE_RATE_RANGE,
 		YT_PLAYBACK_RATES,
 		makeVideoLoop,
 		type VideoConfig,
-		type VideoLoop
+		type VideoLoop,
+		type LoopSizing
 	} from '$lib/types/guitar'
-	import { formatMmssMs } from '$lib/utils/time'
+	import { formatMmss, formatMmssMs } from '$lib/utils/time'
 	import { getVideoBlob } from '$lib/storage/videoBlobs'
 	import type { LoopPlayer } from '$lib/video/LoopPlayer'
 	import { YouTubeController } from '$lib/video/youtubeController'
@@ -18,7 +21,11 @@
 		mode,
 		onChange,
 		finishing = false,
-		onFinished
+		onFinished,
+		runLoopId = undefined,
+		runLoopNonce = 0,
+		onLoopBoundary = undefined,
+		capSec = undefined
 	}: {
 		video: VideoConfig
 		mode: 'edit' | 'run'
@@ -26,6 +33,15 @@
 		// Run-mode: the routine timer ran out and is waiting for the current loop to finish (req 7).
 		finishing?: boolean
 		onFinished?: () => void
+		// Run-mode timed-loop sequencing (page-driven): which loop to play, and a nonce that bumps every
+		// time the page wants the current loop (re)started from A (loop switch OR a new repeat).
+		runLoopId?: string | null
+		runLoopNonce?: number
+		// Run-mode 'reps' sizing: fires each time the active loop wraps A→B so the page can count reps.
+		onLoopBoundary?: () => void
+		// Edit-mode readability: the exercise cap (seconds) if opted in, else null — used in the loop's
+		// plain-English summary. VideoLooper only sees the VideoConfig, so the page/card feeds this in.
+		capSec?: number | null
 	} = $props()
 
 	let mountEl = $state<HTMLDivElement>() // YouTube replaces this with its iframe
@@ -47,6 +63,9 @@
 	let segStart = 0
 	let swRaf: number | null = null // rAF id driving the ms stopwatch
 
+	// Run mode with the page driving a timed loop sequence: the manual Activate/restart controls are
+	// suppressed (the page owns which loop plays), and mutating the config mid-run is avoided.
+	const sequencing = $derived(mode === 'run' && (video.timedLoops ?? false))
 	const isYouTube = $derived(video.source.kind === 'youtube')
 	const isAudio = $derived(video.source.kind === 'file' && video.source.mediaKind === 'audio')
 
@@ -58,7 +77,9 @@
 			awaitingBoundary = false
 			return
 		}
-		if (playing && activeLoopId != null) {
+		// A loop is playing if the persisted flag is set OR the page is driving one (run sequence, uncommitted).
+		const loopPlaying = activeLoopId != null || (mode === 'run' && runLoopId != null)
+		if (playing && loopPlaying) {
 			awaitingBoundary = true // wait for the next B→A wrap (fired via controller.onLoopEnd)
 		} else {
 			// Nothing to wait for (paused, or whole-video play-through) → finish now.
@@ -98,6 +119,9 @@
 		}
 		controller.onStateChange = handlePlaying
 		controller.onLoopEnd = () => {
+			// Every A→B wrap. Report it so the page can count reps ('reps' sizing); the graceful-finish
+			// wait (cap expiry / routine timer) piggybacks on the same boundary.
+			if (mode === 'run') onLoopBoundary?.()
 			if (awaitingBoundary) {
 				awaitingBoundary = false
 				onFinished?.()
@@ -108,7 +132,14 @@
 		// player to actually exist (YT creates it async) and arm WITHOUT autoplay — there's no
 		// user gesture on mount, and auto-playing on open would be intrusive in the editor.
 		await whenReady()
-		controller.setActiveLoop(video.loops.find((l) => l.id === activeLoopId) ?? null, false)
+		if (mode === 'run' && runLoopId != null) {
+			// Timed-loop sequencing: the page owns which loop plays. Start it from A (autoplay).
+			lastRunNonce = runLoopNonce
+			applyRunLoop()
+		} else {
+			// Apply the persisted active loop (or whole-video play-through when none), no autoplay.
+			controller.setActiveLoop(video.loops.find((l) => l.id === activeLoopId) ?? null, false)
+		}
 	}
 
 	// ---- stopwatch ----
@@ -167,6 +198,74 @@
 			}
 		}
 	}
+
+	// ---- timed-loop sequence (edit) ----
+	const timedLoops = $derived(video.timedLoops ?? false)
+	function setTimedLoops(v: boolean) {
+		commit({ timedLoops: v })
+	}
+	// Exercise-wide: are loops sized by rep count, or by a wall-clock timer? (see VideoConfig.loopSizing)
+	const loopSizing = $derived<LoopSizing>(video.loopSizing ?? 'reps')
+	function setLoopSizing(v: LoopSizing) {
+		commit({ loopSizing: v })
+	}
+	// How long one A→B pass of this loop takes at its rate (for the "~m:ss" hint in reps mode).
+	function loopPassSec(loop: VideoLoop): number {
+		const span = Math.max(0, loop.endSec - loop.startSec)
+		return span / Math.max(0.05, loop.rate)
+	}
+	// Plain-English summary of what this loop does in a run-mode sequence: how it's sized, where it goes
+	// next, and (if set) the exercise cap that can cut it short. Drives the readability the user asked for.
+	function loopSummary(loop: VideoLoop, i: number): string {
+		const isLast = i === video.loops.length - 1
+		const next = isLast ? 'next exercise' : 'next loop'
+		let head: string
+		if (loopSizing === 'reps') {
+			const reps = Math.max(1, loop.repeatCount ?? DEFAULT_LOOP_REPS)
+			head = `Plays A→B ${reps}× (~${formatMmss(Math.round(reps * loopPassSec(loop)))}), then ${next}`
+		} else {
+			head = `Loops A→B for ${formatMmss(loop.durationSec ?? DEFAULT_LOOP_SEC)}, then ${next}`
+		}
+		return capSec != null ? `${head} — or until the ${formatMmss(capSec)} exercise timer ends` : head
+	}
+	function loopDurParts(loop: VideoLoop) {
+		const whole = Math.max(0, Math.floor(loop.durationSec ?? DEFAULT_LOOP_SEC))
+		return { m: Math.floor(whole / 60), s: whole % 60 }
+	}
+	const DUR_PART_MAX: Record<'m' | 's', number> = { m: 999, s: 59 }
+	function commitLoopDur(loop: VideoLoop, part: 'm' | 's', e: Event) {
+		const el = e.target as HTMLInputElement
+		let v = parseInt(el.value, 10)
+		if (Number.isNaN(v)) v = 0
+		v = Math.min(DUR_PART_MAX[part], Math.max(0, v))
+		el.value = String(v)
+		const parts = { ...loopDurParts(loop), [part]: v }
+		updateLoop(loop.id, { durationSec: parts.m * 60 + parts.s })
+	}
+	function commitLoopReps(loop: VideoLoop, e: Event) {
+		const el = e.target as HTMLInputElement
+		let v = parseInt(el.value, 10)
+		if (Number.isNaN(v)) v = DEFAULT_LOOP_REPS
+		v = Math.max(1, v)
+		el.value = String(v)
+		updateLoop(loop.id, { repeatCount: v })
+	}
+
+	// ---- run-mode command: play the page-selected loop from A, without persisting (commit) it ----
+	let lastRunNonce = -1
+	function applyRunLoop() {
+		if (mode !== 'run' || !controller || runLoopId == null) return
+		const loop = video.loops.find((l) => l.id === runLoopId)
+		if (loop) controller.setActiveLoop(loop, true) // re-seek to A + play; no commit → config untouched
+	}
+	$effect(() => {
+		// React whenever the page bumps the nonce (loop switch or new repeat). Guard so unrelated
+		// reactive changes don't re-trigger, and so we only fire once the controller exists.
+		if (mode !== 'run' || runLoopNonce === lastRunNonce) return
+		if (!ready) return // buildController applies the initial loop once ready (see below)
+		lastRunNonce = runLoopNonce
+		applyRunLoop()
+	})
 
 	// ---- loop actions ----
 	// Activate/deactivate is a shared flag: only one loop holds it. null → whole-video play-through.
@@ -382,6 +481,37 @@
 		</div>
 	{/snippet}
 
+	<!-- Timed-loop sequence (edit): auto-advance through loops by reps or a timer in run mode -->
+	{#if mode === 'edit'}
+		<div class="flex flex-col gap-2">
+			<label class="flex items-center gap-2 text-sm">
+				<input
+					type="checkbox"
+					class="checkbox checkbox-sm"
+					checked={timedLoops}
+					onchange={(e) => setTimedLoops((e.target as HTMLInputElement).checked)}
+				/>
+				Timed loop sequence — auto-advance loops in run mode
+			</label>
+			{#if timedLoops}
+				<!-- Exercise-wide: size every loop by rep count, or by a per-loop timer. -->
+				<div class="flex items-center gap-2 pl-6 text-xs">
+					<span class="opacity-60">Advance each loop by</span>
+					<div class="join">
+						<button
+							class="btn btn-xs join-item {loopSizing === 'reps' ? 'btn-primary' : 'btn-outline'}"
+							onclick={() => setLoopSizing('reps')}>Reps</button
+						>
+						<button
+							class="btn btn-xs join-item {loopSizing === 'timer' ? 'btn-primary' : 'btn-outline'}"
+							onclick={() => setLoopSizing('timer')}>Timer</button
+						>
+					</div>
+				</div>
+			{/if}
+		</div>
+	{/if}
+
 	<!-- Loop list (foldable rows) -->
 	<div class="flex flex-col gap-1.5">
 		{#each video.loops as loop, i (loop.id)}
@@ -393,23 +523,32 @@
 			>
 				<!-- Row header -->
 				<div class="flex items-center gap-1.5 p-1.5">
-					<button
-						class="btn btn-xs shrink-0 w-20 {activeLoopId === loop.id
-							? 'btn-primary'
-							: 'btn-outline'}"
-						onclick={() => toggleActive(loop)}
-						aria-pressed={activeLoopId === loop.id}
-						title={activeLoopId === loop.id ? 'Tap to deactivate' : 'Tap to activate'}
-						>{activeLoopId === loop.id ? 'Active' : 'Activate'}</button
-					>
-					{#if mode === 'run'}
-						<button
-							class="btn btn-xs btn-ghost shrink-0"
-							onclick={() => restartLoop(loop)}
-							disabled={!!missingBlob || !ready}
-							title="Start this loop from the beginning"
-							aria-label="Start loop from beginning">⏮</button
+					{#if sequencing}
+						<!-- Page-driven sequence: show play status instead of the manual activate toggle. -->
+						<span
+							class="shrink-0 w-20 text-center text-xs px-1 py-1 rounded {runLoopId === loop.id
+								? 'bg-[#02343F] text-[#F0EDCC]'
+								: 'opacity-40'}">{runLoopId === loop.id ? '▶ Playing' : 'Queued'}</span
 						>
+					{:else}
+						<button
+							class="btn btn-xs shrink-0 w-20 {activeLoopId === loop.id
+								? 'btn-primary'
+								: 'btn-outline'}"
+							onclick={() => toggleActive(loop)}
+							aria-pressed={activeLoopId === loop.id}
+							title={activeLoopId === loop.id ? 'Tap to deactivate' : 'Tap to activate'}
+							>{activeLoopId === loop.id ? 'Active' : 'Activate'}</button
+						>
+						{#if mode === 'run'}
+							<button
+								class="btn btn-xs btn-ghost shrink-0"
+								onclick={() => restartLoop(loop)}
+								disabled={!!missingBlob || !ready}
+								title="Start this loop from the beginning"
+								aria-label="Start loop from beginning">⏮</button
+							>
+						{/if}
 					{/if}
 					<button
 						class="flex-1 text-left min-w-0"
@@ -474,6 +613,60 @@
 								</div>
 							{/if}
 						</div>
+
+						<!-- Loop sizing (only in a timed sequence): reps OR a timer, chosen exercise-wide above. -->
+						{#if timedLoops}
+							<div class="flex flex-col gap-1.5">
+								{#if loopSizing === 'reps'}
+									<label class="flex items-end gap-0.5">
+										<span class="text-[0.65rem] uppercase tracking-wide opacity-60 pb-1.5 mr-1"
+											>Play</span
+										>
+										<input
+											type="text"
+											inputmode="numeric"
+											value={loop.repeatCount ?? DEFAULT_LOOP_REPS}
+											onfocus={selectAllOnFocus}
+											onchange={(e) => commitLoopReps(loop, e)}
+											class="input input-xs input-bordered bg-white border-[#02343F]/30 w-12 text-center"
+											title="How many times to play A→B before advancing"
+										/>
+										<span class="text-[0.65rem] opacity-50 pb-1.5">times (A→B)</span>
+									</label>
+								{:else}
+									{@const dp = loopDurParts(loop)}
+									<div class="flex items-end gap-1">
+										<span class="text-[0.65rem] uppercase tracking-wide opacity-60 pb-1.5 mr-1"
+											>Loop for</span
+										>
+										<label class="flex items-end gap-0.5">
+											<input
+												type="text"
+												inputmode="numeric"
+												value={dp.m}
+												onfocus={selectAllOnFocus}
+												onchange={(e) => commitLoopDur(loop, 'm', e)}
+												class="input input-xs input-bordered bg-white border-[#02343F]/30 w-12 text-center"
+											/>
+											<span class="text-[0.65rem] opacity-50 pb-1.5">m</span>
+										</label>
+										<label class="flex items-end gap-0.5">
+											<input
+												type="text"
+												inputmode="numeric"
+												value={dp.s}
+												onfocus={selectAllOnFocus}
+												onchange={(e) => commitLoopDur(loop, 's', e)}
+												class="input input-xs input-bordered bg-white border-[#02343F]/30 w-12 text-center"
+											/>
+											<span class="text-[0.65rem] opacity-50 pb-1.5">s</span>
+										</label>
+									</div>
+								{/if}
+								<!-- Plain-English recap of this loop's run-mode behavior (the readability ask). -->
+								<p class="text-[0.7rem] opacity-60 leading-snug">{loopSummary(loop, i)}</p>
+							</div>
+						{/if}
 					</div>
 				{/if}
 			</div>

@@ -1,6 +1,15 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
-	import { exerciseKind, makeExercise, makeRoutine, type Exercise, type Routine } from '$lib/types/guitar'
+	import {
+		DEFAULT_LOOP_SEC,
+		DEFAULT_LOOP_REPS,
+		exerciseKind,
+		makeExercise,
+		makeRoutine,
+		type Exercise,
+		type LoopSizing,
+		type Routine
+	} from '$lib/types/guitar'
 	import ExerciseCard from '$lib/components/guitar/ExerciseCard.svelte'
 	import VideoLooper from '$lib/components/guitar/VideoLooper.svelte'
 	import MetronomeSettings from '$lib/components/guitar/MetronomeSettings.svelte'
@@ -235,6 +244,24 @@
 	let stepIndex = $state(0)
 	let stepRepeat = $state(0)
 	let resting = $state(false)
+	// What the current rest gap leads into: another repeat of this step, or the next step. Null when
+	// not resting. Lets a single `resting` countdown serve both between-reps and between-steps rests.
+	let restTarget = $state<'rep' | 'step' | null>(null)
+
+	// ---- Video timed-loop sequence (kind === 'video' with timedLoops) ----
+	// The loop timer drives `remainingSec`; these track position in the loop list.
+	let loopIndex = $state(0)
+	let loopRepeat = $state(0)
+	// Bumped every time the page wants VideoLooper to (re)start the current loop from A (switch or repeat).
+	let loopCmdNonce = $state(0)
+	// Loops finished but the exercise cap is still running → hold on the last loop until the cap expires.
+	let holdingForCap = $state(false)
+	// Second clock: the optional exercise cap that runs ALONGSIDE the loop timer and, on expiry, advances
+	// to the next exercise even mid-sequence. Only active for a timed-loop video with the timer opted in.
+	let capActive = $state(false)
+	let capRemaining = $state(0)
+	let capRemainingAtStart = 0 // capRemaining captured when the current running segment began
+	let capSegStart = 0 // performance.now() when the current running segment began (cap clock)
 	let running = $state(false) // counting down (vs paused)
 	let remainingSec = $state(0)
 	let finished = $state(false)
@@ -262,17 +289,43 @@
 	const nextExercise = $derived(exercises[currentIndex + 1] ?? null)
 	// The step currently playing in a multistep exercise (null for other kinds).
 	const runStep = $derived(isMultistep(runExercise) ? (runExercise!.steps![stepIndex] ?? null) : null)
+	// The loop currently playing in a timed-loop video exercise (null for other kinds), + its id for the
+	// VideoLooper command prop.
+	const runLoop = $derived(
+		isVideoSequence(runExercise) ? (runExercise!.video!.loops[loopIndex] ?? null) : null
+	)
+	const runLoopId = $derived(runLoop?.id ?? null)
+	// What plays next WITHIN a multistep exercise: another repeat, or the next step. Null when the current
+	// step is the last one on its final repeat (the "next" is then the next exercise). Mirrors onStepComplete.
+	const runNextStepLabel = $derived.by(() => {
+		if (!isMultistep(runExercise) || !runStep) return null
+		const steps = runExercise!.steps!
+		if (stepRepeat + 1 < runStep.repeatCount) return `Rep ${stepRepeat + 2} / ${runStep.repeatCount}`
+		if (stepIndex + 1 < steps.length) {
+			const desc = steps[stepIndex + 1].description?.trim()
+			return `Step ${stepIndex + 2}${desc ? ` — ${desc}` : ''}`
+		}
+		return null
+	})
 	// Denominator for the progress bar: the current step (or rest) for multistep, else the exercise timer.
 	const currentSegmentDuration = $derived.by(() => {
 		if (!runExercise) return 0
 		if (isMultistep(runExercise)) return resting ? (runStep?.restSec ?? 0) : (runStep?.durationSec ?? 0)
+		// Only 'timer'-sized loops have a countdown segment; 'reps' progress is loopRepeat/reps (see below).
+		if (isVideoSequence(runExercise))
+			return loopSizing(runExercise) === 'timer' && runLoop ? loopDurOf(runLoop) : 0
 		return runExercise.durationSec
 	})
-	const runProgress = $derived(
-		runExercise && runsCountdown(runExercise) && currentSegmentDuration > 0
-			? 1 - Math.min(1, remainingSec / currentSegmentDuration)
-			: 0
-	)
+	// Is the current video sequence sized by reps (vs a loop timer)? Drives the run-mode readout.
+	const runsReps = $derived(isVideoSequence(runExercise) && loopSizing(runExercise) === 'reps')
+	// Reps completed / target for the current 'reps'-sized loop (drives its progress bar + "Rep k/N").
+	const runLoopReps = $derived(Math.max(1, runLoop?.repeatCount ?? DEFAULT_LOOP_REPS))
+	const runProgress = $derived.by(() => {
+		if (!runExercise || !runsCountdown(runExercise)) return 0
+		if (isVideoSequence(runExercise) && loopSizing(runExercise) === 'reps')
+			return Math.min(1, loopRepeat / runLoopReps)
+		return currentSegmentDuration > 0 ? 1 - Math.min(1, remainingSec / currentSegmentDuration) : 0
+	})
 
 	function cfgFor(ex: Exercise): MetronomeConfig {
 		return {
@@ -286,13 +339,14 @@
 		}
 	}
 
-	function enterRun() {
+	function enterRun(startIndex = 0) {
 		if (!exercises.length) return
+		const idx = Math.min(Math.max(0, startIndex), exercises.length - 1)
 		pendingAdvance = false
-		currentIndex = 0
+		currentIndex = idx
 		finished = false
 		running = false
-		armExercise(exercises[0])
+		armExercise(exercises[idx])
 		lastBellSec = -1
 		mode = 'run'
 		gnbState.hidden = true // exercise view starts with the nav hidden; user can toggle it back
@@ -320,25 +374,50 @@
 				rafId = null
 				return
 			}
-			const rem = computeRemaining()
-			if (rem <= 0) {
-				remainingSec = 0
-				// Multistep advances step→step (with repeats/rest); others advance exercise→exercise.
-				if (isMultistep(exercises[currentIndex])) onStepComplete()
-				else onExerciseComplete() // advance inline (running stays true) or defer/finish (running false)
-				// Keep the loop alive only while still counting down. If the inline advance landed on a
-				// timer-off exercise, stop here — it plays without a countdown.
-				// (Read the raw array, not runExercise: currentIndex was just mutated synchronously.)
-				rafId = running && runsCountdown(exercises[currentIndex]) ? requestAnimationFrame(frame) : null
-				return
+			const cur = exercises[currentIndex]
+			// Second clock: the exercise cap on a timed-loop video, running alongside the loop timer.
+			// Expiry advances the exercise (gracefully) even mid-sequence.
+			if (capActive && !pendingAdvance) {
+				capRemaining = Math.max(0, computeCap())
+				// While holding on the last loop, the loop timer is frozen — ring the cap's last-5s bell here.
+				if (holdingForCap) {
+					const csec = Math.ceil(capRemaining)
+					if (csec <= 5 && csec !== lastBellSec) {
+						lastBellSec = csec
+						if (audioCtx) bell(audioCtx)
+					}
+				}
+				if (capRemaining <= 0) {
+					onExerciseComplete() // video → graceful finish (pendingAdvance) → onChildBoundary advances
+					rafId =
+						running && runsCountdown(exercises[currentIndex]) ? requestAnimationFrame(frame) : null
+					return
+				}
 			}
-			remainingSec = rem
-			// Ring a bell once per second through the final 5 seconds (at 5,4,3,2,1 remaining) of a step /
-			// exercise timer — but not during a multistep rest gap (req 5 rings the step timer only).
-			const sec = Math.ceil(rem)
-			if (sec <= 5 && sec !== lastBellSec && !resting) {
-				lastBellSec = sec
-				if (audioCtx) bell(audioCtx)
+			// Primary clock: step / loop / exercise countdown. Frozen while holding for the cap, and absent for
+			// a 'reps'-sized video sequence (it advances on A→B boundaries via onLoopBoundary, not a timer).
+			if (!holdingForCap && hasPrimaryClock(cur)) {
+				const rem = computeRemaining()
+				if (rem <= 0) {
+					remainingSec = 0
+					// Multistep advances step→step; 'timer'-sized video loop→loop; others exercise→exercise.
+					if (isMultistep(cur)) onStepComplete()
+					else if (isVideoSequence(cur)) onLoopComplete()
+					else onExerciseComplete() // inline advance (running stays true) or defer/finish
+					// Keep the loop alive only while still counting down. (Read the raw array, not runExercise:
+					// currentIndex was just mutated synchronously.)
+					rafId =
+						running && runsCountdown(exercises[currentIndex]) ? requestAnimationFrame(frame) : null
+					return
+				}
+				remainingSec = rem
+				// Ring a bell once per second through the final 5 seconds — but not during a multistep rest gap
+				// (req 5 rings the step timer only).
+				const sec = Math.ceil(rem)
+				if (sec <= 5 && sec !== lastBellSec && !resting) {
+					lastBellSec = sec
+					if (audioCtx) bell(audioCtx)
+				}
 			}
 			rafId = requestAnimationFrame(frame)
 		}
@@ -356,6 +435,10 @@
 		ensureAudio() // unlock audio so the countdown bell can ring (even for video/fretboard)
 		running = true
 		armSegment()
+		if (capActive) {
+			capSegStart = performance.now() // start the parallel cap clock for this running segment
+			capRemainingAtStart = capRemaining
+		}
 		// Only metronome exercises tick; video/fretboard/multistep run the countdown (+bell) without clicks.
 		if (ownsRoutineTimer(exercises[currentIndex])) {
 			metro?.configure(cfgFor(exercises[currentIndex]))
@@ -368,6 +451,7 @@
 	function pause() {
 		if (!running) return
 		remainingSec = Math.max(0, computeRemaining())
+		if (capActive) capRemaining = Math.max(0, computeCap()) // freeze the cap clock too
 		running = false
 		metro?.stop()
 		audioCtx?.suspend()
@@ -386,24 +470,79 @@
 		return !!ex && exerciseKind(ex) === 'multistep' && (ex.steps?.length ?? 0) > 0
 	}
 
-	// Whether the page rAF countdown should run for this exercise: always for multistep (step timers),
-	// otherwise only when its exercise timer is opted in.
+	// A video/audio exercise whose loops auto-sequence in run mode (opt-in).
+	function isVideoSequence(ex: Exercise | null | undefined): boolean {
+		return (
+			!!ex && exerciseKind(ex) === 'video' && !!ex.video?.timedLoops && (ex.video.loops.length ?? 0) > 0
+		)
+	}
+	// How the sequence sizes each loop: 'reps' (count A→B passes) or 'timer' (wall-clock). See VideoConfig.
+	function loopSizing(ex: Exercise | null | undefined): LoopSizing {
+		return ex?.video?.loopSizing ?? 'reps'
+	}
+	function loopDurOf(loop: { durationSec?: number }): number {
+		return loop.durationSec ?? DEFAULT_LOOP_SEC
+	}
+
+	// Whether a page-timer countdown drives advancement for this exercise: multistep steps, a 'timer'-sized
+	// video loop, or a plain exercise timer. A 'reps'-sized video sequence advances on A→B boundary events
+	// (onLoopBoundary), NOT the timer — so it has no primary clock (the cap, if any, still runs via rAF).
+	function hasPrimaryClock(ex: Exercise | null | undefined): boolean {
+		if (isMultistep(ex)) return true
+		if (isVideoSequence(ex)) return loopSizing(ex) === 'timer'
+		return timerOn(ex)
+	}
+
+	// Whether the page rAF loop should run at all: any primary clock, or a running cap (reps sequence + cap).
 	function runsCountdown(ex: Exercise | null | undefined): boolean {
-		return isMultistep(ex) || timerOn(ex)
+		return isMultistep(ex) || isVideoSequence(ex) || timerOn(ex)
 	}
 
 	// Prime the countdown for a freshly-entered exercise. Single funnel used by enterRun / advanceInline /
 	// goToExercise so multistep initializes identically no matter how the exercise was reached.
 	function armExercise(ex: Exercise) {
+		restTarget = null
+		holdingForCap = false
 		if (isMultistep(ex)) {
 			stepIndex = 0
 			stepRepeat = 0
 			resting = false
 			remainingSec = ex.steps![0].durationSec
+		} else if (isVideoSequence(ex)) {
+			resting = false
+			loopIndex = 0
+			loopRepeat = 0 // reps completed on the current loop ('reps' sizing); unused for 'timer'
+			// 'timer' sizing → the loop timer is the primary clock; 'reps' → advance on A→B boundaries, no clock.
+			remainingSec = loopSizing(ex) === 'timer' ? loopDurOf(ex.video!.loops[0]) : 0
+			commandLoop() // tell VideoLooper to start loop 0 from A
 		} else {
 			resting = false
 			remainingSec = ex.durationSec
 		}
+		armCap(ex)
+		// Reached mid-run (advanceInline keeps running=true) → base the cap clock now. When reached via
+		// enterRun/goToExercise running is false here and start() sets the base instead.
+		if (capActive && running) {
+			capSegStart = performance.now()
+			capRemainingAtStart = capRemaining
+		}
+	}
+
+	// Prime the second clock (exercise cap) for a timed-loop video whose timer is opted in. Other cases
+	// have no separate cap: their single countdown IS the exercise timer (handled by remainingSec).
+	function armCap(ex: Exercise) {
+		capActive = isVideoSequence(ex) && timerOn(ex)
+		capRemaining = capActive ? ex.durationSec : 0
+	}
+
+	// Ask VideoLooper (via the runLoopNonce prop) to (re)start the current loop from A.
+	function commandLoop() {
+		loopCmdNonce += 1
+	}
+
+	// The cap clock advances on the same wall time as the loop timer, but never resets on a loop switch.
+	function computeCap(): number {
+		return capRemainingAtStart - (performance.now() - capSegStart) / 1000
 	}
 
 	// Label for the "Next:" preview — step count for a multistep exercise, otherwise its timer.
@@ -412,10 +551,12 @@
 		return timerOn(ex) ? formatMmss(ex.durationSec) : 'no timer'
 	}
 
-	// Per-exercise opt-out: undefined = on (legacy routines). Off = no countdown / no auto-advance;
-	// the step just plays (metronome keeps ticking) until the user hits Skip.
+	// Whether the exercise-wide countdown is on. Metronome/fretboard: opt-OUT (undefined = on, legacy).
+	// Video/audio: opt-IN (undefined = off) — its clock is the per-loop timers unless the user adds a cap.
 	function timerOn(ex: Exercise | null | undefined) {
-		return !!ex && ex.timerEnabled !== false
+		if (!ex) return false
+		if (exerciseKind(ex) === 'video') return ex.timerEnabled === true
+		return ex.timerEnabled !== false
 	}
 
 	// Quiz & video-loop steps finish gracefully: at timer 0 we wait for the current card/loop to reach
@@ -463,18 +604,32 @@
 		const ex = exercises[currentIndex]
 		const steps = ex.steps!
 		if (resting) {
-			// Rest gap finished → begin the next step.
+			// Rest gap finished → do whatever it was leading into (next repeat, or next step).
 			resting = false
-			stepIndex += 1
-			stepRepeat = 0
-			remainingSec = steps[stepIndex].durationSec
+			if (restTarget === 'rep') {
+				stepRepeat += 1
+				remainingSec = steps[stepIndex].durationSec
+			} else {
+				stepIndex += 1
+				stepRepeat = 0
+				remainingSec = steps[stepIndex].durationSec
+			}
+			restTarget = null
 			armSegment()
 			if (audioCtx) beep(audioCtx)
 			return
 		}
 		const step = steps[stepIndex]
 		if (stepRepeat + 1 < step.repeatCount) {
-			// More repeats of the same step — run back-to-back with no rest (req 6).
+			// More repeats of the same step. Opt-in: insert a rest between reps (req: restBetweenReps);
+			// otherwise run them back-to-back (req 6).
+			if (step.restBetweenReps && step.restSec > 0) {
+				resting = true
+				restTarget = 'rep'
+				remainingSec = step.restSec
+				armSegment()
+				return
+			}
 			stepRepeat += 1
 			remainingSec = step.durationSec
 			armSegment()
@@ -484,6 +639,7 @@
 		if (stepIndex + 1 < steps.length) {
 			if (step.restSec > 0) {
 				resting = true // count down the rest before the next step
+				restTarget = 'step'
 				remainingSec = step.restSec
 				armSegment()
 				return
@@ -496,6 +652,54 @@
 			return
 		}
 		// Last step, last repeat → on to the next exercise (no trailing rest).
+		advanceInline()
+	}
+
+	// Timed-loop video: the current loop's timer reached 0 (mirrors onStepComplete). Runs each loop for
+	// its repeatCount (each rep restarts from A), then the next loop, then the next exercise.
+	function onLoopComplete() {
+		const loops = exercises[currentIndex].video!.loops
+		if (loopIndex + 1 < loops.length) {
+			loopIndex += 1
+			remainingSec = loopDurOf(loops[loopIndex])
+			armSegment()
+			if (audioCtx) beep(audioCtx)
+			commandLoop()
+			return
+		}
+		// All loops done. If an exercise cap is still ticking, hold on the last loop until it expires
+		// (the cap clock keeps running and advances the exercise); otherwise advance now.
+		if (capActive) {
+			holdingForCap = true
+			remainingSec = 0
+			return
+		}
+		advanceInline()
+	}
+
+	// 'reps'-sized sequence: VideoLooper fired an A→B boundary. Count it; when the current loop has played
+	// its repeatCount passes, move to the next loop (or hold for the cap / advance the exercise). Runs
+	// outside the rAF frame — the frame keeps ticking (for the cap) since advanceInline leaves running=true.
+	function onLoopBoundary() {
+		const ex = exercises[currentIndex]
+		if (!isVideoSequence(ex) || loopSizing(ex) !== 'reps') return
+		if (!running || holdingForCap || pendingAdvance) return // ignore while frozen/finishing/paused
+		const loops = ex.video!.loops
+		const loop = loops[loopIndex]
+		const reps = Math.max(1, loop.repeatCount ?? DEFAULT_LOOP_REPS)
+		loopRepeat += 1
+		if (loopRepeat < reps) return // more passes of this loop
+		if (loopIndex + 1 < loops.length) {
+			loopIndex += 1
+			loopRepeat = 0
+			if (audioCtx) beep(audioCtx)
+			commandLoop() // re-seek the next loop from A
+			return
+		}
+		if (capActive) {
+			holdingForCap = true // last loop done but cap still ticking → keep replaying until it expires
+			return
+		}
 		advanceInline()
 	}
 
@@ -648,7 +852,7 @@
 				>
 				<button
 					class="btn btn-xs sm:btn-sm btn-primary shrink-0 ml-auto"
-					onclick={enterRun}
+					onclick={() => enterRun()}
 					disabled={exercises.length === 0}>▶ Run</button
 				>
 			</div>
@@ -681,6 +885,7 @@
 						dropTarget={dragOverIndex === i && dragIndex !== i}
 						onUpdate={(patch) => updateExercise(ex.id, patch)}
 						onRemove={() => removeExercise(ex.id)}
+						onRun={() => enterRun(i)}
 						onMoveUp={() => moveExercise(i, -1)}
 						onMoveDown={() => moveExercise(i, 1)}
 						onDragStart={(e) => onExerciseDragStart(e, i)}
@@ -722,7 +927,7 @@
 				{#if timerOn(runExercise)}
 					<div class="flex gap-2">
 						{#if finished}
-							<button class="btn btn-sm btn-primary" onclick={enterRun}>↻ Restart</button>
+							<button class="btn btn-sm btn-primary" onclick={() => enterRun()}>↻ Restart</button>
 						{:else if pendingAdvance}
 							<button class="btn btn-sm btn-primary" disabled>⏳ Finishing…</button>
 						{:else if running}
@@ -745,7 +950,7 @@
 					>⏮ Prev</button
 				>
 				{#if finished}
-					<button class="btn btn-sm btn-primary" onclick={enterRun}>↻ Restart</button>
+					<button class="btn btn-sm btn-primary" onclick={() => enterRun()}>↻ Restart</button>
 				{:else if running}
 					<button class="btn btn-sm btn-primary" onclick={pause}>⏸ Pause</button>
 				{:else}
@@ -788,26 +993,81 @@
 							mode="run"
 							finishing={pendingAdvance}
 							onFinished={onChildBoundary}
+							{runLoopId}
+							runLoopNonce={loopCmdNonce}
+							onLoopBoundary={onLoopBoundary}
 							onChange={(v) => runExercise && updateExercise(runExercise.id, { video: v })}
 						/>
 					</div>
 				{/key}
 
-				{@render countdownBar()}
+				{#if isVideoSequence(runExercise)}
+					<!-- Timed-loop sequence: 'reps' loops advance on A→B passes, 'timer' loops on a countdown.
+						 The exercise timer (if opted-in) is a parallel cap that can cut the sequence short. -->
+					{#if finished}
+						<div class="text-5xl sm:text-7xl font-mono">Done</div>
+					{:else}
+						{@const reps = runsReps ? runLoopReps : 0}
+						<div class="text-sm opacity-60">
+							Loop {loopIndex + 1} / {runExercise.video.loops.length}
+							{#if runLoop?.label}
+								· {runLoop.label}
+							{/if}
+						</div>
 
-				<div class="flex gap-2 flex-wrap justify-center mt-2">
-					<button
-						class="btn btn-sm btn-outline"
-						onclick={() => jump(-1)}
-						disabled={currentIndex === 0}>⏮ Prev</button
-					>
-					<button
-						class="btn btn-sm btn-outline"
-						onclick={() => jump(1)}
-						disabled={currentIndex >= exercises.length - 1}>Skip ⏭</button
-					>
-					<button class="btn btn-sm btn-ghost" onclick={exitRun}>✕ Exit</button>
-				</div>
+						{#if holdingForCap}
+							<div class="text-3xl sm:text-4xl font-mono opacity-50 uppercase tracking-wide">
+								Holding…
+							</div>
+						{:else if runsReps}
+							<!-- 'reps' sizing: the rep count is the primary readout (no loop countdown). -->
+							<div class="font-mono tabular-nums leading-none">
+								<span class="text-2xl sm:text-3xl opacity-60">Rep </span><span
+									class="text-6xl sm:text-8xl">{Math.min(loopRepeat + 1, reps)}</span
+								><span class="text-3xl sm:text-5xl opacity-70"> / {reps}</span>
+							</div>
+						{:else}
+							<!-- 'timer' sizing: the loop countdown is the primary readout. -->
+							<div class="font-mono tabular-nums leading-none">
+								<span class="text-6xl sm:text-8xl">{formatMmss(Math.floor(remainingSec))}</span><span
+									class="text-3xl sm:text-5xl opacity-70"
+									>.{formatMmssMs(remainingSec).split('.')[1]}</span
+								>
+							</div>
+						{/if}
+
+						<div class="w-full max-w-md h-2 bg-[#02343F]/15 rounded-full overflow-hidden">
+							<div
+								class="h-full bg-[#02343F] transition-[width] duration-100"
+								style="width: {runProgress * 100}%"
+							></div>
+						</div>
+
+						{#if capActive}
+							<div class="text-sm opacity-50">
+								Exercise cap: {formatMmss(Math.ceil(capRemaining))}
+							</div>
+						{/if}
+					{/if}
+
+					{@render fullControls()}
+				{:else}
+					{@render countdownBar()}
+
+					<div class="flex gap-2 flex-wrap justify-center mt-2">
+						<button
+							class="btn btn-sm btn-outline"
+							onclick={() => jump(-1)}
+							disabled={currentIndex === 0}>⏮ Prev</button
+						>
+						<button
+							class="btn btn-sm btn-outline"
+							onclick={() => jump(1)}
+							disabled={currentIndex >= exercises.length - 1}>Skip ⏭</button
+						>
+						<button class="btn btn-sm btn-ghost" onclick={exitRun}>✕ Exit</button>
+					</div>
+				{/if}
 			{:else if runExercise?.fretboard}
 				<!-- Fretboard exercise (diagram or quiz): own countdown (opt-out-able), no metronome -->
 				{#key runExercise.id}
@@ -876,10 +1136,16 @@
 					{/if}
 				{/if}
 
-				{#if nextExercise && !finished}
-					<div class="text-sm opacity-50">Next: {nextExercise.name} ({nextLabel(nextExercise)})</div>
-				{:else if !finished}
-					<div class="text-sm opacity-50">Last exercise</div>
+				{#if !finished}
+					{#if runNextStepLabel}
+						<div class="text-sm opacity-50">Next: {runNextStepLabel}</div>
+					{:else if nextExercise}
+						<div class="text-sm opacity-50">
+							Next exercise: {nextExercise.name} ({nextLabel(nextExercise)})
+						</div>
+					{:else}
+						<div class="text-sm opacity-50">Last step</div>
+					{/if}
 				{/if}
 
 				{@render fullControls()}

@@ -26,6 +26,7 @@
 		dropTarget = false,
 		onUpdate,
 		onRemove,
+		onRun,
 		onMoveUp,
 		onMoveDown,
 		onDragStart,
@@ -41,6 +42,7 @@
 		dropTarget?: boolean // this card is the current drag-over drop slot
 		onUpdate: (patch: Partial<Exercise>) => void
 		onRemove: () => void
+		onRun: () => void // enter run mode starting from this exercise
 		onMoveUp: () => void
 		onMoveDown: () => void
 		onDragStart?: (e: DragEvent) => void
@@ -83,8 +85,9 @@
 	}
 
 	// ---- timer (m / s boxes, mirroring the loop A/B editor minus the ms box) ----
-	// Canonical value is durationSec; the boxes are a live view of it. undefined enabled = on (legacy).
-	const timerOn = $derived(exercise.timerEnabled !== false)
+	// Canonical value is durationSec; the boxes are a live view of it. Video/audio: opt-IN (undefined =
+	// off) so the exercise-wide cap only appears when asked; other kinds: opt-OUT (undefined = on).
+	const timerOn = $derived(kind === 'video' ? exercise.timerEnabled === true : exercise.timerEnabled !== false)
 	const durParts = $derived({
 		m: Math.floor(Math.max(0, Math.floor(exercise.durationSec)) / 60),
 		s: Math.max(0, Math.floor(exercise.durationSec)) % 60
@@ -207,6 +210,12 @@
 			class="input input-xs sm:input-sm input-bordered flex-1 bg-white border-[#02343F]/30 font-medium"
 		/>
 		<button
+			class="btn btn-xs btn-square btn-primary shrink-0"
+			onclick={onRun}
+			aria-label="Start practice from here"
+			title="Start practice from here">▶</button
+		>
+		<button
 			class="btn btn-xs btn-square btn-ghost shrink-0"
 			onclick={onMoveUp}
 			disabled={!canMoveUp}
@@ -249,7 +258,9 @@
 					checked={timerOn}
 					onchange={(e) => onUpdate({ timerEnabled: (e.target as HTMLInputElement).checked })}
 				/>
-				<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Timer</span>
+				<span class="text-[0.65rem] uppercase tracking-wide opacity-60"
+						>{kind === 'video' ? 'Exercise timer (cap)' : 'Timer'}</span
+					>
 			</label>
 			{#if timerOn}
 				<div class="flex items-end gap-1">
@@ -277,7 +288,11 @@
 					</label>
 				</div>
 			{:else}
-				<span class="text-xs opacity-50">No timer — advance manually in run mode.</span>
+				<span class="text-xs opacity-50"
+					>{kind === 'video'
+						? 'No cap — timed loops (if on) drive advancement, else Skip manually.'
+						: 'No timer — advance manually in run mode.'}</span
+				>
 			{/if}
 		</div>
 	{/snippet}
@@ -288,7 +303,12 @@
 
 	{#if kind === 'video'}
 		{#if exercise.video}
-			<VideoLooper video={exercise.video} mode="edit" onChange={updateVideo} />
+			<VideoLooper
+				video={exercise.video}
+				mode="edit"
+				onChange={updateVideo}
+				capSec={timerOn ? exercise.durationSec : null}
+			/>
 			<button class="btn btn-xs btn-outline btn-error self-start" onclick={removeVideo}
 				>Remove video</button
 			>
