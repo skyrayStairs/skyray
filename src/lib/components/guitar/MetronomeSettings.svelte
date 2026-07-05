@@ -1,15 +1,15 @@
 <script lang="ts">
-	import { SUBDIVISIONS, type Exercise, type Subdivision } from '$lib/types/guitar'
+	import { SUBDIVISIONS, type MetronomeParams, type Subdivision } from '$lib/types/guitar'
 
-	// BPM / beats / tick / accents — the metronome controls shared by the exercise editor and the
-	// run-mode live panel (Timer stays in ExerciseCard; it has non-reactive mirror state that must
-	// not be reused against the changing run-mode exercise).
+	// BPM / beats / tick / accents — the metronome controls shared by the exercise editor, the
+	// run-mode live panel, and each multistep step. Operates on a plain MetronomeParams value so the
+	// same UI edits an Exercise or an ExerciseStep (Timer stays in ExerciseCard).
 	let {
-		exercise,
+		value,
 		onUpdate
 	}: {
-		exercise: Exercise
-		onUpdate: (patch: Partial<Exercise>) => void
+		value: MetronomeParams
+		onUpdate: (patch: Partial<MetronomeParams>) => void
 	} = $props()
 
 	function setBpm(raw: string) {
@@ -23,7 +23,7 @@
 		if (Number.isNaN(n)) return
 		const beats = Math.min(16, Math.max(1, n))
 		// Drop accents that fall outside the new measure length.
-		onUpdate({ beatsPerMeasure: beats, accentBeats: exercise.accentBeats.filter((b) => b < beats) })
+		onUpdate({ beatsPerMeasure: beats, accentBeats: value.accentBeats.filter((b) => b < beats) })
 	}
 
 	function setSubdivision(s: Subdivision) {
@@ -31,7 +31,7 @@
 	}
 
 	function toggleAccent(beat: number) {
-		const set = new Set(exercise.accentBeats)
+		const set = new Set(value.accentBeats)
 		if (set.has(beat)) set.delete(beat)
 		else set.add(beat)
 		onUpdate({ accentBeats: [...set].sort((a, b) => a - b) })
@@ -47,7 +47,7 @@
 				type="number"
 				min="20"
 				max="400"
-				value={exercise.bpm}
+				value={value.bpm}
 				onchange={(e) => setBpm((e.target as HTMLInputElement).value)}
 				class="input input-xs sm:input-sm input-bordered bg-white border-[#02343F]/30 text-center"
 			/>
@@ -58,7 +58,7 @@
 				type="number"
 				min="1"
 				max="16"
-				value={exercise.beatsPerMeasure}
+				value={value.beatsPerMeasure}
 				onchange={(e) => setBeats((e.target as HTMLInputElement).value)}
 				class="input input-xs sm:input-sm input-bordered bg-white border-[#02343F]/30 text-center"
 			/>
@@ -71,7 +71,7 @@
 		<div class="flex gap-1">
 			{#each SUBDIVISIONS as opt}
 				<button
-					class="btn btn-xs sm:btn-sm flex-1 {exercise.subdivision === opt.key
+					class="btn btn-xs sm:btn-sm flex-1 {value.subdivision === opt.key
 						? 'btn-primary'
 						: 'btn-outline'}"
 					onclick={() => setSubdivision(opt.key)}>{opt.label}</button
@@ -84,13 +84,13 @@
 	<div class="flex flex-col gap-0.5">
 		<span class="text-[0.65rem] uppercase tracking-wide opacity-60">On-beat accents</span>
 		<div class="flex flex-wrap gap-1">
-			{#each Array(exercise.beatsPerMeasure) as _, beat}
+			{#each Array(value.beatsPerMeasure) as _, beat}
 				<button
-					class="btn btn-xs btn-square {exercise.accentBeats.includes(beat)
+					class="btn btn-xs btn-square {value.accentBeats.includes(beat)
 						? 'btn-primary'
 						: 'btn-outline'}"
 					onclick={() => toggleAccent(beat)}
-					aria-pressed={exercise.accentBeats.includes(beat)}
+					aria-pressed={value.accentBeats.includes(beat)}
 					aria-label={`Beat ${beat + 1} accent`}>{beat + 1}</button
 				>
 			{/each}

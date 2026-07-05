@@ -6,7 +6,9 @@
 		exerciseKind,
 		makeExercise,
 		makeRoutine,
+		stepMetronome,
 		type Exercise,
+		type ExerciseStep,
 		type LoopSizing,
 		type Routine
 	} from '$lib/types/guitar'
@@ -34,11 +36,35 @@
 	const activeRoutine = $derived(routines.find((r) => r.id === activeId) ?? null)
 	const exercises = $derived(activeRoutine?.exercises ?? [])
 
-	// Legacy routines predate the `kind` field; infer it so old exercises still render as the right type.
+	// Bring one exercise up to the current shape. Runs on BOTH load paths (localStorage + file import):
+	//  - infer `kind` for legacy routines that predate the field, and
+	//  - fold a legacy exercise-wide multistep click (metronomeEnabled) into each step's own metronome,
+	//    so the old single-tempo behavior survives the move to per-step metronomes.
+	function migrateExercise(ex: Exercise): Exercise {
+		const kind = exerciseKind(ex)
+		if (kind !== 'multistep' || !ex.steps) return { ...ex, kind }
+		const exMetro = ex.metronomeEnabled === true
+		const steps = ex.steps.map((s) =>
+			s.metronomeEnabled !== undefined
+				? s // already per-step aware — leave it
+				: exMetro
+					? {
+							...s,
+							metronomeEnabled: true,
+							bpm: ex.bpm,
+							subdivision: ex.subdivision,
+							beatsPerMeasure: ex.beatsPerMeasure,
+							accentBeats: ex.accentBeats
+						}
+					: { ...s, metronomeEnabled: false }
+		)
+		return { ...ex, kind, steps }
+	}
+
 	function migrateRoutines(list: Routine[]): Routine[] {
 		return list.map((r) => ({
 			...r,
-			exercises: (r.exercises ?? []).map((ex) => ({ ...ex, kind: exerciseKind(ex) }))
+			exercises: (r.exercises ?? []).map(migrateExercise)
 		}))
 	}
 
@@ -223,10 +249,9 @@
 				const imported: Routine = {
 					id: uid(),
 					name: parsed.name,
-					exercises: parsed.exercises.map((ex, i) => {
-						const merged = { ...makeExercise(i), ...ex, id: uid() }
-						return { ...merged, kind: exerciseKind(merged) }
-					})
+					exercises: parsed.exercises.map((ex, i) =>
+						migrateExercise({ ...makeExercise(i), ...ex, id: uid() })
+					)
 				}
 				routines = [...routines, imported]
 				activeId = imported.id
@@ -267,6 +292,7 @@
 	let finished = $state(false)
 	let pulseBeat = $state(-1) // beat index currently sounding (visual indicator)
 	let runSettingsOpen = $state(false) // live metronome editor panel in run mode
+	let expandedStepId = $state<string | null>(null) // which run-mode step row is expanded (req 2)
 	// Timer hit 0 on a quiz/video step; we're waiting for it to reach a natural boundary before
 	// advancing (req 7). While true the countdown is frozen at 0 and the child keeps playing.
 	let pendingAdvance = $state(false)
@@ -288,7 +314,11 @@
 	const runExercise = $derived(exercises[currentIndex] ?? null)
 	const nextExercise = $derived(exercises[currentIndex + 1] ?? null)
 	// The step currently playing in a multistep exercise (null for other kinds).
-	const runStep = $derived(isMultistep(runExercise) ? (runExercise!.steps![stepIndex] ?? null) : null)
+	const runStep = $derived(
+		isMultistep(runExercise) ? (runExercise!.steps![stepIndex] ?? null) : null
+	)
+	// The current step's resolved metronome params — drives the run-mode beat indicator + live editor.
+	const runStepMetro = $derived(runStep ? stepMetronome(runStep) : null)
 	// The loop currently playing in a timed-loop video exercise (null for other kinds), + its id for the
 	// VideoLooper command prop.
 	const runLoop = $derived(
@@ -300,7 +330,8 @@
 	const runNextStepLabel = $derived.by(() => {
 		if (!isMultistep(runExercise) || !runStep) return null
 		const steps = runExercise!.steps!
-		if (stepRepeat + 1 < runStep.repeatCount) return `Rep ${stepRepeat + 2} / ${runStep.repeatCount}`
+		if (stepRepeat + 1 < runStep.repeatCount)
+			return `Rep ${stepRepeat + 2} / ${runStep.repeatCount}`
 		if (stepIndex + 1 < steps.length) {
 			const desc = steps[stepIndex + 1].description?.trim()
 			return `Step ${stepIndex + 2}${desc ? ` — ${desc}` : ''}`
@@ -310,7 +341,8 @@
 	// Denominator for the progress bar: the current step (or rest) for multistep, else the exercise timer.
 	const currentSegmentDuration = $derived.by(() => {
 		if (!runExercise) return 0
-		if (isMultistep(runExercise)) return resting ? (runStep?.restSec ?? 0) : (runStep?.durationSec ?? 0)
+		if (isMultistep(runExercise))
+			return resting ? (runStep?.restSec ?? 0) : (runStep?.durationSec ?? 0)
 		// Only 'timer'-sized loops have a countdown segment; 'reps' progress is loopRepeat/reps (see below).
 		if (isVideoSequence(runExercise))
 			return loopSizing(runExercise) === 'timer' && runLoop ? loopDurOf(runLoop) : 0
@@ -333,6 +365,16 @@
 			subdivision: ex.subdivision,
 			beatsPerMeasure: ex.beatsPerMeasure,
 			accentBeats: ex.accentBeats,
+			onTick: (beatIndex) => {
+				pulseBeat = beatIndex
+			}
+		}
+	}
+
+	// Metronome config for one multistep step (resolves defaults for legacy steps).
+	function stepCfg(step: ExerciseStep): MetronomeConfig {
+		return {
+			...stepMetronome(step),
 			onTick: (beatIndex) => {
 				pulseBeat = beatIndex
 			}
@@ -411,12 +453,12 @@
 					return
 				}
 				remainingSec = rem
-				// Ring a bell once per second through the final 5 seconds — but not during a multistep rest gap
-				// (req 5 rings the step timer only).
+				// Ring a bell once per second through the final 5 seconds. Rests ring too, at a lower pitch,
+				// as a "get ready for the next rep/exercise" cue distinct from the step-timer countdown.
 				const sec = Math.ceil(rem)
-				if (sec <= 5 && sec !== lastBellSec && !resting) {
+				if (sec <= 5 && sec !== lastBellSec) {
 					lastBellSec = sec
-					if (audioCtx) bell(audioCtx)
+					if (audioCtx) bell(audioCtx, resting ? { freq: 587 } : {})
 				}
 			}
 			rafId = requestAnimationFrame(frame)
@@ -439,9 +481,12 @@
 			capSegStart = performance.now() // start the parallel cap clock for this running segment
 			capRemainingAtStart = capRemaining
 		}
-		// Only metronome exercises tick; video/fretboard/multistep run the countdown (+bell) without clicks.
-		if (ownsRoutineTimer(exercises[currentIndex])) {
-			metro?.configure(cfgFor(exercises[currentIndex]))
+		// Metronome kind: one continuous click. Multistep: the current step's click (if it opted in).
+		// Video / fretboard: countdown (+bell) without clicks.
+		const cur = exercises[currentIndex]
+		if (isMultistep(cur)) applyStepMetronome()
+		else if (ownsRoutineTimer(cur)) {
+			metro?.configure(cfgFor(cur))
 			metro?.start()
 		}
 		// Timer opted out → play freely (metronome keeps ticking) with no countdown / no auto-advance.
@@ -459,22 +504,43 @@
 		stopDisplayLoop()
 	}
 
-	// Which exercises drive the audible click chain: every metronome exercise, plus a multistep exercise
-	// that opted IN (metronomeEnabled). The click ticks seamlessly across steps/reps/rests at one tempo.
-	// Video / fretboard (and opted-out multistep) run their countdown(s) without the metronome.
+	// The metronome-kind exercise runs one continuous click for its whole duration. Multistep now drives
+	// its click per-step (see applyStepMetronome); video / fretboard run their countdown without one.
 	function ownsRoutineTimer(ex: Exercise) {
-		if (exerciseKind(ex) === 'metronome') return true
-		return isMultistep(ex) && ex.metronomeEnabled === true
+		return exerciseKind(ex) === 'metronome'
 	}
 
-	// Toggle the running multistep exercise's metronome live (run-mode ⚙ panel). Persists + starts/stops
-	// the click on the fly; liveUpdateExercise already reconfigures a running metro from the patch.
-	function toggleRunMetronome(on: boolean) {
-		if (!runExercise) return
-		liveUpdateExercise({ metronomeEnabled: on })
-		if (!running) return
-		if (on) {
-			metro?.configure(cfgFor(runExercise))
+	// The multistep step currently playing (read from the raw array, not the derived, so callers can use
+	// it immediately after mutating stepIndex within the same tick).
+	function currentStep(): ExerciseStep | null {
+		const ex = exercises[currentIndex]
+		return isMultistep(ex) ? (ex.steps![stepIndex] ?? null) : null
+	}
+
+	// Reconcile the click with the current multistep step: (re)configure + start it when the step opted
+	// into a metronome, else stop it. Silent during rests. No-op unless we're running.
+	function applyStepMetronome() {
+		const step = currentStep()
+		if (!running || resting || !step || !step.metronomeEnabled) {
+			metro?.stop()
+			pulseBeat = -1
+			return
+		}
+		metro?.configure(stepCfg(step))
+		metro?.start() // no-op if already ticking (previous step's click carries straight through)
+	}
+
+	// Live-edit the current step's metronome from the run-mode ⚙ panel: persist the patch and reflect
+	// it on the click immediately (computed from the merged step to avoid derived-timing races).
+	function liveUpdateStep(patch: Partial<ExerciseStep>) {
+		const ex = runExercise
+		const step = currentStep()
+		if (!ex || !step) return
+		const merged = { ...step, ...patch }
+		updateExercise(ex.id, { steps: ex.steps!.map((s) => (s.id === step.id ? merged : s)) })
+		if (!running || resting) return
+		if (merged.metronomeEnabled) {
+			metro?.configure(stepCfg(merged))
 			metro?.start()
 		} else {
 			metro?.stop()
@@ -490,7 +556,10 @@
 	// A video/audio exercise whose loops auto-sequence in run mode (opt-in).
 	function isVideoSequence(ex: Exercise | null | undefined): boolean {
 		return (
-			!!ex && exerciseKind(ex) === 'video' && !!ex.video?.timedLoops && (ex.video.loops.length ?? 0) > 0
+			!!ex &&
+			exerciseKind(ex) === 'video' &&
+			!!ex.video?.timedLoops &&
+			(ex.video.loops.length ?? 0) > 0
 		)
 	}
 	// How the sequence sizes each loop: 'reps' (count A→B passes) or 'timer' (wall-clock). See VideoConfig.
@@ -557,6 +626,38 @@
 		loopCmdNonce += 1
 	}
 
+	// Manual ⏮ in a timed-loop run: restart the CURRENT loop from the top — reset its progress (reps or
+	// timer) so the readout starts over, drop any cap-hold, and re-seek the player to A.
+	function restartCurrentLoop() {
+		const ex = exercises[currentIndex]
+		if (!isVideoSequence(ex)) return
+		holdingForCap = false
+		if (loopSizing(ex) === 'timer') {
+			remainingSec = loopDurOf(ex.video!.loops[loopIndex])
+			armSegment()
+		} else {
+			loopRepeat = 0
+		}
+		commandLoop()
+	}
+
+	// Manual jump to any loop in a timed sequence (req 1): make it the current loop, reset its progress,
+	// and re-seek the player to A. The exercise cap (if any) keeps running — only the loop position moves.
+	function jumpToLoop(id: string) {
+		const ex = exercises[currentIndex]
+		if (!isVideoSequence(ex)) return
+		const idx = ex.video!.loops.findIndex((l) => l.id === id)
+		if (idx < 0) return
+		holdingForCap = false
+		loopIndex = idx
+		loopRepeat = 0
+		if (loopSizing(ex) === 'timer') {
+			remainingSec = loopDurOf(ex.video!.loops[idx])
+			armSegment()
+		}
+		commandLoop()
+	}
+
 	// The cap clock advances on the same wall time as the loop timer, but never resets on a loop switch.
 	function computeCap(): number {
 		return capRemainingAtStart - (performance.now() - capSegStart) / 1000
@@ -607,11 +708,13 @@
 		const ex = exercises[currentIndex]
 		armExercise(ex)
 		armSegment()
-		if (ownsRoutineTimer(ex)) {
+		if (isMultistep(ex)) {
+			applyStepMetronome() // step 0's click, if it opted in
+		} else if (ownsRoutineTimer(ex)) {
 			metro?.configure(cfgFor(ex))
 			metro?.start() // running stays true → seamless into the next metronome step
 		} else {
-			pulseBeat = -1 // video/fretboard/multistep: countdown keeps running, just no clicks
+			pulseBeat = -1 // video/fretboard: countdown keeps running, just no clicks
 		}
 	}
 
@@ -634,6 +737,7 @@
 			restTarget = null
 			armSegment()
 			if (audioCtx) beep(audioCtx)
+			applyStepMetronome() // resume the (now-current) step's click
 			return
 		}
 		const step = steps[stepIndex]
@@ -645,11 +749,13 @@
 				restTarget = 'rep'
 				remainingSec = step.restSec
 				armSegment()
+				applyStepMetronome() // resting → silences the click
 				return
 			}
 			stepRepeat += 1
 			remainingSec = step.durationSec
 			armSegment()
+			applyStepMetronome() // same step → restarts the measure on the rep's downbeat
 			return
 		}
 		// All repeats of this step are done.
@@ -659,6 +765,7 @@
 				restTarget = 'step'
 				remainingSec = step.restSec
 				armSegment()
+				applyStepMetronome() // resting → silences the click
 				return
 			}
 			stepIndex += 1
@@ -666,6 +773,7 @@
 			remainingSec = steps[stepIndex].durationSec
 			armSegment()
 			if (audioCtx) beep(audioCtx)
+			applyStepMetronome() // reconfigure to the next step's tempo (or stop if it opted out)
 			return
 		}
 		// Last step, last repeat → on to the next exercise (no trailing rest).
@@ -762,10 +870,14 @@
 		}
 		armExercise(ex) // multistep: back to step 1; others: reset the exercise timer
 		armSegment()
-		if (running && ownsRoutineTimer(ex)) {
-			metro?.stop()
-			metro?.configure(cfgFor(ex))
-			metro?.start()
+		if (running) {
+			if (isMultistep(ex))
+				applyStepMetronome() // step 1's click (or silence if it opted out)
+			else if (ownsRoutineTimer(ex)) {
+				metro?.stop()
+				metro?.configure(cfgFor(ex))
+				metro?.start()
+			}
 		}
 	}
 
@@ -773,6 +885,23 @@
 		const target = currentIndex + dir
 		if (target < 0 || target >= exercises.length) return
 		goToExercise(target)
+	}
+
+	// Manual jump to any step in a multistep exercise (req 2): reset the rep counter + rest, arm that
+	// step's timer, and reconcile the click. Keeps `running` as-is (a jump while paused stays paused).
+	function jumpToStep(idx: number) {
+		const ex = exercises[currentIndex]
+		if (!isMultistep(ex)) return
+		const steps = ex.steps!
+		if (idx < 0 || idx >= steps.length) return
+		resting = false
+		restTarget = null
+		holdingForCap = false
+		stepIndex = idx
+		stepRepeat = 0
+		remainingSec = steps[idx].durationSec
+		armSegment()
+		applyStepMetronome()
 	}
 
 	function teardownAudio() {
@@ -963,8 +1092,10 @@
 		{#snippet fullControls()}
 			<!-- Full transport for exercises whose own countdown IS the main timer (metronome, multistep). -->
 			<div class="flex gap-2 flex-wrap justify-center mt-2">
-				<button class="btn btn-sm btn-outline" onclick={() => jump(-1)} disabled={currentIndex === 0}
-					>⏮ Prev</button
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => jump(-1)}
+					disabled={currentIndex === 0}>⏮ Prev</button
 				>
 				{#if finished}
 					<button class="btn btn-sm btn-primary" onclick={() => enterRun()}>↻ Restart</button>
@@ -1012,7 +1143,9 @@
 							onFinished={onChildBoundary}
 							{runLoopId}
 							runLoopNonce={loopCmdNonce}
-							onLoopBoundary={onLoopBoundary}
+							{onLoopBoundary}
+							onRestartLoop={restartCurrentLoop}
+							onJumpLoop={jumpToLoop}
 							onChange={(v) => runExercise && updateExercise(runExercise.id, { video: v })}
 						/>
 					</div>
@@ -1046,8 +1179,8 @@
 						{:else}
 							<!-- 'timer' sizing: the loop countdown is the primary readout. -->
 							<div class="font-mono tabular-nums leading-none">
-								<span class="text-6xl sm:text-8xl">{formatMmss(Math.floor(remainingSec))}</span><span
-									class="text-3xl sm:text-5xl opacity-70"
+								<span class="text-6xl sm:text-8xl">{formatMmss(Math.floor(remainingSec))}</span
+								><span class="text-3xl sm:text-5xl opacity-70"
 									>.{formatMmssMs(remainingSec).split('.')[1]}</span
 								>
 							</div>
@@ -1127,7 +1260,9 @@
 					</div>
 
 					{#if resting}
-						<div class="text-3xl sm:text-4xl font-mono opacity-50 uppercase tracking-wide">Rest</div>
+						<div class="text-3xl sm:text-4xl font-mono opacity-50 uppercase tracking-wide">
+							Rest
+						</div>
 					{/if}
 
 					<div class="font-mono tabular-nums leading-none {resting ? 'opacity-50' : ''}">
@@ -1165,22 +1300,82 @@
 					{/if}
 				{/if}
 
-				<!-- Metronome (opt-in) beat indicator — sits above the transport, like the metronome kind -->
-				{#if runExercise?.metronomeEnabled && !finished}
+				<!-- Steps list (req 2): foldable rows like the loop list. ▶ Play jumps to any step; the
+					 current one shows Now/Rest. Tap a row to reveal its full description. -->
+				{#if !finished && runExercise?.steps}
+					<div class="w-full max-w-md flex flex-col gap-1.5 text-left">
+						<span class="text-[0.65rem] uppercase tracking-wide opacity-50 text-center"
+							>Steps — tap ▶ to jump</span
+						>
+						{#each runExercise.steps as st, si (st.id)}
+							{@const stExpanded = expandedStepId === st.id}
+							{@const stMetro = stepMetronome(st)}
+							<div
+								class="rounded border {si === stepIndex
+									? 'border-[#02343F] bg-[#02343F]/5'
+									: 'border-[#02343F]/20 bg-white'}"
+							>
+								<div class="flex items-center gap-1.5 p-1.5">
+									{#if si === stepIndex}
+										<span
+											class="shrink-0 w-16 text-center text-xs px-1 py-1 rounded bg-[#02343F] text-[#F0EDCC]"
+											>{resting ? '⏸ Rest' : '▶ Now'}</span
+										>
+									{:else}
+										<button
+											class="btn btn-xs btn-outline shrink-0 w-16"
+											onclick={() => jumpToStep(si)}
+											title="Jump to this step">▶ Play</button
+										>
+									{/if}
+									<button
+										class="flex-1 text-left min-w-0"
+										onclick={() => (expandedStepId = stExpanded ? null : st.id)}
+									>
+										<div class="font-medium truncate">
+											Step {si + 1}{st.description ? ` — ${st.description}` : ''}
+										</div>
+										<div class="text-xs opacity-60">
+											{formatMmss(st.durationSec)}{st.repeatCount > 1
+												? ` · ×${st.repeatCount}`
+												: ''}{st.metronomeEnabled ? ` · ${stMetro.bpm} bpm` : ''}
+										</div>
+									</button>
+									<button
+										class="btn btn-xs btn-ghost shrink-0"
+										onclick={() => (expandedStepId = stExpanded ? null : st.id)}
+										aria-label="Toggle step details">{stExpanded ? '▲' : '▼'}</button
+									>
+								</div>
+								{#if stExpanded}
+									<div
+										class="border-t border-[#02343F]/10 p-2 text-sm whitespace-pre-wrap opacity-80"
+									>
+										{st.description || 'No description for this step.'}
+									</div>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				{/if}
+
+				<!-- Per-step metronome (opt-in) beat indicator — reflects the CURRENT step's tempo; hidden
+					 during rests (the click is silent then). -->
+				{#if runStep?.metronomeEnabled && runStepMetro && !resting && !finished}
 					<div class="flex flex-col items-center gap-2">
 						<div class="text-sm opacity-60">
-							{runExercise.bpm} BPM · {runExercise.subdivision === 'quarter'
+							{runStepMetro.bpm} BPM · {runStepMetro.subdivision === 'quarter'
 								? '1/4'
-								: runExercise.subdivision === 'eighth'
+								: runStepMetro.subdivision === 'eighth'
 									? '1/8'
 									: '1/16'} ticks
 						</div>
 						<div class="flex gap-1.5">
-							{#each Array(runExercise.beatsPerMeasure) as _, beat}
+							{#each Array(runStepMetro.beatsPerMeasure) as _, beat}
 								<div
 									class="w-4 h-4 rounded-full border-2 border-[#02343F] transition-all duration-75
 										{pulseBeat === beat ? 'bg-[#02343F] scale-125' : 'bg-transparent'}
-										{runExercise.accentBeats.includes(beat) ? 'border-[#02343F]' : 'border-[#02343F]/30'}"
+										{runStepMetro.accentBeats.includes(beat) ? 'border-[#02343F]' : 'border-[#02343F]/30'}"
 								></div>
 							{/each}
 						</div>
@@ -1189,29 +1384,34 @@
 
 				{@render fullControls()}
 
-				<!-- Live metronome editor incl. an on/off toggle (changes apply on the fly) -->
-				{#if runExercise && !finished}
+				<!-- Live metronome editor for the CURRENT step, incl. an on/off toggle (changes apply on the
+					 fly). Disabled during a rest — there's no active step to edit. -->
+				{#if runStep && runStepMetro && !finished}
 					<div class="w-full max-w-md">
 						<button
 							class="btn btn-xs btn-ghost"
 							onclick={() => (runSettingsOpen = !runSettingsOpen)}
-							>{runSettingsOpen ? '▲ Hide metronome' : '⚙ Metronome'}</button
+							>{runSettingsOpen ? '▲ Hide metronome' : '⚙ Metronome'} (step {stepIndex + 1})</button
 						>
 						{#if runSettingsOpen}
 							<div
 								class="mt-2 text-left rounded border border-[#02343F]/20 bg-white/60 p-2 flex flex-col gap-2"
 							>
+								{#if resting}
+									<p class="text-xs opacity-50">Resting — metronome resumes on the next step.</p>
+								{/if}
 								<label class="flex items-center gap-1.5 cursor-pointer w-fit">
 									<input
 										type="checkbox"
 										class="checkbox checkbox-xs"
-										checked={runExercise.metronomeEnabled === true}
-										onchange={(e) => toggleRunMetronome((e.target as HTMLInputElement).checked)}
+										checked={runStep.metronomeEnabled === true}
+										onchange={(e) =>
+											liveUpdateStep({ metronomeEnabled: (e.target as HTMLInputElement).checked })}
 									/>
 									<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Metronome</span>
 								</label>
-								{#if runExercise.metronomeEnabled}
-									<MetronomeSettings exercise={runExercise} onUpdate={liveUpdateExercise} />
+								{#if runStep.metronomeEnabled}
+									<MetronomeSettings value={runStepMetro} onUpdate={liveUpdateStep} />
 								{/if}
 							</div>
 						{/if}
@@ -1264,7 +1464,9 @@
 				{/if}
 
 				{#if nextExercise && !finished}
-					<div class="text-sm opacity-50">Next: {nextExercise.name} ({nextLabel(nextExercise)})</div>
+					<div class="text-sm opacity-50">
+						Next: {nextExercise.name} ({nextLabel(nextExercise)})
+					</div>
 				{:else if !finished}
 					<div class="text-sm opacity-50">Last exercise</div>
 				{/if}
@@ -1282,7 +1484,7 @@
 						>
 						{#if runSettingsOpen}
 							<div class="mt-2 text-left rounded border border-[#02343F]/20 bg-white/60 p-2">
-								<MetronomeSettings exercise={runExercise} onUpdate={liveUpdateExercise} />
+								<MetronomeSettings value={runExercise} onUpdate={liveUpdateExercise} />
 							</div>
 						{/if}
 					</div>

@@ -25,6 +25,8 @@
 		runLoopId = undefined,
 		runLoopNonce = 0,
 		onLoopBoundary = undefined,
+		onRestartLoop = undefined,
+		onJumpLoop = undefined,
 		capSec = undefined
 	}: {
 		video: VideoConfig
@@ -39,6 +41,10 @@
 		runLoopNonce?: number
 		// Run-mode 'reps' sizing: fires each time the active loop wraps A→B so the page can count reps.
 		onLoopBoundary?: () => void
+		// Run-mode timed sequence: the ⏮ on the current loop asks the page to restart it from the top.
+		onRestartLoop?: () => void
+		// Run-mode timed sequence: ▶ on a queued loop asks the page to jump the sequence to that loop.
+		onJumpLoop?: (id: string) => void
 		// Edit-mode readability: the exercise cap (seconds) if opted in, else null — used in the loop's
 		// plain-English summary. VideoLooper only sees the VideoConfig, so the page/card feeds this in.
 		capSec?: number | null
@@ -68,6 +74,12 @@
 	const sequencing = $derived(mode === 'run' && (video.timedLoops ?? false))
 	const isYouTube = $derived(video.source.kind === 'youtube')
 	const isAudio = $derived(video.source.kind === 'file' && video.source.mediaKind === 'audio')
+
+	// The loop the player is actually playing right now: the page-driven one in a run sequence, else the
+	// persisted active loop. Edits to THIS loop (bounds + rate) apply to the live player, so speed can be
+	// changed mid-exercise in a timed sequence (req 2).
+	const liveLoopId = $derived(sequencing ? (runLoopId ?? null) : activeLoopId)
+	const runLoop = $derived(video.loops.find((l) => l.id === runLoopId) ?? null)
 
 	// ---- graceful finish (req 7): when the routine timer runs out, don't cut the loop off mid-lick.
 	// If an A-B loop is actively playing, wait for the next B→A wrap; otherwise finish immediately.
@@ -189,8 +201,9 @@
 	function updateLoop(id: string, patch: Partial<VideoLoop>) {
 		const loops = video.loops.map((l) => (l.id === id ? { ...l, ...patch } : l))
 		commit({ loops })
-		// Apply edits to the live player when the active loop changes (bounds + rate), no re-seek.
-		if (id === activeLoopId) {
+		// Apply edits to the live player when they target the loop currently playing (bounds + rate),
+		// no re-seek. liveLoopId covers both manual practice and a page-driven run sequence (req 2).
+		if (id === liveLoopId) {
 			const updated = loops.find((l) => l.id === id)
 			if (updated) {
 				controller?.refreshLoop(updated)
@@ -226,7 +239,9 @@
 		} else {
 			head = `Loops A→B for ${formatMmss(loop.durationSec ?? DEFAULT_LOOP_SEC)}, then ${next}`
 		}
-		return capSec != null ? `${head} — or until the ${formatMmss(capSec)} exercise timer ends` : head
+		return capSec != null
+			? `${head} — or until the ${formatMmss(capSec)} exercise timer ends`
+			: head
 	}
 	function loopDurParts(loop: VideoLoop) {
 		const whole = Math.max(0, Math.floor(loop.durationSec ?? DEFAULT_LOOP_SEC))
@@ -369,6 +384,34 @@
 </script>
 
 <div class="flex flex-col gap-2">
+	<!-- Playback-speed picker for one loop: YouTube snaps to fixed rates, files get a continuous slider.
+		 setLoopRate persists + (via updateLoop/liveLoopId) applies to the player live when this loop plays. -->
+	{#snippet speedControl(loop: VideoLoop)}
+		{#if isYouTube}
+			<div class="flex flex-wrap gap-1">
+				{#each YT_PLAYBACK_RATES as r}
+					<button
+						class="btn btn-xs {loop.rate === r ? 'btn-primary' : 'btn-outline'}"
+						onclick={() => setLoopRate(loop, r)}>{r}×</button
+					>
+				{/each}
+			</div>
+		{:else}
+			<div class="flex items-center gap-2">
+				<input
+					type="range"
+					min={FILE_RATE_RANGE.min}
+					max={FILE_RATE_RANGE.max}
+					step={FILE_RATE_RANGE.step}
+					value={loop.rate}
+					oninput={(e) => setLoopRate(loop, parseFloat((e.target as HTMLInputElement).value))}
+					class="range range-xs flex-1"
+				/>
+				<span class="font-mono text-sm w-12 text-right">{loop.rate.toFixed(2)}×</span>
+			</div>
+		{/if}
+	{/snippet}
+
 	<!-- Player surface -->
 	{#if missingBlob}
 		<div class="rounded bg-amber-50 border border-amber-300 text-amber-900 text-sm p-3">
@@ -435,6 +478,17 @@
 				</p>
 			{/if}
 		</div>
+
+		<!-- Timed sequence: live speed control for the loop the page is currently playing. Adjusting it
+			 changes playback speed immediately, mid-exercise (req 2), and sticks for the rest of the run. -->
+		{#if sequencing && runLoop}
+			<div class="flex flex-col gap-1">
+				<span class="text-[0.65rem] uppercase tracking-wide opacity-60"
+					>Speed — {runLoop.label}</span
+				>
+				{@render speedControl(runLoop)}
+			</div>
+		{/if}
 	{/if}
 
 	<!-- A/B timestamp as m / s / ms boxes (req 2). Select-all on focus, clamped per box. -->
@@ -524,12 +578,28 @@
 				<!-- Row header -->
 				<div class="flex items-center gap-1.5 p-1.5">
 					{#if sequencing}
-						<!-- Page-driven sequence: show play status instead of the manual activate toggle. -->
-						<span
-							class="shrink-0 w-20 text-center text-xs px-1 py-1 rounded {runLoopId === loop.id
-								? 'bg-[#02343F] text-[#F0EDCC]'
-								: 'opacity-40'}">{runLoopId === loop.id ? '▶ Playing' : 'Queued'}</span
-						>
+						<!-- Page-driven sequence: the current loop shows a Playing badge + restart; every other
+							 loop is a ▶ Play button that jumps the sequence to it (free movement, req 1). -->
+						{#if runLoopId === loop.id}
+							<span
+								class="shrink-0 w-20 text-center text-xs px-1 py-1 rounded bg-[#02343F] text-[#F0EDCC]"
+								>▶ Playing</span
+							>
+							<button
+								class="btn btn-xs btn-ghost shrink-0"
+								onclick={() => onRestartLoop?.()}
+								disabled={!!missingBlob || !ready}
+								title="Start this loop from the beginning"
+								aria-label="Start loop from beginning">⏮</button
+							>
+						{:else}
+							<button
+								class="btn btn-xs btn-outline shrink-0 w-20"
+								onclick={() => onJumpLoop?.(loop.id)}
+								disabled={!!missingBlob || !ready}
+								title="Jump to this loop">▶ Play</button
+							>
+						{/if}
 					{:else}
 						<button
 							class="btn btn-xs shrink-0 w-20 {activeLoopId === loop.id
@@ -540,15 +610,14 @@
 							title={activeLoopId === loop.id ? 'Tap to deactivate' : 'Tap to activate'}
 							>{activeLoopId === loop.id ? 'Active' : 'Activate'}</button
 						>
-						{#if mode === 'run'}
-							<button
-								class="btn btn-xs btn-ghost shrink-0"
-								onclick={() => restartLoop(loop)}
-								disabled={!!missingBlob || !ready}
-								title="Start this loop from the beginning"
-								aria-label="Start loop from beginning">⏮</button
-							>
-						{/if}
+						<!-- Restart from A — in run mode (manual practice) and edit mode (preview, req 4). -->
+						<button
+							class="btn btn-xs btn-ghost shrink-0"
+							onclick={() => restartLoop(loop)}
+							disabled={!!missingBlob || !ready}
+							title="Start this loop from the beginning"
+							aria-label="Start loop from beginning">⏮</button
+						>
 					{/if}
 					<button
 						class="flex-1 text-left min-w-0"
@@ -588,30 +657,7 @@
 						<!-- Per-loop speed -->
 						<div class="flex flex-col gap-1">
 							<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Speed</span>
-							{#if isYouTube}
-								<div class="flex flex-wrap gap-1">
-									{#each YT_PLAYBACK_RATES as r}
-										<button
-											class="btn btn-xs {loop.rate === r ? 'btn-primary' : 'btn-outline'}"
-											onclick={() => setLoopRate(loop, r)}>{r}×</button
-										>
-									{/each}
-								</div>
-							{:else}
-								<div class="flex items-center gap-2">
-									<input
-										type="range"
-										min={FILE_RATE_RANGE.min}
-										max={FILE_RATE_RANGE.max}
-										step={FILE_RATE_RANGE.step}
-										value={loop.rate}
-										oninput={(e) =>
-											setLoopRate(loop, parseFloat((e.target as HTMLInputElement).value))}
-										class="range range-xs flex-1"
-									/>
-									<span class="font-mono text-sm w-12 text-right">{loop.rate.toFixed(2)}×</span>
-								</div>
-							{/if}
+							{@render speedControl(loop)}
 						</div>
 
 						<!-- Loop sizing (only in a timed sequence): reps OR a timer, chosen exercise-wide above. -->

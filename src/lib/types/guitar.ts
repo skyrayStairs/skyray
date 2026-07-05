@@ -10,8 +10,26 @@ export type Subdivision = 'quarter' | 'eighth' | 'sixteenth' // ticks per beat =
 // The exercise's kind. Legacy routines predate this field; `exerciseKind()` infers it from presence.
 export type ExerciseKind = 'metronome' | 'video' | 'fretboard' | 'multistep'
 
+// The four fields that fully describe a metronome click. Shared by the metronome/fretboard exercise
+// kinds (stored on the Exercise) and by each multistep step (stored on the step, resolved via
+// stepMetronome() so legacy steps fall back to sensible defaults).
+export interface MetronomeParams {
+	bpm: number
+	subdivision: Subdivision
+	beatsPerMeasure: number
+	accentBeats: number[]
+}
+
+export const DEFAULT_METRONOME: MetronomeParams = {
+	bpm: 100,
+	subdivision: 'quarter',
+	beatsPerMeasure: 4,
+	accentBeats: [0]
+}
+
 // One step of a multistep exercise: its own countdown, a free-text description, an optional repeat
-// count (loops the step back-to-back), and a rest gap inserted before the NEXT step.
+// count (loops the step back-to-back), a rest gap inserted before the NEXT step, and its OWN
+// metronome (opt-in per step — the click reconfigures at each step boundary).
 export interface ExerciseStep {
 	id: string
 	description: string // req 4: what to practice this step
@@ -19,6 +37,23 @@ export interface ExerciseStep {
 	repeatCount: number // req 6: loop this step N times back-to-back (>= 1)
 	restSec: number // req 7: rest after this step, before the next step (0 = none)
 	restBetweenReps?: boolean // opt-in: also insert restSec between repeats of THIS step (default off)
+	// Per-step metronome (opt-in). When enabled, the click plays this step at the params below; the
+	// params are optional and resolved through stepMetronome() so legacy steps use DEFAULT_METRONOME.
+	metronomeEnabled?: boolean
+	bpm?: number
+	subdivision?: Subdivision
+	beatsPerMeasure?: number
+	accentBeats?: number[]
+}
+
+// Resolve a step's metronome params, filling any unset field from DEFAULT_METRONOME.
+export function stepMetronome(step: ExerciseStep): MetronomeParams {
+	return {
+		bpm: step.bpm ?? DEFAULT_METRONOME.bpm,
+		subdivision: step.subdivision ?? DEFAULT_METRONOME.subdivision,
+		beatsPerMeasure: step.beatsPerMeasure ?? DEFAULT_METRONOME.beatsPerMeasure,
+		accentBeats: step.accentBeats ?? DEFAULT_METRONOME.accentBeats
+	}
 }
 
 export interface Exercise {
@@ -34,7 +69,9 @@ export interface Exercise {
 	video?: VideoConfig // when present, this is a video-loop exercise (countdown applies, no metronome)
 	fretboard?: FretboardConfig // when present, this is a fretboard exercise (countdown applies, no metronome)
 	steps?: ExerciseStep[] // multistep exercise: the exercise timer is disabled; step timers drive advancement
-	metronomeEnabled?: boolean // multistep only: opt-IN click across all steps at one tempo (undefined = off, legacy silent)
+	// Legacy: pre-per-step multistep click (one tempo across every step). No longer written — migration
+	// folds a `true` here into each step's own metronome. Kept only so old routines still migrate.
+	metronomeEnabled?: boolean
 }
 
 // Resolve an exercise's kind, inferring from presence for legacy routines that predate the field.
@@ -164,7 +201,7 @@ export function makeExercise(index: number): Exercise {
 }
 
 export function makeStep(): ExerciseStep {
-	return { id: uid(), description: '', durationSec: 60, repeatCount: 1, restSec: 5 }
+	return { id: uid(), description: '', durationSec: 60, repeatCount: 1, restSec: 5, metronomeEnabled: false }
 }
 
 export function makeRoutine(index: number): Routine {

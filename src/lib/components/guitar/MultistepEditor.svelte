@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { makeStep, type ExerciseStep } from '$lib/types/guitar'
+	import { makeStep, stepMetronome, type ExerciseStep } from '$lib/types/guitar'
+	import MetronomeSettings from './MetronomeSettings.svelte'
 
 	let {
 		steps,
@@ -224,6 +225,26 @@
 					<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Rest between reps</span>
 				</label>
 			{/if}
+
+			<!-- Per-step metronome (opt-in): the click reconfigures to this step's tempo when it plays. -->
+			<div class="flex flex-col gap-1 border-t border-[#02343F]/10 pt-1.5">
+				<label class="flex items-center gap-1.5 cursor-pointer w-fit">
+					<input
+						type="checkbox"
+						class="checkbox checkbox-xs"
+						checked={step.metronomeEnabled === true}
+						onchange={(e) =>
+							updateStep(step.id, { metronomeEnabled: (e.target as HTMLInputElement).checked })}
+					/>
+					<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Metronome</span>
+				</label>
+				{#if step.metronomeEnabled}
+					<MetronomeSettings
+						value={stepMetronome(step)}
+						onUpdate={(patch) => updateStep(step.id, patch)}
+					/>
+				{/if}
+			</div>
 		</div>
 	{/each}
 

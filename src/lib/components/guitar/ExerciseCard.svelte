@@ -337,24 +337,10 @@
 			<FretboardSettings config={exercise.fretboard} onUpdate={updateFretboard} />
 		{/if}
 	{:else if kind === 'multistep'}
+		<!-- Metronome is per-step now (opt-in inside each step), not exercise-wide. -->
 		<MultistepEditor steps={exercise.steps ?? []} onChange={updateSteps} />
-		<!-- Opt-in metronome: one tempo clicked across every step (default off; legacy multistep stays silent). -->
-		<div class="flex flex-col gap-1 border-t border-[#02343F]/10 pt-2">
-			<label class="flex items-center gap-1.5 cursor-pointer w-fit">
-				<input
-					type="checkbox"
-					class="checkbox checkbox-xs"
-					checked={exercise.metronomeEnabled === true}
-					onchange={(e) => onUpdate({ metronomeEnabled: (e.target as HTMLInputElement).checked })}
-				/>
-				<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Metronome</span>
-			</label>
-			{#if exercise.metronomeEnabled}
-				<MetronomeSettings {exercise} {onUpdate} />
-			{/if}
-		</div>
 	{:else}
-		<MetronomeSettings {exercise} {onUpdate} />
+		<MetronomeSettings value={exercise} {onUpdate} />
 	{/if}
 
 	{#if videoErr}
