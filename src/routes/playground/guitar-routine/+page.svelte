@@ -281,6 +281,9 @@
 	let loopCmdNonce = $state(0)
 	// Loops finished but the exercise cap is still running → hold on the last loop until the cap expires.
 	let holdingForCap = $state(false)
+	// A 'timer'-sized loop's countdown hit 0 mid-pass → wait for the current A→B loop to finish before
+	// switching (graceful, like the cap finish). Freezes the loop clock at 0 until the next wrap (req 7).
+	let awaitingLoopBoundary = $state(false)
 	// Second clock: the optional exercise cap that runs ALONGSIDE the loop timer and, on expiry, advances
 	// to the next exercise even mid-sequence. Only active for a timed-loop video with the timer opted in.
 	let capActive = $state(false)
@@ -438,7 +441,7 @@
 			}
 			// Primary clock: step / loop / exercise countdown. Frozen while holding for the cap, and absent for
 			// a 'reps'-sized video sequence (it advances on A→B boundaries via onLoopBoundary, not a timer).
-			if (!holdingForCap && hasPrimaryClock(cur)) {
+			if (!holdingForCap && !awaitingLoopBoundary && hasPrimaryClock(cur)) {
 				const rem = computeRemaining()
 				if (rem <= 0) {
 					remainingSec = 0
@@ -589,6 +592,7 @@
 	function armExercise(ex: Exercise) {
 		restTarget = null
 		holdingForCap = false
+		awaitingLoopBoundary = false
 		if (isMultistep(ex)) {
 			stepIndex = 0
 			stepRepeat = 0
@@ -632,6 +636,7 @@
 		const ex = exercises[currentIndex]
 		if (!isVideoSequence(ex)) return
 		holdingForCap = false
+		awaitingLoopBoundary = false
 		if (loopSizing(ex) === 'timer') {
 			remainingSec = loopDurOf(ex.video!.loops[loopIndex])
 			armSegment()
@@ -649,6 +654,7 @@
 		const idx = ex.video!.loops.findIndex((l) => l.id === id)
 		if (idx < 0) return
 		holdingForCap = false
+		awaitingLoopBoundary = false
 		loopIndex = idx
 		loopRepeat = 0
 		if (loopSizing(ex) === 'timer') {
@@ -780,14 +786,27 @@
 		advanceInline()
 	}
 
-	// Timed-loop video: the current loop's timer reached 0 (mirrors onStepComplete). Runs each loop for
-	// its repeatCount (each rep restarts from A), then the next loop, then the next exercise.
+	// Timed-loop video, 'timer' sizing: the current loop's countdown reached 0. Don't cut the pass off
+	// mid-lick — freeze the clock at 0 and wait for the current A→B loop to finish before switching
+	// (graceful, like the exercise-cap finish, req 7). The switch happens on the next boundary below.
 	function onLoopComplete() {
-		const loops = exercises[currentIndex].video!.loops
+		awaitingLoopBoundary = true
+		remainingSec = 0
+	}
+
+	// Move the sequence forward one loop (shared by 'timer' and 'reps' sizing). Always called AT an
+	// A→B boundary so no pass is ever cut short: next loop, then (last loop) hold for the cap or advance
+	// the exercise. Resets the loop clock only for 'timer' sizing ('reps' has none).
+	function advanceLoopSequence() {
+		const ex = exercises[currentIndex]
+		const loops = ex.video!.loops
 		if (loopIndex + 1 < loops.length) {
 			loopIndex += 1
-			remainingSec = loopDurOf(loops[loopIndex])
-			armSegment()
+			loopRepeat = 0
+			if (loopSizing(ex) === 'timer') {
+				remainingSec = loopDurOf(loops[loopIndex])
+				armSegment()
+			}
 			if (audioCtx) beep(audioCtx)
 			commandLoop()
 			return
@@ -802,30 +821,27 @@
 		advanceInline()
 	}
 
-	// 'reps'-sized sequence: VideoLooper fired an A→B boundary. Count it; when the current loop has played
-	// its repeatCount passes, move to the next loop (or hold for the cap / advance the exercise). Runs
-	// outside the rAF frame — the frame keeps ticking (for the cap) since advanceInline leaves running=true.
+	// VideoLooper fired an A→B boundary (every wrap in run mode). Both sizings ride the same event:
+	//  - 'timer': the loop's countdown already expired and we're finishing the current pass → switch now.
+	//  - 'reps':  count the pass; switch once the loop has played its repeatCount passes.
+	// Runs outside the rAF frame — the frame keeps ticking (for the cap) since advances leave running=true.
 	function onLoopBoundary() {
 		const ex = exercises[currentIndex]
-		if (!isVideoSequence(ex) || loopSizing(ex) !== 'reps') return
+		if (!isVideoSequence(ex)) return
 		if (!running || holdingForCap || pendingAdvance) return // ignore while frozen/finishing/paused
-		const loops = ex.video!.loops
-		const loop = loops[loopIndex]
+		if (loopSizing(ex) === 'timer') {
+			if (awaitingLoopBoundary) {
+				awaitingLoopBoundary = false // the pass finished → make the deferred switch
+				advanceLoopSequence()
+			}
+			return // timer not yet expired → let the loop keep playing
+		}
+		// 'reps' sizing: count this pass; advance when the loop has played all its repeats.
+		const loop = ex.video!.loops[loopIndex]
 		const reps = Math.max(1, loop.repeatCount ?? DEFAULT_LOOP_REPS)
 		loopRepeat += 1
 		if (loopRepeat < reps) return // more passes of this loop
-		if (loopIndex + 1 < loops.length) {
-			loopIndex += 1
-			loopRepeat = 0
-			if (audioCtx) beep(audioCtx)
-			commandLoop() // re-seek the next loop from A
-			return
-		}
-		if (capActive) {
-			holdingForCap = true // last loop done but cap still ticking → keep replaying until it expires
-			return
-		}
-		advanceInline()
+		advanceLoopSequence()
 	}
 
 	// The child quiz/video-loop reached a natural boundary while we were waiting to advance (req 7).
@@ -1168,6 +1184,10 @@
 						{#if holdingForCap}
 							<div class="text-3xl sm:text-4xl font-mono opacity-50 uppercase tracking-wide">
 								Holding…
+							</div>
+						{:else if awaitingLoopBoundary}
+							<div class="text-3xl sm:text-4xl font-mono opacity-50 uppercase tracking-wide">
+								Finishing loop…
 							</div>
 						{:else if runsReps}
 							<!-- 'reps' sizing: the rep count is the primary readout (no loop countdown). -->

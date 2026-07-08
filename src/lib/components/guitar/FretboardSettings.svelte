@@ -1,5 +1,10 @@
 <script lang="ts">
-	import { type FretboardConfig, type FretView } from '$lib/types/guitar'
+	import {
+		SEVENTH_LABELS,
+		type FretboardConfig,
+		type FretView,
+		type SeventhType
+	} from '$lib/types/guitar'
 	import { NOTE_NAMES } from '$lib/music/notes'
 
 	let {
@@ -17,6 +22,20 @@
 		{ key: 'notemap', label: 'Notes' },
 		{ key: 'quiz', label: 'Quiz' }
 	]
+
+	// The 7th types currently in the quiz pool (undefined/empty config → all five).
+	const ALL_SEVENTHS = SEVENTH_LABELS.map((s) => s.key)
+	const quizSevenths = $derived(
+		config.quizSevenths?.length ? config.quizSevenths : ALL_SEVENTHS
+	)
+	// Toggle one 7th type in the quiz pool, keeping at least one selected (an empty pool falls back to
+	// all at runtime, which reads as "unchecked but still quizzed" — confusing — so block the last removal).
+	function toggleSeventh(key: SeventhType) {
+		const on = quizSevenths.includes(key)
+		if (on && quizSevenths.length === 1) return // never let the pool go empty
+		const next = on ? quizSevenths.filter((k) => k !== key) : [...quizSevenths, key]
+		onUpdate({ quizSevenths: next })
+	}
 </script>
 
 <div class="flex flex-col gap-2">
@@ -77,6 +96,18 @@
 				/>
 				7th chords
 			</label>
+			<!-- Which 7th types to quiz — only relevant when 7th chords are in the pool. -->
+			{#if config.includeSevenths ?? true}
+				<div class="flex flex-wrap gap-1 pl-6">
+					{#each SEVENTH_LABELS as s}
+						<button
+							class="btn btn-xs {quizSevenths.includes(s.key) ? 'btn-primary' : 'btn-outline'}"
+							aria-pressed={quizSevenths.includes(s.key)}
+							onclick={() => toggleSeventh(s.key)}>{s.label}</button
+						>
+					{/each}
+				</div>
+			{/if}
 			<label class="flex items-center gap-2 text-sm">
 				<input
 					type="checkbox"

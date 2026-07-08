@@ -60,6 +60,11 @@
 	let playing = $state(false)
 	let expandedLoopId = $state<string | null>(null)
 
+	// ---- drag-to-reorder loops (edit mode). The loop list order IS the run-sequence order, and
+	// activeLoopId is id-based, so reordering never breaks the active/running loop.
+	let dragIndex = $state<number | null>(null)
+	let dragOverIndex = $state<number | null>(null)
+
 	// The active loop is persisted on the config (shared single-active flag).
 	const activeLoopId = $derived(video.activeLoopId ?? null)
 
@@ -381,6 +386,43 @@
 		commit({ preservesPitch: value })
 		if (controller instanceof FileController) controller.setPreservesPitch(value)
 	}
+
+	// ---- drag-to-reorder loops ----
+	function reorderLoops(from: number, to: number) {
+		if (from === to) return
+		const next = [...video.loops]
+		if (from < 0 || from >= next.length || to < 0 || to >= next.length) return
+		const [moved] = next.splice(from, 1)
+		next.splice(to, 0, moved) // drop lands the loop at the hovered slot
+		commit({ loops: next })
+	}
+	function onLoopDragStart(e: DragEvent, i: number) {
+		e.stopPropagation() // don't let the enclosing ExerciseCard start its own row drag
+		dragIndex = i
+		if (e.dataTransfer) {
+			e.dataTransfer.effectAllowed = 'move'
+			e.dataTransfer.setData('text/plain', String(i))
+		}
+	}
+	function onLoopDragOver(e: DragEvent, i: number) {
+		if (dragIndex === null) return // only react to a loop drag, not a bubbling exercise drag
+		e.preventDefault()
+		e.stopPropagation()
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+		dragOverIndex = i
+	}
+	function onLoopDrop(e: DragEvent, i: number) {
+		if (dragIndex === null) return
+		e.preventDefault()
+		e.stopPropagation()
+		reorderLoops(dragIndex, i)
+		dragIndex = null
+		dragOverIndex = null
+	}
+	function onLoopDragEnd() {
+		dragIndex = null
+		dragOverIndex = null
+	}
 </script>
 
 <div class="flex flex-col gap-2">
@@ -571,12 +613,30 @@
 		{#each video.loops as loop, i (loop.id)}
 			{@const expanded = expandedLoopId === loop.id}
 			<div
-				class="rounded border {activeLoopId === loop.id
+				role="listitem"
+				ondragover={(e) => onLoopDragOver(e, i)}
+				ondrop={(e) => onLoopDrop(e, i)}
+				class="rounded border transition-opacity {activeLoopId === loop.id
 					? 'border-[#02343F] bg-[#02343F]/5'
-					: 'border-[#02343F]/20 bg-white'}"
+					: 'border-[#02343F]/20 bg-white'} {dragOverIndex === i && dragIndex !== i
+					? 'ring-2 ring-[#02343F]'
+					: ''} {dragIndex === i ? 'opacity-40' : ''}"
 			>
 				<!-- Row header -->
 				<div class="flex items-center gap-1.5 p-1.5">
+					{#if mode === 'edit'}
+						<!-- Drag handle: reorder loops = reorder the run sequence. -->
+						<span
+							draggable="true"
+							ondragstart={(e) => onLoopDragStart(e, i)}
+							ondragend={onLoopDragEnd}
+							class="cursor-grab active:cursor-grabbing select-none shrink-0 px-0.5 leading-none text-[#02343F]/40 hover:text-[#02343F]/70"
+							role="button"
+							tabindex="-1"
+							aria-label="Drag to reorder loop"
+							title="Drag to reorder">⠿</span
+						>
+					{/if}
 					{#if sequencing}
 						<!-- Page-driven sequence: the current loop shows a Playing badge + restart; every other
 							 loop is a ▶ Play button that jumps the sequence to it (free movement, req 1). -->

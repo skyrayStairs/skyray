@@ -95,6 +95,7 @@ export interface FretboardConfig {
 	rootString?: 6 | 5 // chord=6, scale=5 (fixed); seventh = user 6|5
 	includeNotes?: boolean // quiz: draw natural notes
 	includeSevenths?: boolean // quiz: draw 7th-chord names
+	quizSevenths?: SeventhType[] // quiz: which 7th types to ask (undefined/empty → all five)
 	includeTriads?: boolean // quiz: draw plain major/minor chords
 	quizRootString?: 6 | 5 | 'both' // quiz: root string for chord questions
 	guessSec?: number // quiz: time to guess before reveal

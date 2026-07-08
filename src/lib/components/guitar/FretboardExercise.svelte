@@ -276,7 +276,10 @@
 		}
 	}
 	function seventhItem(): QuizItem {
-		const type = pick(SEVENTH_LABELS).key
+		// Restrict to the user-chosen 7th types; empty/undefined → all five (runtime guard: pick([]) would
+		// hand seventhShape an undefined type and crash, so never let the pool be empty).
+		const pool = config.quizSevenths?.length ? config.quizSevenths : SEVENTH_LABELS.map((s) => s.key)
+		const type = pick(pool)
 		const rs = resolveRs()
 		return chordItem(seventhShape(type, rs), rs, seventhLabel(type))
 	}
@@ -326,6 +329,8 @@
 				onFinished?.()
 				return
 			} else {
+				// Ring a distinct bell (higher than the 880 answer bell) as the next question appears.
+				if (revealCtx) bell(revealCtx, { freq: 1319 })
 				startGuess()
 			}
 		}
