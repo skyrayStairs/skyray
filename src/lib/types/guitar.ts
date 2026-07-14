@@ -100,6 +100,14 @@ export interface FretboardConfig {
 	quizRootString?: 6 | 5 | 'both' // quiz: root string for chord questions
 	guessSec?: number // quiz: time to guess before reveal
 	bpm?: number // scale: playback tempo
+	// Scale practice controls. scaleTypes = which boards to show (undefined → all four). The rest are
+	// the shared metronome params (same system as the chromatic exercise) applied to scale playback:
+	// the note steps once per tick and, when scaleClick is on, an accented/soft click sounds too.
+	scaleTypes?: ScaleType[]
+	scaleSubdivision?: Subdivision
+	scaleBeatsPerMeasure?: number
+	scaleAccentBeats?: number[]
+	scaleClick?: boolean // audible metronome click alongside the note tones (default on)
 }
 
 export const REVEAL_SEC = 5 // quiz: how long the answer shows before the next prompt

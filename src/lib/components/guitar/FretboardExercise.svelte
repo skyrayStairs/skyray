@@ -5,6 +5,7 @@
 		SCALE_TYPE_LABELS,
 		SEVENTH_LABELS,
 		type FretboardConfig,
+		type MetronomeParams,
 		type ScaleType,
 		type SeventhType
 	} from '$lib/types/guitar'
@@ -23,6 +24,7 @@
 	import { Metronome, type MetronomeConfig } from '$lib/audio/metronome'
 	import { tone, bell } from '$lib/audio/beep'
 	import Fretboard from './Fretboard.svelte'
+	import MetronomeSettings from './MetronomeSettings.svelte'
 
 	let {
 		config,
@@ -121,9 +123,12 @@
 	// Generation + correctness gate live in $lib/music/positions (positions.spec). Click a board to
 	// spotlight the nearest position; playback walks each box low→high then high→low, then the next.
 	const MAX_FRET = 17
+	// Which scale boards to show (req 1: multiselect). Undefined → all four (back-compat).
+	const ALL_SCALE_TYPES = SCALE_TYPE_LABELS.map((s) => s.key)
+	const activeScaleTypes = $derived(config.scaleTypes ?? ALL_SCALE_TYPES)
 	const scales = $derived.by(() => {
 		const rootPc = config.rootPc ?? 7
-		return SCALE_TYPE_LABELS.map(({ key, label }) => {
+		return SCALE_TYPE_LABELS.filter(({ key }) => activeScaleTypes.includes(key)).map(({ key, label }) => {
 			const layout = scaleLayout(rootPc, key as ScaleType, MAX_FRET)
 			const markers: Marker[] = layout.markers.map((n) => ({
 				string: n.string,
@@ -131,12 +136,16 @@
 				label: n.interval,
 				role: n.role
 			}))
+			// Playback skips open strings — the note walk starts at the first fretted note. The neck
+			// window is unchanged (full nut→MAX_FRET); the open-string dots still show, they just
+			// aren't sounded (fret-0 tones are cut from the play sequence).
+			const playOrder = layout.playOrder.filter((p) => p.fret >= 1)
 			return {
 				type: key as ScaleType,
 				title: `${noteName(rootPc)} ${label} scale`,
 				markers,
 				positions: layout.positions,
-				playOrder: layout.playOrder,
+				playOrder,
 				minFret: 0,
 				maxFret: MAX_FRET
 			}
@@ -176,13 +185,26 @@
 		activeEntry ? { string: activeEntry.string, fret: activeEntry.fret } : null
 	)
 
-	function scaleCfg(bpm: number): MetronomeConfig {
+	// req 2: scale playback shares the chromatic metronome params (time signature, subdivision,
+	// accents). The note advances once per tick; when scaleClick is on the click also sounds, which
+	// is the ONLY way accents/time-signature become audible (onTick ignores the accent flag).
+	const SCALE_BPM_MIN = 20
+	const SCALE_BPM_MAX = 300
+	const scaleMetro = $derived<MetronomeParams>({
+		bpm: config.bpm ?? 80,
+		subdivision: config.scaleSubdivision ?? 'quarter',
+		beatsPerMeasure: config.scaleBeatsPerMeasure ?? 4,
+		accentBeats: config.scaleAccentBeats ?? [0]
+	})
+	const scaleClick = $derived(config.scaleClick ?? true)
+
+	function scaleCfg(): MetronomeConfig {
 		return {
-			bpm,
-			subdivision: 'quarter',
-			beatsPerMeasure: 1,
-			accentBeats: [0],
-			silent: true, // scale plays note tones only — no metronome click
+			bpm: scaleMetro.bpm,
+			subdivision: scaleMetro.subdivision,
+			beatsPerMeasure: scaleMetro.beatsPerMeasure,
+			accentBeats: scaleMetro.accentBeats,
+			silent: !scaleClick,
 			onTick: () => {
 				const sc = activeScale
 				if (!sc || sc.playOrder.length === 0) return
@@ -195,16 +217,15 @@
 		}
 	}
 	function play(type: ScaleType) {
-		const bpm = config.bpm ?? 80
 		if (!audioCtx) {
 			audioCtx = new AudioContext() // created inside the Play click (user gesture)
-			metro = new Metronome(audioCtx, scaleCfg(bpm))
+			metro = new Metronome(audioCtx, scaleCfg())
 		}
 		if (audioCtx.state === 'suspended') audioCtx.resume()
 		step = -1
 		activeIdx = -1
 		playingType = type
-		metro!.configure(scaleCfg(bpm))
+		metro!.configure(scaleCfg())
 		metro!.start()
 	}
 	function stop() {
@@ -213,11 +234,43 @@
 		metro?.stop()
 		audioCtx?.suspend()
 	}
-	function setBpm(raw: string) {
-		const n = Math.min(300, Math.max(20, parseInt(raw, 10) || 80))
-		onChange?.({ ...config, bpm: n })
-		if (playingType && metro) metro.configure(scaleCfg(n))
+	function patchScale(patch: Partial<FretboardConfig>) {
+		onChange?.({ ...config, ...patch })
 	}
+	function setBpm(n: number) {
+		patchScale({ bpm: Math.min(SCALE_BPM_MAX, Math.max(SCALE_BPM_MIN, Math.round(n) || 80)) })
+	}
+	function nudgeBpm(delta: number) {
+		setBpm((config.bpm ?? 80) + delta)
+	}
+	// req 1: toggle a scale board on/off, keeping the canonical order.
+	function toggleScaleType(t: ScaleType) {
+		const set = new Set(activeScaleTypes)
+		set.has(t) ? set.delete(t) : set.add(t)
+		patchScale({ scaleTypes: ALL_SCALE_TYPES.filter((k) => set.has(k)) })
+	}
+	// Map a MetronomeSettings patch onto the scale-specific config fields.
+	function updateScaleMetro(patch: Partial<MetronomeParams>) {
+		const next: Partial<FretboardConfig> = {}
+		if (patch.bpm !== undefined) next.bpm = patch.bpm
+		if (patch.subdivision !== undefined) next.scaleSubdivision = patch.subdivision
+		if (patch.beatsPerMeasure !== undefined) next.scaleBeatsPerMeasure = patch.beatsPerMeasure
+		if (patch.accentBeats !== undefined) next.scaleAccentBeats = patch.accentBeats
+		patchScale(next)
+	}
+
+	// Keep the live metronome in sync: stop if the playing board was deselected, else re-apply the
+	// current params. Read every dep synchronously so all are tracked.
+	$effect(() => {
+		const playing = playingType
+		const types = activeScaleTypes
+		const cfg = scaleCfg() // reads scaleMetro + scaleClick → tracked
+		if (playing && !types.includes(playing)) {
+			stop()
+			return
+		}
+		if (playing && metro) metro.configure(cfg)
+	})
 
 	// ---- quiz (flashcard) ----
 	type QuizItem = {
@@ -429,20 +482,68 @@
 	</div>
 {:else if config.view === 'scale'}
 	<div class="flex flex-col items-center gap-4">
-		<div class="flex items-center gap-3">
+		<div class="flex flex-col items-center gap-3 w-full max-w-md">
 			{@render rootPicker()}
-			<label class="flex items-center gap-1 text-sm">
-				BPM
+
+			<!-- req 1: pick which scale boards are shown -->
+			<div class="flex flex-col items-center gap-1 w-full">
+				<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Scales</span>
+				<div class="flex flex-wrap justify-center gap-1">
+					{#each SCALE_TYPE_LABELS as s}
+						<button
+							class="btn btn-xs {activeScaleTypes.includes(s.key) ? 'btn-primary' : 'btn-outline'}"
+							aria-pressed={activeScaleTypes.includes(s.key)}
+							onclick={() => toggleScaleType(s.key)}>{s.label}</button
+						>
+					{/each}
+				</div>
+			</div>
+
+			<!-- req 3: tempo — draggable bar (coarse) + exact ±5 / ±1 nudge buttons -->
+			<div class="flex flex-col items-center gap-1 w-full">
+				<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Tempo · {config.bpm ?? 80} BPM</span>
 				<input
-					type="number"
-					min="20"
-					max="300"
+					type="range"
+					min={SCALE_BPM_MIN}
+					max={SCALE_BPM_MAX}
 					value={config.bpm ?? 80}
-					onchange={(e) => setBpm((e.target as HTMLInputElement).value)}
-					class="input input-xs input-bordered bg-white border-[#02343F]/30 w-16 text-center"
+					oninput={(e) => setBpm(parseInt((e.target as HTMLInputElement).value, 10))}
+					class="range range-xs w-full"
+					aria-label="Scale tempo (BPM)"
 				/>
-			</label>
+				<div class="flex items-center gap-1">
+					<button class="btn btn-xs btn-outline" onclick={() => nudgeBpm(-5)}>−5</button>
+					<button class="btn btn-xs btn-outline" onclick={() => nudgeBpm(-1)}>−1</button>
+					<input
+						type="number"
+						min={SCALE_BPM_MIN}
+						max={SCALE_BPM_MAX}
+						value={config.bpm ?? 80}
+						onchange={(e) => setBpm(parseInt((e.target as HTMLInputElement).value, 10))}
+						class="input input-xs input-bordered bg-white border-[#02343F]/30 w-16 text-center"
+					/>
+					<button class="btn btn-xs btn-outline" onclick={() => nudgeBpm(1)}>+1</button>
+					<button class="btn btn-xs btn-outline" onclick={() => nudgeBpm(5)}>+5</button>
+				</div>
+			</div>
+
+			<!-- req 2: metronome system shared with the chromatic exercise -->
+			<div class="w-full flex flex-col gap-1">
+				<label class="flex items-center gap-2 text-sm self-center">
+					<input
+						type="checkbox"
+						class="checkbox checkbox-sm"
+						checked={scaleClick}
+						onchange={(e) => patchScale({ scaleClick: (e.target as HTMLInputElement).checked })}
+					/>
+					Metronome click
+				</label>
+				<MetronomeSettings value={scaleMetro} hideBpm onUpdate={updateScaleMetro} />
+			</div>
 		</div>
+		{#if scales.length === 0}
+			<p class="text-sm opacity-60">Pick at least one scale above.</p>
+		{/if}
 		{#each scales as sc}
 			<div class="flex flex-col items-center gap-1 w-full">
 				<h3 class="text-base font-bold" style="font-family: KNUTRUTHTTF">{sc.title}</h3>

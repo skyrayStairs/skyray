@@ -313,7 +313,9 @@
 	}
 
 	function setLoopRate(loop: VideoLoop, rate: number) {
-		updateLoop(loop.id, { rate }) // updateLoop applies rate live when this loop is active
+		// Round to 2dp before clamping so ±0.01/±0.05 nudges don't accumulate float error.
+		const r = Math.min(FILE_RATE_RANGE.max, Math.max(FILE_RATE_RANGE.min, Math.round(rate * 100) / 100))
+		updateLoop(loop.id, { rate: r }) // updateLoop applies rate live when this loop is active
 	}
 
 	async function setBound(loop: VideoLoop, which: 'A' | 'B') {
@@ -450,6 +452,21 @@
 					class="range range-xs flex-1"
 				/>
 				<span class="font-mono text-sm w-12 text-right">{loop.rate.toFixed(2)}×</span>
+			</div>
+			<!-- Exact nudge buttons (the slider is convenient but imprecise): ±0.05 and ±0.01. -->
+			<div class="flex justify-center gap-1">
+				<button class="btn btn-xs btn-outline" onclick={() => setLoopRate(loop, loop.rate - 0.05)}
+					>−0.05</button
+				>
+				<button class="btn btn-xs btn-outline" onclick={() => setLoopRate(loop, loop.rate - 0.01)}
+					>−0.01</button
+				>
+				<button class="btn btn-xs btn-outline" onclick={() => setLoopRate(loop, loop.rate + 0.01)}
+					>+0.01</button
+				>
+				<button class="btn btn-xs btn-outline" onclick={() => setLoopRate(loop, loop.rate + 0.05)}
+					>+0.05</button
+				>
 			</div>
 		{/if}
 	{/snippet}

@@ -1,8 +1,10 @@
 <script lang="ts">
 	import {
+		SCALE_TYPE_LABELS,
 		SEVENTH_LABELS,
 		type FretboardConfig,
 		type FretView,
+		type ScaleType,
 		type SeventhType
 	} from '$lib/types/guitar'
 	import { NOTE_NAMES } from '$lib/music/notes'
@@ -35,6 +37,15 @@
 		if (on && quizSevenths.length === 1) return // never let the pool go empty
 		const next = on ? quizSevenths.filter((k) => k !== key) : [...quizSevenths, key]
 		onUpdate({ quizSevenths: next })
+	}
+
+	// Which scale boards show/play (mirrors the run-phase multiselect). Undefined → all four.
+	const ALL_SCALE_TYPES = SCALE_TYPE_LABELS.map((s) => s.key)
+	const activeScaleTypes = $derived(config.scaleTypes ?? ALL_SCALE_TYPES)
+	function toggleScaleType(t: ScaleType) {
+		const set = new Set(activeScaleTypes)
+		set.has(t) ? set.delete(t) : set.add(t)
+		onUpdate({ scaleTypes: ALL_SCALE_TYPES.filter((k) => set.has(k)) })
 	}
 </script>
 
@@ -69,7 +80,21 @@
 		{#if config.view === 'chord'}
 			<p class="text-xs opacity-50">Shows major & minor shapes (6th-string root); change root live while running.</p>
 		{:else}
-			<p class="text-xs opacity-50">Shows all four scales full-neck; change root & play each live while running.</p>
+			<div class="flex flex-col gap-0.5">
+				<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Scales</span>
+				<div class="flex flex-wrap gap-1">
+					{#each SCALE_TYPE_LABELS as s}
+						<button
+							class="btn btn-xs sm:btn-sm {activeScaleTypes.includes(s.key)
+								? 'btn-primary'
+								: 'btn-outline'}"
+							aria-pressed={activeScaleTypes.includes(s.key)}
+							onclick={() => toggleScaleType(s.key)}>{s.label}</button
+						>
+					{/each}
+				</div>
+			</div>
+			<p class="text-xs opacity-50">Shows the selected scales full-neck; change root, scales & play each live while running.</p>
 		{/if}
 	{:else if config.view === 'seventh'}
 		<p class="text-xs opacity-50">Movable major / minor / 7th grips for 6th & 5th-string roots — shapes only, no fret numbers (root-agnostic).</p>

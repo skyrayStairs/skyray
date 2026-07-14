@@ -6,10 +6,13 @@
 	// same UI edits an Exercise or an ExerciseStep (Timer stays in ExerciseCard).
 	let {
 		value,
-		onUpdate
+		onUpdate,
+		hideBpm = false
 	}: {
 		value: MetronomeParams
 		onUpdate: (patch: Partial<MetronomeParams>) => void
+		// Hide the BPM box (the scale view supplies its own slider + nudge buttons for tempo).
+		hideBpm?: boolean
 	} = $props()
 
 	function setBpm(raw: string) {
@@ -40,18 +43,20 @@
 
 <div class="flex flex-col gap-2">
 	<!-- Tempo -->
-	<div class="grid grid-cols-2 gap-2">
-		<label class="flex flex-col gap-0.5">
-			<span class="text-[0.65rem] uppercase tracking-wide opacity-60">BPM</span>
-			<input
-				type="number"
-				min="20"
-				max="400"
-				value={value.bpm}
-				onchange={(e) => setBpm((e.target as HTMLInputElement).value)}
-				class="input input-xs sm:input-sm input-bordered bg-white border-[#02343F]/30 text-center"
-			/>
-		</label>
+	<div class="grid {hideBpm ? 'grid-cols-1' : 'grid-cols-2'} gap-2">
+		{#if !hideBpm}
+			<label class="flex flex-col gap-0.5">
+				<span class="text-[0.65rem] uppercase tracking-wide opacity-60">BPM</span>
+				<input
+					type="number"
+					min="20"
+					max="400"
+					value={value.bpm}
+					onchange={(e) => setBpm((e.target as HTMLInputElement).value)}
+					class="input input-xs sm:input-sm input-bordered bg-white border-[#02343F]/30 text-center"
+				/>
+			</label>
+		{/if}
 		<label class="flex flex-col gap-0.5">
 			<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Beats</span>
 			<input
