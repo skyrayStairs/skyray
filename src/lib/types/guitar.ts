@@ -94,6 +94,7 @@ export interface FretboardConfig {
 	seventhType?: SeventhType // seventh
 	rootString?: 6 | 5 // chord=6, scale=5 (fixed); seventh = user 6|5
 	includeNotes?: boolean // quiz: draw natural notes
+	quizNoteNaming?: 'letters' | 'solfege' // quiz: label notes as C–B or Do–Ti (default letters)
 	includeSevenths?: boolean // quiz: draw 7th-chord names
 	quizSevenths?: SeventhType[] // quiz: which 7th types to ask (undefined/empty → all five)
 	includeTriads?: boolean // quiz: draw plain major/minor chords

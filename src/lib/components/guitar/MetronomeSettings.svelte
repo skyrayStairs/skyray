@@ -21,6 +21,10 @@
 		onUpdate({ bpm: Math.min(400, Math.max(20, n)) })
 	}
 
+	function nudgeBpm(delta: number) {
+		onUpdate({ bpm: Math.min(400, Math.max(20, value.bpm + delta)) })
+	}
+
 	function setBeats(raw: string) {
 		const n = parseInt(raw, 10)
 		if (Number.isNaN(n)) return
@@ -45,17 +49,23 @@
 	<!-- Tempo -->
 	<div class="grid {hideBpm ? 'grid-cols-1' : 'grid-cols-2'} gap-2">
 		{#if !hideBpm}
-			<label class="flex flex-col gap-0.5">
+			<div class="flex flex-col gap-0.5">
 				<span class="text-[0.65rem] uppercase tracking-wide opacity-60">BPM</span>
-				<input
-					type="number"
-					min="20"
-					max="400"
-					value={value.bpm}
-					onchange={(e) => setBpm((e.target as HTMLInputElement).value)}
-					class="input input-xs sm:input-sm input-bordered bg-white border-[#02343F]/30 text-center"
-				/>
-			</label>
+				<div class="flex items-center gap-1">
+					<button class="btn btn-xs btn-outline px-1" onclick={() => nudgeBpm(-5)}>−5</button>
+					<button class="btn btn-xs btn-outline px-1" onclick={() => nudgeBpm(-1)}>−1</button>
+					<input
+						type="number"
+						min="20"
+						max="400"
+						value={value.bpm}
+						onchange={(e) => setBpm((e.target as HTMLInputElement).value)}
+						class="input input-xs sm:input-sm input-bordered bg-white border-[#02343F]/30 text-center w-14 flex-1"
+					/>
+					<button class="btn btn-xs btn-outline px-1" onclick={() => nudgeBpm(1)}>+1</button>
+					<button class="btn btn-xs btn-outline px-1" onclick={() => nudgeBpm(5)}>+5</button>
+				</div>
+			</div>
 		{/if}
 		<label class="flex flex-col gap-0.5">
 			<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Beats</span>

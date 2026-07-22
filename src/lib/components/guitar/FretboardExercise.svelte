@@ -289,17 +289,20 @@
 		let nt = pick(NATURALS)
 		if (NATURALS.length > 1) while (nt.pc === lastNotePc) nt = pick(NATURALS)
 		lastNotePc = nt.pc
+		// Show letters (C–B) or solfège (Do–Ti) per the user's choice.
+		const useSolfege = (config.quizNoteNaming ?? 'letters') === 'solfege'
+		const label = useSolfege ? nt.solfege : nt.name
 		// req 5: pick a single root string and state it (parallel to the chord prompts).
 		const rs = resolveRs()
 		const markers: Marker[] = fretsForPc(rs, nt.pc, 12).map((f) => ({
 			string: rs,
 			fret: f,
-			label: nt.name,
+			label,
 			role: 'root' as const
 		}))
 		return {
-			prompt: `${nt.name} / ${nt.solfege} · ${rs}th-string`,
-			answer: `${nt.name} (${nt.solfege})`,
+			prompt: `${label} · ${rs}th-string`,
+			answer: label,
 			markers,
 			...windowOf(markers, true, false)
 		}

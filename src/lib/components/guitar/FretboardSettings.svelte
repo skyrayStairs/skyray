@@ -112,6 +112,24 @@
 				/>
 				Notes (C–B / Do–Ti)
 			</label>
+			{#if config.includeNotes ?? true}
+				<div class="flex gap-1 pl-6">
+					<button
+						class="btn btn-xs {(config.quizNoteNaming ?? 'letters') === 'letters'
+							? 'btn-primary'
+							: 'btn-outline'}"
+						aria-pressed={(config.quizNoteNaming ?? 'letters') === 'letters'}
+						onclick={() => onUpdate({ quizNoteNaming: 'letters' })}>C–B</button
+					>
+					<button
+						class="btn btn-xs {config.quizNoteNaming === 'solfege'
+							? 'btn-primary'
+							: 'btn-outline'}"
+						aria-pressed={config.quizNoteNaming === 'solfege'}
+						onclick={() => onUpdate({ quizNoteNaming: 'solfege' })}>Do–Ti</button
+					>
+				</div>
+			{/if}
 			<label class="flex items-center gap-2 text-sm">
 				<input
 					type="checkbox"
