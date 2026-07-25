@@ -196,14 +196,17 @@
         flex-direction: column;
         justify-content: space-between;
         width: 28px;
-        height: 20px;
+        /* 18px, not 20px: space-between then puts the bars on an 8px pitch, which
+           stays whole in device px at 1.25×–2× DPI. A 9px pitch puts the middle
+           bar on a half-pixel and it renders visibly thicker. */
+        height: 18px;
         background: none;
         border: none;
         cursor: pointer;
-        /* 28×20 icon, but a 52×44 tap target; negative margin keeps layout put. */
+        /* 28×18 icon, but a 54×44 tap target; negative margin keeps layout put. */
         box-sizing: content-box;
-        padding: 12px;
-        margin: -12px;
+        padding: 13px;
+        margin: -13px;
     }
 
     .hamburger span {
