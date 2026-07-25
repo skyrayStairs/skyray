@@ -1,5 +1,6 @@
 <script>
     import "../app.css"
+    import { onMount } from 'svelte'
     import { fly, fade, slide } from 'svelte/transition'
     import { gnbState } from '$lib/stores/gnb.svelte'
 
@@ -7,6 +8,8 @@
     let drawerOpen = $state(false)
     let toolkitExpanded = $state(false)
     let playgroundExpanded = $state(false)
+    let reduce = $state(false)
+    onMount(() => { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches })
 </script>
 
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape') drawerOpen = false }} />
@@ -39,14 +42,14 @@
 {#if drawerOpen}
     <button
         class="drawer-backdrop"
-        transition:fade={{ duration: 150 }}
+        transition:fade={{ duration: reduce ? 0 : 150 }}
         onclick={() => drawerOpen = false}
         aria-label="Close navigation"
     ></button>
 
     <nav
         class="drawer-panel"
-        transition:fly={{ x: 320, duration: 250 }}
+        transition:fly={{ x: 320, duration: reduce ? 0 : 250 }}
         aria-label="Site navigation"
     >
         <button
@@ -73,7 +76,7 @@
                 </div>
 
                 {#if toolkitExpanded}
-                    <ul transition:slide={{ duration: 200 }} class="sub-nav">
+                    <ul transition:slide={{ duration: reduce ? 0 : 200 }} class="sub-nav">
                         <li>
                             <a href="/toolkit/spell-sets" onclick={() => drawerOpen = false}>Spell Sets</a>
                         </li>
@@ -93,7 +96,7 @@
                 </div>
 
                 {#if playgroundExpanded}
-                    <ul transition:slide={{ duration: 200 }} class="sub-nav">
+                    <ul transition:slide={{ duration: reduce ? 0 : 200 }} class="sub-nav">
                         <li>
                             <a href="/playground/guitar-routine" onclick={() => drawerOpen = false}>Guitar Routine</a>
                         </li>
@@ -106,22 +109,22 @@
 
 <style>
     #header {
-        background-color: #F0EDCC;
+        background-color: var(--cream);
         max-width: 100%;
-        height: 10vh;
+        height: 10dvh;
         position: relative;
         z-index: 10;
     }
 
     #gnb {
         max-width: 100%;
-        font-family: 'KNUTRUTHTTF';
-        color: #02343F;
+        font-family: 'KNUTRUTHTTF', sans-serif;
+        color: var(--teal);
         word-wrap: break-word;
     }
 
     #left_top_text {
-        color: #02343F;
+        color: var(--teal);
         align-self: center;
         -webkit-writing-mode: vertical-lr;
         writing-mode: vertical-lr;
@@ -149,15 +152,15 @@
 
     #footer {
         max-width: 100%;
-        height: 5vh;
-        background-color: #F0EDCC;
+        height: 5dvh;
+        background-color: var(--cream);
     }
 
     #slot {
-        height: 85vh;
+        height: 85dvh;
         overflow-y: auto;
         /* Match the page background instead of the OS default (black gutter in desktop dark mode). */
-        scrollbar-color: rgba(2, 52, 63, 0.4) #F0EDCC; /* thumb, track (Firefox) */
+        scrollbar-color: rgba(2, 52, 63, 0.4) var(--cream); /* thumb, track (Firefox) */
     }
 
     #slot::-webkit-scrollbar {
@@ -165,13 +168,13 @@
     }
 
     #slot::-webkit-scrollbar-track {
-        background: #F0EDCC;
+        background: var(--cream);
     }
 
     #slot::-webkit-scrollbar-thumb {
         background-color: rgba(2, 52, 63, 0.35);
         border-radius: 6px;
-        border: 3px solid #F0EDCC; /* inset the thumb so the cream track shows around it */
+        border: 3px solid var(--cream); /* inset the thumb so the cream track shows around it */
     }
 
     #slot::-webkit-scrollbar-thumb:hover {
@@ -185,7 +188,7 @@
     }
 
     #slot.nav-hidden {
-        height: 100vh;
+        height: 100dvh;
     }
 
     .hamburger {
@@ -197,14 +200,17 @@
         background: none;
         border: none;
         cursor: pointer;
-        padding: 0;
+        /* 28×20 icon, but a 52×44 tap target; negative margin keeps layout put. */
+        box-sizing: content-box;
+        padding: 12px;
+        margin: -12px;
     }
 
     .hamburger span {
         display: block;
         width: 100%;
         height: 2px;
-        background-color: #02343F;
+        background-color: var(--teal);
         border-radius: 2px;
     }
 
@@ -225,23 +231,27 @@
         right: 0;
         bottom: 0;
         width: min(320px, 80vw);
-        background-color: #F0EDCC;
+        background-color: var(--cream);
         z-index: 101;
         display: flex;
         flex-direction: column;
         padding: 2rem 1.5rem;
         box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
-        font-family: 'KNUTRUTHTTF';
+        font-family: 'KNUTRUTHTTF', sans-serif;
     }
 
     .drawer-close {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 44px;
+        min-height: 44px;
         background: none;
         border: none;
         cursor: pointer;
         align-self: flex-end;
         font-size: 1.5rem;
-        color: #02343F;
-        padding: 0;
+        color: var(--teal);
         margin-bottom: 2rem;
         line-height: 1;
     }
@@ -256,7 +266,7 @@
     }
 
     .drawer-panel a {
-        color: #02343F;
+        color: var(--teal);
         text-decoration: none;
         font-size: 1.25rem;
         display: block;
@@ -284,13 +294,17 @@
     }
 
     .chevron-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 44px;
+        min-height: 44px;
         background: none;
         border: none;
         cursor: pointer;
-        color: #02343F;
+        color: var(--teal);
         font-size: 0.75rem;
         opacity: 0.5;
-        padding: 0.25rem 0.4rem;
         line-height: 1;
         transition: opacity 0.15s;
     }

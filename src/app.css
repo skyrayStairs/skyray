@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+    --cream: #F0EDCC;
+    --teal: #02343F;
+}
+
 @layer components {
 }
 
@@ -10,6 +15,7 @@
     src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2312-1@1.1/KNUTRUTHTTF.woff2') format('woff2');
     font-weight: 300;
     font-style: normal;
+    font-display: swap;
 }
 
 @font-face {
@@ -17,4 +23,29 @@
     src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2304-2@1.0/SUITE-Regular.woff2') format('woff2');
     font-weight: 400;
     font-style: normal;
+    font-display: swap;
+}
+
+/* Honor the OS reduced-motion setting site-wide. No @keyframes exist in this app,
+   so this only strips easing from CSS transitions; state-driven class changes still apply. */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Touch devices: enlarge the compact daisyui controls toward a comfortable tap target.
+   Scoped to coarse pointers so the dense desktop (mouse) layout stays untouched. This
+   block is unlayered, so it wins over daisyui's layered control heights.
+   ponytail: 2.5rem (40px) trades a hair under the 44px AAA target to keep dense tool
+   rows usable on small screens; raise to 2.75rem if real-device testing shows misses. */
+@media (pointer: coarse) {
+    .btn-xs, .btn-sm,
+    .input-xs, .input-sm,
+    .select-xs, .select-sm {
+        min-height: 2.5rem;
+    }
 }

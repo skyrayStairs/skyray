@@ -160,7 +160,7 @@
 	<div class="relative bg-white rounded px-2 py-1 shrink-0 flex items-center min-w-0" class:mb-1={!folded}>
 		{#if onToggleFold}
 			<button
-				class="absolute left-1 top-1/2 -translate-y-1/2 leading-none text-sm font-bold text-[#02343F]/70 hover:text-[#02343F] px-0.5"
+				class="absolute left-1 top-1/2 -translate-y-1/2 leading-none text-sm font-bold text-teal/70 hover:text-teal px-0.5"
 				onclick={onToggleFold}
 				aria-label={folded ? 'Expand card' : 'Fold card'}
 				title={folded ? 'Expand card' : 'Fold card'}

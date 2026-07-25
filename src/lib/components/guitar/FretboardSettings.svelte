@@ -67,7 +67,7 @@
 		<label class="flex flex-col gap-0.5 max-w-[10rem]">
 			<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Root</span>
 			<select
-				class="select select-xs sm:select-sm select-bordered bg-white border-[#02343F]/30"
+				class="select select-xs sm:select-sm select-bordered bg-white border-teal/30"
 				value={config.rootPc ?? 7}
 				onchange={(e) => onUpdate({ rootPc: parseInt((e.target as HTMLSelectElement).value, 10) })}
 			>
@@ -163,7 +163,7 @@
 			<label class="flex flex-col gap-0.5 max-w-[10rem]">
 				<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Chord root string</span>
 				<select
-					class="select select-xs sm:select-sm select-bordered bg-white border-[#02343F]/30"
+					class="select select-xs sm:select-sm select-bordered bg-white border-teal/30"
 					value={String(config.quizRootString ?? 'both')}
 					onchange={(e) => {
 						const v = (e.target as HTMLSelectElement).value
@@ -184,7 +184,7 @@
 					value={config.guessSec ?? 5}
 					onchange={(e) =>
 						onUpdate({ guessSec: Math.max(1, parseInt((e.target as HTMLInputElement).value, 10) || 5) })}
-					class="input input-xs sm:input-sm input-bordered bg-white border-[#02343F]/30 text-center"
+					class="input input-xs sm:input-sm input-bordered bg-white border-teal/30 text-center"
 				/>
 			</label>
 		</div>

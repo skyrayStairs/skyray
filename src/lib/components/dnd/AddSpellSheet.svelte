@@ -1,7 +1,12 @@
 <script lang="ts">
 	import { fly, fade } from 'svelte/transition'
 	import type { SpellEntry } from '$lib/types/spell'
-	import { SPELLS, bucketCastingTime, bucketRange, bucketDuration } from '$lib/utils/spellParser'
+
+	// spellParser inlines the full 5e spell DB (~530KB) via ?raw. Load it lazily on first
+	// open so the spell-sets route ships light; the dynamic import is a Vite code-split point.
+	type SpellMod = typeof import('$lib/utils/spellParser')
+	let spells = $state<SpellMod | null>(null)
+	let loading = false // plain (non-reactive) guard so assigning spells doesn't retrigger the load effect
 
 	let {
 		open = $bindable(false),
@@ -24,9 +29,9 @@
 	let filterDurations = $state<Set<string>>(new Set())
 	let filterClasses = $state<Set<string>>(new Set())
 
-	const ALL_SCHOOLS = [...new Set(SPELLS.map((s) => s.school))].sort()
-	const ALL_EFFECT_TYPES = [...new Set(SPELLS.flatMap((s) => s.effectTypes))].sort()
-	const ALL_CLASSES = [...new Set(SPELLS.flatMap((s) => s.classes))].sort()
+	const ALL_SCHOOLS = $derived(spells ? [...new Set(spells.SPELLS.map((s) => s.school))].sort() : [])
+	const ALL_EFFECT_TYPES = $derived(spells ? [...new Set(spells.SPELLS.flatMap((s) => s.effectTypes))].sort() : [])
+	const ALL_CLASSES = $derived(spells ? [...new Set(spells.SPELLS.flatMap((s) => s.classes))].sort() : [])
 	const CASTING_TIME_BUCKETS = ['action', 'bonus action', 'reaction', '1 minute', 'longer']
 	const RANGE_BUCKETS = ['Self', 'Touch', '0-30ft', '31-100ft', '100+ft', 'Other']
 	const DURATION_BUCKETS = ['Instantaneous', '1 round', 'up to 1 min', 'up to 10 min', 'longer']
@@ -38,15 +43,16 @@
 	}
 
 	const filteredSpells = $derived.by(() => {
+		if (!spells) return []
 		const q = searchQuery.toLowerCase()
-		return SPELLS.filter((spell) => {
+		return spells.SPELLS.filter((spell) => {
 			if (q && !spell.name.toLowerCase().includes(q)) return false
 			if (filterLevels.size > 0 && !filterLevels.has(spell.level)) return false
 			if (filterSchools.size > 0 && !filterSchools.has(spell.school)) return false
 			if (filterEffectTypes.size > 0 && !spell.effectTypes.some((t) => filterEffectTypes.has(t))) return false
-			if (filterCastingTimes.size > 0 && !filterCastingTimes.has(bucketCastingTime(spell.castingTime))) return false
-			if (filterRanges.size > 0 && !filterRanges.has(bucketRange(spell.range))) return false
-			if (filterDurations.size > 0 && !filterDurations.has(bucketDuration(spell.duration))) return false
+			if (filterCastingTimes.size > 0 && !filterCastingTimes.has(spells.bucketCastingTime(spell.castingTime))) return false
+			if (filterRanges.size > 0 && !filterRanges.has(spells.bucketRange(spell.range))) return false
+			if (filterDurations.size > 0 && !filterDurations.has(spells.bucketDuration(spell.duration))) return false
 			if (filterClasses.size > 0 && !spell.classes.some((c) => filterClasses.has(c))) return false
 			return true
 		}).sort((a, b) => a.level - b.level || a.name.localeCompare(b.name))
@@ -72,6 +78,13 @@
 	}
 
 	$effect(() => {
+		if (open && !loading) {
+			loading = true
+			import('$lib/utils/spellParser').then((m) => { spells = m })
+		}
+	})
+
+	$effect(() => {
 		if (open) {
 			document.body.style.overflow = 'hidden'
 			return () => {
@@ -92,7 +105,7 @@
 	></button>
 
 	<div
-		class="fixed bottom-0 left-0 right-0 h-[80vh] bg-base-100 rounded-t-2xl z-50 flex flex-col shadow-2xl"
+		class="fixed bottom-0 left-0 right-0 h-[80dvh] bg-base-100 rounded-t-2xl z-50 flex flex-col shadow-2xl"
 		transition:fly={{ y: 500, duration: 300 }}
 		onclick={(e) => e.stopPropagation()}
 		onkeydown={(e) => e.stopPropagation()}
@@ -117,6 +130,9 @@
 			<button class="btn btn-sm" onclick={() => (open = false)}>Close</button>
 		</div>
 
+		{#if !spells}
+			<div class="flex flex-1 items-center justify-center text-sm text-gray-500">Loading spells…</div>
+		{:else}
 		<div class="flex flex-1 overflow-hidden">
 			<!-- Filters sidebar -->
 			<div class="w-44 overflow-y-auto p-2 border-r flex-shrink-0 text-sm">
@@ -272,5 +288,6 @@
 				{/each}
 			</div>
 		</div>
+		{/if}
 	</div>
 {/if}

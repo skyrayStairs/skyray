@@ -188,7 +188,7 @@
 	ondrop={onDrop}
 	class="rounded-lg border-2 bg-white p-2 sm:p-3 shadow-md flex flex-col gap-2 transition-[opacity,box-shadow]
 		{dragging ? 'opacity-40' : ''}
-		{dropTarget ? 'border-[#02343F] ring-2 ring-[#02343F]' : 'border-[#02343F]/20'}"
+		{dropTarget ? 'border-teal ring-2 ring-teal' : 'border-teal/20'}"
 >
 	<!-- Header: drag handle, order number, name, reorder + remove -->
 	<div class="flex items-center gap-1.5">
@@ -196,7 +196,7 @@
 			draggable="true"
 			ondragstart={onDragStart}
 			ondragend={onDragEnd}
-			class="cursor-grab active:cursor-grabbing select-none shrink-0 px-0.5 leading-none text-[#02343F]/40 hover:text-[#02343F]/70"
+			class="cursor-grab active:cursor-grabbing select-none shrink-0 px-0.5 leading-none text-teal/40 hover:text-teal/70"
 			role="button"
 			tabindex="-1"
 			aria-label="Drag to reorder"
@@ -208,7 +208,7 @@
 			value={exercise.name}
 			oninput={(e) => onUpdate({ name: (e.target as HTMLInputElement).value })}
 			placeholder="Exercise name"
-			class="input input-xs sm:input-sm input-bordered flex-1 bg-white border-[#02343F]/30 font-medium"
+			class="input input-xs sm:input-sm input-bordered flex-1 bg-white border-teal/30 font-medium"
 		/>
 		<button
 			class="btn btn-xs btn-square btn-primary shrink-0"
@@ -239,7 +239,7 @@
 	<label class="flex items-center gap-1.5">
 		<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Type</span>
 		<select
-			class="select select-xs select-bordered bg-white border-[#02343F]/30"
+			class="select select-xs select-bordered bg-white border-teal/30"
 			value={kind}
 			onchange={(e) => setKind((e.target as HTMLSelectElement).value as ExerciseKind)}
 		>
@@ -272,7 +272,7 @@
 							value={durParts.m}
 							onfocus={selectAllOnFocus}
 							onchange={(e) => commitPart('m', e)}
-							class="input input-xs sm:input-sm input-bordered bg-white border-[#02343F]/30 w-12 text-center"
+							class="input input-xs sm:input-sm input-bordered bg-white border-teal/30 w-12 text-center"
 						/>
 						<span class="text-[0.65rem] opacity-50 pb-1.5">m</span>
 					</label>
@@ -283,7 +283,7 @@
 							value={durParts.s}
 							onfocus={selectAllOnFocus}
 							onchange={(e) => commitPart('s', e)}
-							class="input input-xs sm:input-sm input-bordered bg-white border-[#02343F]/30 w-12 text-center"
+							class="input input-xs sm:input-sm input-bordered bg-white border-teal/30 w-12 text-center"
 						/>
 						<span class="text-[0.65rem] opacity-50 pb-1.5">s</span>
 					</label>
@@ -322,7 +322,7 @@
 						type="text"
 						bind:value={ytUrl}
 						placeholder="Paste YouTube link"
-						class="input input-xs input-bordered flex-1 bg-white border-[#02343F]/30 min-w-[10rem]"
+						class="input input-xs input-bordered flex-1 bg-white border-teal/30 min-w-[10rem]"
 					/>
 					<button class="btn btn-xs btn-outline shrink-0" onclick={addYouTube}>Add YouTube</button>
 					<label class="btn btn-xs btn-outline cursor-pointer shrink-0">

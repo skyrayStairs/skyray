@@ -563,7 +563,7 @@
 						value={parts.m}
 						onfocus={selectAllOnFocus}
 						onchange={(e) => commitPart(loop, which, 'm', e)}
-						class="input input-xs input-bordered bg-white border-[#02343F]/30 w-12 text-center"
+						class="input input-xs input-bordered bg-white border-teal/30 w-12 text-center"
 					/>
 					<span class="text-[0.65rem] opacity-50 pb-1.5">m</span>
 				</label>
@@ -574,7 +574,7 @@
 						value={parts.s}
 						onfocus={selectAllOnFocus}
 						onchange={(e) => commitPart(loop, which, 's', e)}
-						class="input input-xs input-bordered bg-white border-[#02343F]/30 w-12 text-center"
+						class="input input-xs input-bordered bg-white border-teal/30 w-12 text-center"
 					/>
 					<span class="text-[0.65rem] opacity-50 pb-1.5">s</span>
 				</label>
@@ -585,7 +585,7 @@
 						value={parts.ms}
 						onfocus={selectAllOnFocus}
 						onchange={(e) => commitPart(loop, which, 'ms', e)}
-						class="input input-xs input-bordered bg-white border-[#02343F]/30 w-14 text-center"
+						class="input input-xs input-bordered bg-white border-teal/30 w-14 text-center"
 					/>
 					<span class="text-[0.65rem] opacity-50 pb-1.5">ms</span>
 				</label>
@@ -634,9 +634,9 @@
 				ondragover={(e) => onLoopDragOver(e, i)}
 				ondrop={(e) => onLoopDrop(e, i)}
 				class="rounded border transition-opacity {activeLoopId === loop.id
-					? 'border-[#02343F] bg-[#02343F]/5'
-					: 'border-[#02343F]/20 bg-white'} {dragOverIndex === i && dragIndex !== i
-					? 'ring-2 ring-[#02343F]'
+					? 'border-teal bg-teal/5'
+					: 'border-teal/20 bg-white'} {dragOverIndex === i && dragIndex !== i
+					? 'ring-2 ring-teal'
 					: ''} {dragIndex === i ? 'opacity-40' : ''}"
 			>
 				<!-- Row header -->
@@ -647,7 +647,7 @@
 							draggable="true"
 							ondragstart={(e) => onLoopDragStart(e, i)}
 							ondragend={onLoopDragEnd}
-							class="cursor-grab active:cursor-grabbing select-none shrink-0 px-0.5 leading-none text-[#02343F]/40 hover:text-[#02343F]/70"
+							class="cursor-grab active:cursor-grabbing select-none shrink-0 px-0.5 leading-none text-teal/40 hover:text-teal/70"
 							role="button"
 							tabindex="-1"
 							aria-label="Drag to reorder loop"
@@ -659,7 +659,7 @@
 							 loop is a ▶ Play button that jumps the sequence to it (free movement, req 1). -->
 						{#if runLoopId === loop.id}
 							<span
-								class="shrink-0 w-20 text-center text-xs px-1 py-1 rounded bg-[#02343F] text-[#F0EDCC]"
+								class="shrink-0 w-20 text-center text-xs px-1 py-1 rounded bg-teal text-cream"
 								>▶ Playing</span
 							>
 							<button
@@ -719,13 +719,13 @@
 
 				<!-- Expanded settings -->
 				{#if expanded}
-					<div class="border-t border-[#02343F]/10 p-2 flex flex-col gap-2">
+					<div class="border-t border-teal/10 p-2 flex flex-col gap-2">
 						<input
 							type="text"
 							value={loop.label}
 							oninput={(e) => updateLoop(loop.id, { label: (e.target as HTMLInputElement).value })}
 							placeholder="Loop name"
-							class="input input-xs input-bordered bg-white border-[#02343F]/30"
+							class="input input-xs input-bordered bg-white border-teal/30"
 						/>
 						<div class="flex flex-col gap-2">
 							{@render boundBoxes(loop, 'A', 'A (start)')}
@@ -751,7 +751,7 @@
 											value={loop.repeatCount ?? DEFAULT_LOOP_REPS}
 											onfocus={selectAllOnFocus}
 											onchange={(e) => commitLoopReps(loop, e)}
-											class="input input-xs input-bordered bg-white border-[#02343F]/30 w-12 text-center"
+											class="input input-xs input-bordered bg-white border-teal/30 w-12 text-center"
 											title="How many times to play A→B before advancing"
 										/>
 										<span class="text-[0.65rem] opacity-50 pb-1.5">times (A→B)</span>
@@ -769,7 +769,7 @@
 												value={dp.m}
 												onfocus={selectAllOnFocus}
 												onchange={(e) => commitLoopDur(loop, 'm', e)}
-												class="input input-xs input-bordered bg-white border-[#02343F]/30 w-12 text-center"
+												class="input input-xs input-bordered bg-white border-teal/30 w-12 text-center"
 											/>
 											<span class="text-[0.65rem] opacity-50 pb-1.5">m</span>
 										</label>
@@ -780,7 +780,7 @@
 												value={dp.s}
 												onfocus={selectAllOnFocus}
 												onchange={(e) => commitLoopDur(loop, 's', e)}
-												class="input input-xs input-bordered bg-white border-[#02343F]/30 w-12 text-center"
+												class="input input-xs input-bordered bg-white border-teal/30 w-12 text-center"
 											/>
 											<span class="text-[0.65rem] opacity-50 pb-1.5">s</span>
 										</label>

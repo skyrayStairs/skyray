@@ -60,7 +60,7 @@
 						max="400"
 						value={value.bpm}
 						onchange={(e) => setBpm((e.target as HTMLInputElement).value)}
-						class="input input-xs sm:input-sm input-bordered bg-white border-[#02343F]/30 text-center w-14 flex-1"
+						class="input input-xs sm:input-sm input-bordered bg-white border-teal/30 text-center w-14 flex-1"
 					/>
 					<button class="btn btn-xs btn-outline px-1" onclick={() => nudgeBpm(1)}>+1</button>
 					<button class="btn btn-xs btn-outline px-1" onclick={() => nudgeBpm(5)}>+5</button>
@@ -75,7 +75,7 @@
 				max="16"
 				value={value.beatsPerMeasure}
 				onchange={(e) => setBeats((e.target as HTMLInputElement).value)}
-				class="input input-xs sm:input-sm input-bordered bg-white border-[#02343F]/30 text-center"
+				class="input input-xs sm:input-sm input-bordered bg-white border-teal/30 text-center"
 			/>
 		</label>
 	</div>

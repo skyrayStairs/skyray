@@ -1,8 +1,9 @@
 <div class="flex content-center flex-col" id="page">
+    <h1 class="sr-only">Photographs by Kyung Song</h1>
     <div class="my-auto mx-auto carousel" id="center_card">
         {#each carouselImages as img}
             <div class="carousel-item w-full">
-                <img src={img} alt="Loading" id="image" />
+                <img src={img} alt="" class="carousel-img" />
             </div>
         {/each}
     </div>
@@ -25,14 +26,20 @@
             })
         };
 
-        setAutoIntervalCarousel(carouselImages.length);
+        // Respect the OS reduced-motion setting: skip the auto-rotate entirely.
+        if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+            startAutoCarousel();
+        }
+
+        return () => clearInterval(carouselTimer);
     })
 
-    function setAutoIntervalCarousel(imageSize : number) {
+    function startAutoCarousel() {
         const carouselBox = document.getElementById("center_card");
         let slide = 0;
 
         carouselTimer = setInterval(() => {
+            if (!carouselImages.length) return; // images load async; no-op until the first resolves
             if (slide >= carouselBox.scrollWidth) {
                 slide = 0;
             } else {
@@ -45,7 +52,7 @@
 
 <style lang="postcss">
     #page {
-        height: 85vh;
+        height: 85dvh;
         position: relative;
     }
 
@@ -57,21 +64,21 @@
         top: 0px;
         left: 0px;
         z-index: -1;
-        background-color: #F0EDCC;
+        background-color: var(--cream);
         background-size: cover;
     }
 
     #center_card {
-        font-family:'KNUTRUTHTTF';
+        font-family:'KNUTRUTHTTF', sans-serif;
         aspect-ratio: 610/970;
         border-width: 6px;
         max-width: 670px;
         background-size: cover;
-        border-color: #F0EDCC;
+        border-color: var(--cream);
         border-radius: 2rem;
     }
 
-    #image {
+    .carousel-img {
         object-fit: cover;
     }
 </style>

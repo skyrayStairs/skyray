@@ -57,7 +57,7 @@
 <style>
   #map_wrapper {
     width: 100%;
-    height: 85vh;
+    height: 85dvh;
   }
 
   #map {

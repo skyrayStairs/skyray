@@ -110,8 +110,8 @@
 			class="rounded border bg-white p-2 flex flex-col gap-1.5 transition-[opacity,box-shadow]
 				{dragIndex === i ? 'opacity-40' : ''}
 				{dragOverIndex === i && dragIndex !== i
-				? 'border-[#02343F] ring-2 ring-[#02343F]'
-				: 'border-[#02343F]/20'}"
+				? 'border-teal ring-2 ring-teal'
+				: 'border-teal/20'}"
 		>
 			<!-- Row header: handle, number, reorder, delete -->
 			<div class="flex items-center gap-1.5">
@@ -119,7 +119,7 @@
 					draggable="true"
 					ondragstart={(e) => onDragStart(e, i)}
 					ondragend={onDragEnd}
-					class="cursor-grab active:cursor-grabbing select-none shrink-0 leading-none text-[#02343F]/40 hover:text-[#02343F]/70"
+					class="cursor-grab active:cursor-grabbing select-none shrink-0 leading-none text-teal/40 hover:text-teal/70"
 					role="button"
 					tabindex="-1"
 					aria-label="Drag to reorder step"
@@ -152,7 +152,7 @@
 				oninput={(e) => updateStep(step.id, { description: (e.target as HTMLTextAreaElement).value })}
 				placeholder="What to practice this step…"
 				rows="2"
-				class="textarea textarea-xs textarea-bordered w-full bg-white border-[#02343F]/30 leading-snug"
+				class="textarea textarea-xs textarea-bordered w-full bg-white border-teal/30 leading-snug"
 			></textarea>
 
 			<!-- Timer / repeat / rest -->
@@ -165,7 +165,7 @@
 							value={durParts(step.durationSec).m}
 							onfocus={selectAllOnFocus}
 							onchange={(e) => commitPart(step, 'm', e)}
-							class="input input-xs input-bordered bg-white border-[#02343F]/30 w-11 text-center"
+							class="input input-xs input-bordered bg-white border-teal/30 w-11 text-center"
 						/>
 						<span class="text-[0.65rem] opacity-50 pb-1.5">m</span>
 					</label>
@@ -176,7 +176,7 @@
 							value={durParts(step.durationSec).s}
 							onfocus={selectAllOnFocus}
 							onchange={(e) => commitPart(step, 's', e)}
-							class="input input-xs input-bordered bg-white border-[#02343F]/30 w-11 text-center"
+							class="input input-xs input-bordered bg-white border-teal/30 w-11 text-center"
 						/>
 						<span class="text-[0.65rem] opacity-50 pb-1.5">s</span>
 					</label>
@@ -189,7 +189,7 @@
 						value={step.repeatCount}
 						onfocus={selectAllOnFocus}
 						onchange={(e) => commitInt(step, 'repeatCount', e, 1)}
-						class="input input-xs input-bordered bg-white border-[#02343F]/30 w-11 text-center"
+						class="input input-xs input-bordered bg-white border-teal/30 w-11 text-center"
 						title="Repeat count"
 					/>
 					<span class="text-[0.65rem] opacity-50 pb-1.5">reps</span>
@@ -204,7 +204,7 @@
 							value={step.restSec}
 							onfocus={selectAllOnFocus}
 							onchange={(e) => commitInt(step, 'restSec', e, 0)}
-							class="input input-xs input-bordered bg-white border-[#02343F]/30 w-11 text-center"
+							class="input input-xs input-bordered bg-white border-teal/30 w-11 text-center"
 							title="Rest length (seconds)"
 						/>
 						<span class="text-[0.65rem] opacity-50 pb-1.5">s rest</span>
@@ -227,7 +227,7 @@
 			{/if}
 
 			<!-- Per-step metronome (opt-in): the click reconfigures to this step's tempo when it plays. -->
-			<div class="flex flex-col gap-1 border-t border-[#02343F]/10 pt-1.5">
+			<div class="flex flex-col gap-1 border-t border-teal/10 pt-1.5">
 				<label class="flex items-center gap-1.5 cursor-pointer w-fit">
 					<input
 						type="checkbox"

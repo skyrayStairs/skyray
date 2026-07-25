@@ -236,14 +236,17 @@
 		downloadJson(`${safeName}.json`, activeRoutine)
 	}
 
+	let loadError = $state('')
+
 	async function handleLoadFile(e: Event) {
 		const input = e.target as HTMLInputElement
 		const file = input.files?.[0]
 		if (!file) return
+		loadError = ''
 		try {
 			const parsed = (await readJsonFile(file)) as Partial<Routine>
 			if (!parsed || typeof parsed.name !== 'string' || !Array.isArray(parsed.exercises)) {
-				alert('Invalid routine file.')
+				loadError = 'Invalid routine file.'
 			} else {
 				// Fresh ids so an imported routine never collides with an existing one.
 				const imported: Routine = {
@@ -257,7 +260,7 @@
 				activeId = imported.id
 			}
 		} catch {
-			alert('Invalid routine file.')
+			loadError = 'Invalid routine file.'
 		}
 		input.value = ''
 	}
@@ -941,16 +944,22 @@
 	}
 </script>
 
-<div class="flex flex-col bg-[#F0EDCC] text-[#02343F] min-h-full">
+<div class="flex flex-col bg-cream text-teal min-h-full">
 	{#if mode === 'edit'}
 		<!-- ===== Edit mode ===== -->
 		<div
-			class="sticky top-0 z-10 bg-[#F0EDCC] border-b border-[#02343F]/20 px-3 py-2 sm:px-4 shrink-0 flex flex-col gap-2"
+			class="sticky top-0 z-10 bg-cream border-b border-teal/20 px-3 py-2 sm:px-4 shrink-0 flex flex-col gap-2"
 		>
+			{#if loadError}
+				<div class="flex items-center justify-between gap-1 bg-error/10 text-error rounded px-2 py-1 text-xs border border-error/30" role="alert">
+					<span>{loadError}</span>
+					<button class="btn btn-xs btn-ghost" onclick={() => (loadError = '')} aria-label="Dismiss error">✕</button>
+				</div>
+			{/if}
 			<!-- Routine library control -->
 			<div class="flex gap-1.5 items-center flex-wrap">
 				<select
-					class="select select-xs sm:select-sm select-bordered bg-white border-[#02343F]/30 max-w-[45%]"
+					class="select select-xs sm:select-sm select-bordered bg-white border-teal/30 max-w-[45%]"
 					value={activeId ?? ''}
 					onchange={(e) => (activeId = (e.target as HTMLSelectElement).value || null)}
 					disabled={routines.length === 0}
@@ -985,7 +994,7 @@
 							if (e.key === 'Enter') commitRename()
 							if (e.key === 'Escape') renaming = false
 						}}
-						class="input input-xs sm:input-sm input-bordered flex-1 bg-white border-[#02343F]/30"
+						class="input input-xs sm:input-sm input-bordered flex-1 bg-white border-teal/30"
 					/>
 					<button class="btn btn-xs sm:btn-sm btn-primary shrink-0" onclick={commitRename}
 						>Save</button
@@ -1079,9 +1088,9 @@
 							>.{formatMmssMs(remainingSec).split('.')[1]}</span
 						>
 					</div>
-					<div class="w-full h-2 bg-[#02343F]/15 rounded-full overflow-hidden">
+					<div class="w-full h-2 bg-teal/15 rounded-full overflow-hidden">
 						<div
-							class="h-full bg-[#02343F] transition-[width] duration-100"
+							class="h-full bg-teal transition-[width] duration-100"
 							style="width: {runProgress * 100}%"
 						></div>
 					</div>
@@ -1206,9 +1215,9 @@
 							</div>
 						{/if}
 
-						<div class="w-full max-w-md h-2 bg-[#02343F]/15 rounded-full overflow-hidden">
+						<div class="w-full max-w-md h-2 bg-teal/15 rounded-full overflow-hidden">
 							<div
-								class="h-full bg-[#02343F] transition-[width] duration-100"
+								class="h-full bg-teal transition-[width] duration-100"
 								style="width: {runProgress * 100}%"
 							></div>
 						</div>
@@ -1292,9 +1301,9 @@
 						>
 					</div>
 
-					<div class="w-full max-w-md h-2 bg-[#02343F]/15 rounded-full overflow-hidden">
+					<div class="w-full max-w-md h-2 bg-teal/15 rounded-full overflow-hidden">
 						<div
-							class="h-full bg-[#02343F] transition-[width] duration-100"
+							class="h-full bg-teal transition-[width] duration-100"
 							style="width: {runProgress * 100}%"
 						></div>
 					</div>
@@ -1332,13 +1341,13 @@
 							{@const stMetro = stepMetronome(st)}
 							<div
 								class="rounded border {si === stepIndex
-									? 'border-[#02343F] bg-[#02343F]/5'
-									: 'border-[#02343F]/20 bg-white'}"
+									? 'border-teal bg-teal/5'
+									: 'border-teal/20 bg-white'}"
 							>
 								<div class="flex items-center gap-1.5 p-1.5">
 									{#if si === stepIndex}
 										<span
-											class="shrink-0 w-16 text-center text-xs px-1 py-1 rounded bg-[#02343F] text-[#F0EDCC]"
+											class="shrink-0 w-16 text-center text-xs px-1 py-1 rounded bg-teal text-cream"
 											>{resting ? '⏸ Rest' : '▶ Now'}</span
 										>
 									{:else}
@@ -1369,7 +1378,7 @@
 								</div>
 								{#if stExpanded}
 									<div
-										class="border-t border-[#02343F]/10 p-2 text-sm whitespace-pre-wrap opacity-80"
+										class="border-t border-teal/10 p-2 text-sm whitespace-pre-wrap opacity-80"
 									>
 										{st.description || 'No description for this step.'}
 									</div>
@@ -1393,9 +1402,9 @@
 						<div class="flex gap-1.5">
 							{#each Array(runStepMetro.beatsPerMeasure) as _, beat}
 								<div
-									class="w-4 h-4 rounded-full border-2 border-[#02343F] transition-all duration-75
-										{pulseBeat === beat ? 'bg-[#02343F] scale-125' : 'bg-transparent'}
-										{runStepMetro.accentBeats.includes(beat) ? 'border-[#02343F]' : 'border-[#02343F]/30'}"
+									class="w-4 h-4 rounded-full border-2 border-teal transition-all duration-75
+										{pulseBeat === beat ? 'bg-teal scale-125' : 'bg-transparent'}
+										{runStepMetro.accentBeats.includes(beat) ? 'border-teal' : 'border-teal/30'}"
 								></div>
 							{/each}
 						</div>
@@ -1415,7 +1424,7 @@
 						>
 						{#if runSettingsOpen}
 							<div
-								class="mt-2 text-left rounded border border-[#02343F]/20 bg-white/60 p-2 flex flex-col gap-2"
+								class="mt-2 text-left rounded border border-teal/20 bg-white/60 p-2 flex flex-col gap-2"
 							>
 								{#if resting}
 									<p class="text-xs opacity-50">Resting — metronome resumes on the next step.</p>
@@ -1453,9 +1462,9 @@
 
 				<!-- Progress bar (timer steps only) -->
 				{#if timerOn(runExercise)}
-					<div class="w-full max-w-md h-2 bg-[#02343F]/15 rounded-full overflow-hidden">
+					<div class="w-full max-w-md h-2 bg-teal/15 rounded-full overflow-hidden">
 						<div
-							class="h-full bg-[#02343F] transition-[width] duration-100"
+							class="h-full bg-teal transition-[width] duration-100"
 							style="width: {runProgress * 100}%"
 						></div>
 					</div>
@@ -1474,9 +1483,9 @@
 						<div class="flex gap-1.5">
 							{#each Array(runExercise.beatsPerMeasure) as _, beat}
 								<div
-									class="w-4 h-4 rounded-full border-2 border-[#02343F] transition-all duration-75
-										{pulseBeat === beat ? 'bg-[#02343F] scale-125' : 'bg-transparent'}
-										{runExercise.accentBeats.includes(beat) ? 'border-[#02343F]' : 'border-[#02343F]/30'}"
+									class="w-4 h-4 rounded-full border-2 border-teal transition-all duration-75
+										{pulseBeat === beat ? 'bg-teal scale-125' : 'bg-transparent'}
+										{runExercise.accentBeats.includes(beat) ? 'border-teal' : 'border-teal/30'}"
 								></div>
 							{/each}
 						</div>
@@ -1503,7 +1512,7 @@
 							>{runSettingsOpen ? '▲ Hide settings' : '⚙ Settings'}</button
 						>
 						{#if runSettingsOpen}
-							<div class="mt-2 text-left rounded border border-[#02343F]/20 bg-white/60 p-2">
+							<div class="mt-2 text-left rounded border border-teal/20 bg-white/60 p-2">
 								<MetronomeSettings value={runExercise} onUpdate={liveUpdateExercise} />
 							</div>
 						{/if}

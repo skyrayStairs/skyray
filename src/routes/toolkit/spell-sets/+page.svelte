@@ -206,10 +206,13 @@
 		localStorage.setItem(LS_NOTICE_KEY, '1')
 	}
 
+	let loadError = $state('')
+
 	async function handleLoadFile(e: Event) {
 		const input = e.target as HTMLInputElement
 		const file = input.files?.[0]
 		if (!file) return
+		loadError = ''
 		try {
 			const parsed = (await readJsonFile(file)) as
 				| SpellEntry[]
@@ -223,7 +226,7 @@
 				const known = new Set(spellSet.map((s) => s.name))
 				preparedNames = new Set((parsed.prepared ?? []).filter((n: string) => known.has(n)))
 			} else {
-				alert('Invalid spell set file.')
+				loadError = 'Invalid spell set file.'
 			}
 		} catch {
 			alert('Invalid spell set file.')
@@ -253,13 +256,20 @@
 	}
 </script>
 
-<div class="flex flex-col bg-[#F0EDCC] text-[#02343F] min-h-full">
+<div class="flex flex-col bg-cream text-teal min-h-full">
 	<!-- Sticky bar: buttons always visible; search+nav mobile only -->
-	<div bind:this={stickyBarEl} class="sticky top-0 z-10 bg-[#F0EDCC] border-b border-[#02343F]/20 px-3 py-2 sm:px-4 shrink-0">
+	<div bind:this={stickyBarEl} class="sticky top-0 z-10 bg-cream border-b border-teal/20 px-3 py-2 sm:px-4 shrink-0">
 		{#if showNotice}
 			<div class="flex flex-wrap items-center justify-between gap-1 mb-2 bg-blue-50 rounded px-2 py-1 text-xs border border-blue-200">
 				<span>Auto-saves to browser. Use <strong>Save Set</strong> to export.</span>
 				<button class="btn btn-xs btn-ghost" onclick={dismissNotice}>✕</button>
+			</div>
+		{/if}
+
+		{#if loadError}
+			<div class="flex items-center justify-between gap-1 mb-2 bg-error/10 text-error rounded px-2 py-1 text-xs border border-error/30" role="alert">
+				<span>{loadError}</span>
+				<button class="btn btn-xs btn-ghost" onclick={() => (loadError = '')} aria-label="Dismiss error">✕</button>
 			</div>
 		{/if}
 
@@ -329,7 +339,7 @@
 				type="search"
 				placeholder="Search cards..."
 				bind:value={setSearch}
-				class="input input-xs flex-1 bg-white border-[#02343F]/30"
+				class="input input-xs flex-1 bg-white border-teal/30"
 			/>
 
 			<div class="relative shrink-0">
@@ -348,19 +358,19 @@
 						aria-label="Close sort menu"
 						tabindex="-1"
 					></button>
-					<div class="absolute right-0 mt-1 z-20 w-36 rounded border border-[#02343F]/20 bg-white py-1 text-sm shadow-lg">
+					<div class="absolute right-0 mt-1 z-20 w-36 rounded border border-teal/20 bg-white py-1 text-sm shadow-lg">
 						{#each SORT_OPTIONS as opt}
 							<button
-								class="flex w-full items-center justify-between px-3 py-1.5 text-left hover:bg-[#02343F]/5"
+								class="flex w-full items-center justify-between px-3 py-1.5 text-left hover:bg-teal/5"
 								onclick={() => (sortKey = opt.key)}
 							>
 								<span>{opt.label}</span>
 								{#if sortKey === opt.key}<span>✓</span>{/if}
 							</button>
 						{/each}
-						<div class="my-1 border-t border-[#02343F]/10"></div>
+						<div class="my-1 border-t border-teal/10"></div>
 						<button
-							class="flex w-full items-center justify-between px-3 py-1.5 text-left hover:bg-[#02343F]/5 disabled:opacity-40"
+							class="flex w-full items-center justify-between px-3 py-1.5 text-left hover:bg-teal/5 disabled:opacity-40"
 							onclick={() => (sortDir = sortDir === 'asc' ? 'desc' : 'asc')}
 							disabled={sortKey === 'none'}
 						>

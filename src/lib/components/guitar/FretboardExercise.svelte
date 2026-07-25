@@ -415,7 +415,7 @@
 		<select
 			value={config.rootPc ?? 7}
 			onchange={(e) => setRoot((e.target as HTMLSelectElement).value)}
-			class="select select-xs select-bordered bg-white border-[#02343F]/30"
+			class="select select-xs select-bordered bg-white border-teal/30"
 		>
 			{#each NOTE_NAMES as name, pc}
 				<option value={pc}>{name}</option>
@@ -523,7 +523,7 @@
 						max={SCALE_BPM_MAX}
 						value={config.bpm ?? 80}
 						onchange={(e) => setBpm(parseInt((e.target as HTMLInputElement).value, 10))}
-						class="input input-xs input-bordered bg-white border-[#02343F]/30 w-16 text-center"
+						class="input input-xs input-bordered bg-white border-teal/30 w-16 text-center"
 					/>
 					<button class="btn btn-xs btn-outline" onclick={() => nudgeBpm(1)}>+1</button>
 					<button class="btn btn-xs btn-outline" onclick={() => nudgeBpm(5)}>+5</button>
