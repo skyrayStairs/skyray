@@ -1,5 +1,5 @@
 <script>
-    import "../app.css"
+import "../app.css"
     import { onMount } from 'svelte'
     import { fly, fade, slide } from 'svelte/transition'
     import { gnbState } from '$lib/stores/gnb.svelte'
@@ -7,7 +7,7 @@
     let { children } = $props();
     let drawerOpen = $state(false)
     let toolkitExpanded = $state(false)
-    let playgroundExpanded = $state(false)
+    let sandboxExpanded = $state(false)
     let reduce = $state(false)
     onMount(() => { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches })
 </script>
@@ -84,21 +84,24 @@
                 {/if}
             </li>
 
-            <!-- Playground — text navigates, chevron toggles children -->
+            <!-- Sandbox — text navigates, chevron toggles children -->
             <li>
                 <div class="toolkit-row">
-                    <a href="/playground" onclick={() => drawerOpen = false}>Playground</a>
+                    <a href="/sandbox" onclick={() => drawerOpen = false}>Sandbox</a>
                     <button
                         class="chevron-btn"
-                        onclick={() => playgroundExpanded = !playgroundExpanded}
-                        aria-label={playgroundExpanded ? 'Collapse' : 'Expand'}
-                    >{playgroundExpanded ? '▲' : '▼'}</button>
+                        onclick={() => sandboxExpanded = !sandboxExpanded}
+                        aria-label={sandboxExpanded ? 'Collapse' : 'Expand'}
+                    >{sandboxExpanded ? '▲' : '▼'}</button>
                 </div>
 
-                {#if playgroundExpanded}
+                {#if sandboxExpanded}
                     <ul transition:slide={{ duration: reduce ? 0 : 200 }} class="sub-nav">
                         <li>
-                            <a href="/playground/guitar-routine" onclick={() => drawerOpen = false}>Guitar Routine</a>
+                            <a href="/sandbox/guitar-routine" onclick={() => drawerOpen = false}>Guitar Routine</a>
+                        </li>
+                        <li>
+                            <a href="/sandbox/gym" onclick={() => drawerOpen = false}>Gym</a>
                         </li>
                     </ul>
                 {/if}
