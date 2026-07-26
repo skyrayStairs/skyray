@@ -16,3 +16,6 @@ CLAUDE.md
 
 # Playwright test artifacts
 test-results/
+
+# impeccable local state — live-session journals, hook cache, critique notes
+.impeccable/
