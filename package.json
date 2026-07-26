@@ -15,7 +15,7 @@
 	"devDependencies": {
 		"@playwright/test": "^1.55.1",
 		"@sveltejs/adapter-static": "^3.0.1",
-		"@sveltejs/kit": "^2.0.0",
+		"@sveltejs/kit": "^2.70.1",
 		"@typescript-eslint/eslint-plugin": "^8.0.0",
 		"@typescript-eslint/parser": "^8.0.0",
 		"autoprefixer": "^10.4.16",
@@ -36,5 +36,9 @@
 	"type": "module",
 	"dependencies": {
 		"gsap": "^3.12.3"
+	},
+	"overridesComment": "cookie <0.7 accepts out-of-bounds characters in a cookie name, path or domain (GHSA-pxg6-pf52-xh8x). @sveltejs/kit still pins ^0.6 as of 2.70.1, its latest, so resolving it forward here is the only fix. 0.7 keeps the same parse/serialize API and only tightens validation.",
+	"overrides": {
+		"cookie": "^0.7.2"
 	}
 }
