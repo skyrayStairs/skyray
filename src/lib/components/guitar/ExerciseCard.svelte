@@ -15,7 +15,7 @@
 	import { parseYouTubeId } from '$lib/video/parseId'
 	import { putVideoBlob, deleteVideoBlob } from '$lib/storage/videoBlobs'
 	// Lives under gym/ but is feature-agnostic; imported rather than moved to keep the change small.
-	import ActionSheet from '$lib/components/gym/ActionSheet.svelte'
+	import ActionSheet from '$lib/components/ActionSheet.svelte'
 	import VideoLooper from './VideoLooper.svelte'
 	import MetronomeSettings from './MetronomeSettings.svelte'
 	import FretboardSettings from './FretboardSettings.svelte'

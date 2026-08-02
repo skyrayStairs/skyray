@@ -80,6 +80,9 @@ import "../app.css"
                         <li>
                             <a href="/toolkit/spell-sets" onclick={() => drawerOpen = false}>Spell Sets</a>
                         </li>
+                        <li>
+                            <a href="/toolkit/class-features" onclick={() => drawerOpen = false}>Class Features</a>
+                        </li>
                     </ul>
                 {/if}
             </li>

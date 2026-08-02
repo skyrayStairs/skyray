@@ -42,7 +42,7 @@
 	} from '$lib/types/gym'
 	import { restTimer } from '$lib/stores/gymTimer.svelte'
 	import { downloadJson, readJsonFile } from '$lib/utils/fileIO'
-	import ActionSheet from '$lib/components/gym/ActionSheet.svelte'
+	import ActionSheet from '$lib/components/ActionSheet.svelte'
 	import DayEditor from '$lib/components/gym/DayEditor.svelte'
 	import DaySheet from '$lib/components/gym/DaySheet.svelte'
 	import ExerciseLibrarySheet from '$lib/components/gym/ExerciseLibrarySheet.svelte'

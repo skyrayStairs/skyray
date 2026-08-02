@@ -1,5 +1,5 @@
 <script lang="ts">
-	// Bottom-sheet shell shared by every gym surface above the routine library. Same idiom as
+	// Bottom-sheet shell shared across features — gym, guitar and the D&D toolkit. Same idiom as
 	// AddSpellSheet.svelte and the nav drawer: a backdrop that closes on click, a panel that flies up,
 	// Escape to dismiss.
 	//

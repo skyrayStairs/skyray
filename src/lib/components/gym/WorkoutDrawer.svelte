@@ -23,8 +23,8 @@
 	} from '$lib/types/gym'
 	import { restTimer } from '$lib/stores/gymTimer.svelte'
 	import { formatMmss } from '$lib/utils/time'
-	import ActionSheet from './ActionSheet.svelte'
-	import GymSheet from './GymSheet.svelte'
+	import ActionSheet from '../ActionSheet.svelte'
+	import Sheet from '../Sheet.svelte'
 	import RestChip from './RestChip.svelte'
 
 	let {
@@ -205,7 +205,7 @@
 
 </script>
 
-<GymSheet open title="Workout — {day.name}" fullScreen dismissable={false} onClose={() => {}}>
+<Sheet open title="Workout — {day.name}" fullScreen dismissable={false} onClose={() => {}}>
 	{#snippet header()}
 		<div class="flex items-center gap-2 px-2 py-1.5">
 			<!-- Reads across a gym floor when it is counting: this is the number you look up for, and it
@@ -420,7 +420,7 @@
 			<button class="btn btn-sm btn-ghost text-error" onclick={onCancel}>Cancel workout</button>
 		</div>
 	{/snippet}
-</GymSheet>
+</Sheet>
 
 {#if menuFor}
 	{@const ex = menuFor}

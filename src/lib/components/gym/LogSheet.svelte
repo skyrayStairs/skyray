@@ -3,7 +3,7 @@
 	// keeps its own Export button, because the log is the half of the backup that the routine export
 	// doesn't carry.
 	import type { SessionLog } from '$lib/types/gym'
-	import GymSheet from './GymSheet.svelte'
+	import Sheet from '../Sheet.svelte'
 
 	let {
 		open = false,
@@ -20,7 +20,7 @@
 		max && max !== min ? `${min}–${max}` : `${min}`
 </script>
 
-<GymSheet {open} title="Session log" {onClose}>
+<Sheet {open} title="Session log" {onClose}>
 	<div class="flex items-center gap-2">
 		<h2 class="text-lg font-bold">Session log</h2>
 		<span class="text-xs opacity-60">{logs.length} session{logs.length === 1 ? '' : 's'}</span>
@@ -61,4 +61,4 @@
 			</div>
 		{/each}
 	{/if}
-</GymSheet>
+</Sheet>

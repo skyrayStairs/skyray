@@ -15,6 +15,7 @@
 
 <script lang="ts">
 	import type { SpellEntry } from '$lib/types/spell'
+	import { renderInline } from '$lib/utils/markdown'
 
 	let {
 		spell,
@@ -118,12 +119,6 @@
 	const schoolClasses = $derived(SCHOOL_CLASSES[spell.school] ?? SCHOOL_FALLBACK)
 	const levelLabel = $derived(spell.level === 0 ? 'Cantrip' : `Level ${spell.level}`)
 	const schoolLabel = $derived(spell.school.charAt(0).toUpperCase() + spell.school.slice(1))
-
-	function renderMarkdown(text: string): string {
-		return text
-			.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-			.replace(/\n/g, '<br>')
-	}
 
 	// Detect whether description overflows its box (only meaningful when !expanded)
 	$effect(() => {
@@ -243,12 +238,12 @@
 		>
 			<div class={hasOverflow || expanded ? 'pr-4' : ''}>
 				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-				{@html renderMarkdown(spell.description)}
+				{@html renderInline(spell.description)}
 				{#if spell.atHigherLevels}
 					<p class="mt-1.5 pt-1.5 border-t border-gray-200 text-[10px]">
 						<strong>At Higher Levels:</strong>
 						<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-						{@html renderMarkdown(spell.atHigherLevels)}
+						{@html renderInline(spell.atHigherLevels)}
 					</p>
 				{/if}
 			</div>

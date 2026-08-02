@@ -21,9 +21,9 @@
 		type GymExercise,
 		type GymSet
 	} from '$lib/types/gym'
-	import ActionSheet from './ActionSheet.svelte'
+	import ActionSheet from '../ActionSheet.svelte'
 	import DurationInput from './DurationInput.svelte'
-	import GymSheet from './GymSheet.svelte'
+	import Sheet from '../Sheet.svelte'
 	import RestChip from './RestChip.svelte'
 
 	let {
@@ -157,7 +157,7 @@
 	}
 </script>
 
-<GymSheet open title="Edit {draft.name}" fullScreen dismissable={false} onClose={cancel}>
+<Sheet open title="Edit {draft.name}" fullScreen dismissable={false} onClose={cancel}>
 	{#snippet header()}
 		<div class="flex items-center gap-2 px-2 py-1.5">
 			<button
@@ -377,7 +377,7 @@
 			<button class="btn btn-outline w-full" onclick={addExercise}>+ Add exercise</button>
 		</div>
 	{/snippet}
-</GymSheet>
+</Sheet>
 
 {#if menuFor}
 	{@const ex = menuFor}
@@ -420,7 +420,7 @@
 {/if}
 
 {#if restFor}
-	<GymSheet
+	<Sheet
 		open
 		title="Default rest — {displayName(restFor.name)}"
 		onClose={() => (restFor = null)}
@@ -438,5 +438,5 @@
 			/>
 			<button class="btn btn-sm btn-primary ml-auto" onclick={commitDefaultRest}>Apply</button>
 		</div>
-	</GymSheet>
+	</Sheet>
 {/if}

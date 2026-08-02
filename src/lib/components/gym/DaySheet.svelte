@@ -6,7 +6,7 @@
 	// between them and neither moves.
 	import { countSets, displayName, workingSets, type GymDay, type GymRoutine } from '$lib/types/gym'
 	import { formatMmss } from '$lib/utils/time'
-	import GymSheet from './GymSheet.svelte'
+	import Sheet from '../Sheet.svelte'
 
 	let {
 		open = false,
@@ -53,7 +53,7 @@
 	}
 </script>
 
-<GymSheet {open} title="{routine.name} — {day.name}" {onClose}>
+<Sheet {open} title="{routine.name} — {day.name}" {onClose}>
 	{#snippet header()}
 		<div class="flex justify-center pt-2 pb-1">
 			<div class="w-10 h-1 bg-teal/30 rounded-full"></div>
@@ -125,4 +125,4 @@
 			{/if}
 		</div>
 	{/snippet}
-</GymSheet>
+</Sheet>

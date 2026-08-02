@@ -6,7 +6,7 @@
 	import { EXERCISE_CATALOG, GROUP_NAMES, mergedCatalog } from '$lib/data/exercises'
 	import { noteKey, type CustomExercise } from '$lib/types/gym'
 	import { uid } from '$lib/utils/id'
-	import GymSheet from './GymSheet.svelte'
+	import Sheet from '../Sheet.svelte'
 
 	let {
 		open = false,
@@ -119,7 +119,7 @@
 
 <!-- tall: the groups fold open and shut in place, and a panel that resized under the thumb moved
      whichever row you were reaching for. -->
-<GymSheet {open} tall title={onPick ? 'Choose an exercise' : 'Exercise library'} {onClose}>
+<Sheet {open} tall title={onPick ? 'Choose an exercise' : 'Exercise library'} {onClose}>
 	<input
 		type="search"
 		value={query}
@@ -260,4 +260,4 @@
 			{/each}
 		</div>
 	{/each}
-</GymSheet>
+</Sheet>

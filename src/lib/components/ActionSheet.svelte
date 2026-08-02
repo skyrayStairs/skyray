@@ -3,7 +3,7 @@
 	// caller is a ⋯ button sitting inside a scroller, where an absolutely positioned menu gets clipped
 	// at the wrong moment, and a menu anchored to the top of a phone screen is the one place a thumb
 	// can't reach. Rows are full-width so the target is the row, not the label.
-	import GymSheet from './GymSheet.svelte'
+	import Sheet from './Sheet.svelte'
 
 	type Action = {
 		label: string
@@ -22,7 +22,7 @@
 	}: { open?: boolean; title: string; actions: Action[]; onClose: () => void } = $props()
 </script>
 
-<GymSheet {open} {title} {onClose}>
+<Sheet {open} {title} {onClose}>
 	<ul class="flex flex-col gap-1 -m-1">
 		<!-- Keyed by position, not label: callers build these from user-named things (routines), and two
 			 can share a name — a duplicate key is a hard error. The list is static while the sheet is open. -->
@@ -46,4 +46,4 @@
 			</li>
 		{/each}
 	</ul>
-</GymSheet>
+</Sheet>

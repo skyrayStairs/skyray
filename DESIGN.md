@@ -268,7 +268,9 @@ Borderless fields (`.input-ghost`) are typography rather than boxes: transparent
 tinted background only on focus. Used where a label and its value are the same thing — a day name in
 a header, a one-line note.
 
-**Sheets and drawers** are the only modal vocabulary. One shell (`GymSheet`) with three modes:
+**Sheets and drawers** are the only modal vocabulary. One shell (`$lib/components/Sheet.svelte`,
+with `ActionSheet.svelte` layering a list of choices over it — both live outside any feature
+folder because gym, guitar and the D&D toolkit all use them) with three modes:
 
 - **sheet** — bottom, `max-h-85dvh`, backdrop, grabber, dismissable.
 - **full-screen drawer** — `inset-0` over the site header and footer, no backdrop, and

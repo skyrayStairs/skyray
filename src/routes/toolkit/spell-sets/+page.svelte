@@ -4,6 +4,8 @@
 	import SpellCard, { SCHOOL_CLASSES, SCHOOL_FALLBACK } from '$lib/components/dnd/SpellCard.svelte'
 	import AddSpellSheet from '$lib/components/dnd/AddSpellSheet.svelte'
 	import { downloadJson, readJsonFile } from '$lib/utils/fileIO'
+	import { scrollGroups } from '$lib/utils/scrollGroups'
+	import ToolSwitcherSheet from '$lib/components/dnd/ToolSwitcherSheet.svelte'
 
 	const LS_KEY = 'dnd-spell-set'
 	const LS_PREPARED = 'dnd-prepared'
@@ -14,6 +16,7 @@
 	let preparedNames = $state<Set<string>>(new Set())
 	let activeTab = $state<'prepared' | 'known'>('prepared')
 	let sheetOpen = $state(false)
+	let toolSheetOpen = $state(false)
 	let showNotice = $state(false)
 	let showDeleteAllConfirm = $state(false)
 	let initialized = $state(false)
@@ -275,29 +278,6 @@
 		downloadJson('my-spell-set.json', { known: spellSet, prepared: [...preparedNames] })
 	}
 
-	// Jump to the previous/next group heading; no-op past the first/last one.
-	function scrollGroups(dir: 'up' | 'down') {
-		const slot = document.getElementById('slot')
-		if (!slot) return
-		const slotTop = slot.getBoundingClientRect().top
-		const bar = stickyBarEl?.offsetHeight ?? 0
-		const maxScroll = Math.max(0, slot.scrollHeight - slot.clientHeight)
-		// Scroll position that parks each heading just below the sticky bar.
-		const tops = [...slot.querySelectorAll<HTMLElement>('[data-group-heading]')].map((el) =>
-			Math.max(
-				0,
-				Math.min(el.getBoundingClientRect().top - slotTop + slot.scrollTop - bar, maxScroll)
-			)
-		)
-		// Epsilon must clear the grid's 8px padding, else the first ▼ jogs instead of jumping.
-		const eps = 16
-		const target =
-			dir === 'down'
-				? tops.find((t) => t > slot.scrollTop + eps)
-				: [...tops].reverse().find((t) => t < slot.scrollTop - eps)
-		if (target === undefined) return
-		slot.scrollTo({ top: target, behavior: 'smooth' })
-	}
 </script>
 
 <div class="flex flex-col bg-cream text-teal min-h-full">
@@ -383,7 +363,7 @@
 				type="search"
 				placeholder="Search cards..."
 				bind:value={setSearch}
-				class="input input-xs flex-1 bg-white border-teal/30"
+				class="input input-xs flex-1 min-w-0 bg-white border-teal/30"
 			/>
 
 			<div class="relative shrink-0">
@@ -426,16 +406,21 @@
 
 			<button
 				class="btn btn-xs btn-square btn-outline shrink-0"
-				onclick={() => scrollGroups('up')}
+				onclick={() => scrollGroups('up', stickyBarEl?.offsetHeight ?? 0)}
 				aria-label="Previous group heading"
 				disabled={displaySet.length === 0}
 			>▲</button>
 			<button
 				class="btn btn-xs btn-square btn-outline shrink-0"
-				onclick={() => scrollGroups('down')}
+				onclick={() => scrollGroups('down', stickyBarEl?.offsetHeight ?? 0)}
 				aria-label="Next group heading"
 				disabled={displaySet.length === 0}
 			>▼</button>
+			<button
+				class="btn btn-xs btn-square btn-outline shrink-0"
+				onclick={() => (toolSheetOpen = true)}
+				aria-label="Switch tool"
+			>☰</button>
 		</div>
 	</div>
 
@@ -507,4 +492,10 @@
 	{currentSetNames}
 	onAdd={addSpell}
 	onRemove={removeSpell}
+/>
+
+<ToolSwitcherSheet
+	open={toolSheetOpen}
+	current="/toolkit/spell-sets"
+	onClose={() => (toolSheetOpen = false)}
 />
