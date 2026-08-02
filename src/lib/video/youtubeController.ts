@@ -1,11 +1,13 @@
-import { YT_PLAYBACK_RATES, type VideoLoop } from '$lib/types/guitar'
+import { YT_RATE_RANGE, type VideoLoop } from '$lib/types/guitar'
 import type { LoopPlayer } from './LoopPlayer'
 import { loadYouTubeApi, type YTNamespace, type YTPlayer } from './ytLoader'
 
-// Pick the closest rate the player actually supports — setPlaybackRate ignores off-list values.
-export function snapRate(rate: number, available: number[]): number {
-	const list = available.length ? available : [...YT_PLAYBACK_RATES]
-	return list.reduce((best, r) => (Math.abs(r - rate) < Math.abs(best - rate) ? r : best), list[0])
+// The embed floors off-grid rates toward 0 (1.03 → 1), so round to the nearest 0.05 here instead:
+// a UI value of 1.15 must play at 1.15, not 1.1. Rounding via `n * step` lands on or a float-hair
+// above a grid point, which the player's own flooring absorbs.
+export function snapRate(rate: number): number {
+	const { min, max, step } = YT_RATE_RANGE
+	return Math.round(Math.min(max, Math.max(min, rate)) / step) * step
 }
 
 export class YouTubeController implements LoopPlayer {
@@ -80,8 +82,7 @@ export class YouTubeController implements LoopPlayer {
 			this.pendingRate = rate
 			return
 		}
-		const avail = this.player.getAvailablePlaybackRates?.() ?? []
-		this.player.setPlaybackRate(snapRate(rate, avail))
+		this.player.setPlaybackRate(snapRate(rate))
 	}
 
 	play(): void {

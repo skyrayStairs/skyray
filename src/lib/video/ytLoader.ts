@@ -9,7 +9,6 @@ export interface YTPlayer {
 	getCurrentTime(): number
 	getDuration(): number
 	setPlaybackRate(rate: number): void
-	getAvailablePlaybackRates(): number[]
 	loadVideoById(id: string): void
 	destroy(): void
 }

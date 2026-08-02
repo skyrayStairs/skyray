@@ -1,11 +1,12 @@
 <script lang="ts">
-	import { onMount } from 'svelte'
+	import { onMount, tick } from 'svelte'
 	import {
 		DEFAULT_LOOP_SEC,
 		DEFAULT_LOOP_REPS,
 		exerciseKind,
 		makeExercise,
 		makeRoutine,
+		moveExerciseToRoutine,
 		stepMetronome,
 		type Exercise,
 		type ExerciseStep,
@@ -157,8 +158,19 @@
 	}
 
 	// ---- Exercise operations ----------------------------------------------
-	function addExercise() {
+	async function addExercise() {
 		updateActive((r) => ({ ...r, exercises: [...r.exercises, makeExercise(r.exercises.length)] }))
+		// Bring the new card into view so it can be edited without scrolling to the bottom by hand.
+		// 'center' rather than 'start': the toolbar above the list is sticky and would cover its header.
+		await tick()
+		const cards = document.querySelectorAll('[data-exercise-card]')
+		cards[cards.length - 1]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+	}
+	// Hand this exercise to another routine (null = a new one). The current routine stays selected,
+	// so the card simply leaves the list.
+	function moveToRoutine(exerciseId: string, toRoutineId: string | null) {
+		if (!activeId) return
+		routines = moveExerciseToRoutine(routines, activeId, exerciseId, toRoutineId)
 	}
 	function updateExercise(id: string, patch: Partial<Exercise>) {
 		updateActive((r) => ({
@@ -1056,6 +1068,8 @@
 						dropTarget={dragOverIndex === i && dragIndex !== i}
 						onUpdate={(patch) => updateExercise(ex.id, patch)}
 						onRemove={() => removeExercise(ex.id)}
+						moveTargets={routines.filter((r) => r.id !== activeId)}
+						onMoveToRoutine={(rid) => moveToRoutine(ex.id, rid)}
 						onRun={() => enterRun(i)}
 						onMoveUp={() => moveExercise(i, -1)}
 						onMoveDown={() => moveExercise(i, 1)}

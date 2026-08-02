@@ -137,7 +137,7 @@ export interface VideoLoop {
 	label: string // user label, defaults to "Loop N"
 	startSec: number // A
 	endSec: number // B (must be > startSec)
-	rate: number // playback speed for this loop (YouTube snaps to YT_PLAYBACK_RATES)
+	rate: number // playback speed for this loop (YouTube snaps to the YT_RATE_RANGE grid)
 	// Timed-loop sequence (opt-in via VideoConfig.timedLoops): how this loop is sized before the sequence
 	// advances. Which one applies is chosen exercise-wide by VideoConfig.loopSizing:
 	//   'reps'  → play A→B `repeatCount` full times (counted at each B boundary), then advance.
@@ -172,10 +172,12 @@ export type LoopSizing = 'reps' | 'timer'
 export const DEFAULT_LOOP_SEC = 30
 export const DEFAULT_LOOP_REPS = 4
 
-// YouTube's IFrame API only honors these discrete rates; off-list values silently no-op.
-export const YT_PLAYBACK_RATES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const
+// YouTube's IFrame API accepts any rate on a 0.05 grid within 0.25–2, flooring off-grid values
+// toward 0 (1.03 → 1, 1.234 → 1.2). Note getAvailablePlaybackRates() still reports only the old
+// 8 coarse rates and is therefore ignored — probed against the live embed 2026-08-02.
+export const YT_RATE_RANGE = { min: 0.25, max: 2, step: 0.05 } as const
 
-// A native <video> accepts any playbackRate, so file loops get a continuous slider.
+// A native <video> accepts any playbackRate, so file loops get a finer slider.
 export const FILE_RATE_RANGE = { min: 0.1, max: 2, step: 0.01 } as const
 
 export interface Routine {
@@ -247,4 +249,33 @@ export function makeVideoLoop(index: number, startSec = 0, endSec = 10, rate = 1
 		endSec,
 		rate
 	}
+}
+
+// A freshly added video/audio source seeds one loop spanning the whole media. Its length isn't
+// known until the player reports it, so it's stored as this sentinel and filled in by VideoLooper
+// once the duration arrives. Only the add path ever writes it — an emptied loop list stays empty.
+export const PENDING_LOOP_END = 0
+
+// Move one exercise to another routine. `toRoutineId === null` appends a new routine to hold it;
+// the create and the move happen in one pass so the two can't disagree about which list is current.
+export function moveExerciseToRoutine(
+	routines: Routine[],
+	fromRoutineId: string,
+	exerciseId: string,
+	toRoutineId: string | null
+): Routine[] {
+	if (toRoutineId === fromRoutineId) return routines // same-routine "move" would delete the exercise
+	const exercise = routines
+		.find((r) => r.id === fromRoutineId)
+		?.exercises.find((e) => e.id === exerciseId)
+	if (!exercise) return routines
+	const existing = toRoutineId ? routines.find((r) => r.id === toRoutineId) : undefined
+	const dest = existing ?? makeRoutine(routines.length)
+	return (existing ? routines : [...routines, dest]).map((r) =>
+		r.id === fromRoutineId
+			? { ...r, exercises: r.exercises.filter((e) => e.id !== exerciseId) }
+			: r.id === dest.id
+				? { ...r, exercises: [...r.exercises, exercise] }
+				: r
+	)
 }

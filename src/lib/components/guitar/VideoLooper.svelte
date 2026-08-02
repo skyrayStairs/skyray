@@ -4,7 +4,8 @@
 		DEFAULT_LOOP_SEC,
 		DEFAULT_LOOP_REPS,
 		FILE_RATE_RANGE,
-		YT_PLAYBACK_RATES,
+		YT_RATE_RANGE,
+		PENDING_LOOP_END,
 		makeVideoLoop,
 		type VideoConfig,
 		type VideoLoop,
@@ -149,6 +150,7 @@
 		// player to actually exist (YT creates it async) and arm WITHOUT autoplay — there's no
 		// user gesture on mount, and auto-playing on open would be intrusive in the editor.
 		await whenReady()
+		await fillPendingLoopEnd()
 		if (mode === 'run' && runLoopId != null) {
 			// Timed-loop sequencing: the page owns which loop plays. Start it from A (autoplay).
 			lastRunNonce = runLoopNonce
@@ -156,6 +158,22 @@
 		} else {
 			// Apply the persisted active loop (or whole-video play-through when none), no autoplay.
 			controller.setActiveLoop(video.loops.find((l) => l.id === activeLoopId) ?? null, false)
+		}
+	}
+
+	// A source added in the editor seeds one whole-media loop (see PENDING_LOOP_END) whose end can
+	// only be filled once the player reports a duration — YouTube's getDuration() is often still 0
+	// right after onReady, so poll briefly rather than write a 0-length loop.
+	async function fillPendingLoopEnd() {
+		const pending = video.loops.find((l) => l.endSec === PENDING_LOOP_END)
+		if (!pending || !controller) return
+		for (let i = 0; i < 10; i++) {
+			const dur = controller.getDuration()
+			if (dur > 0) {
+				updateLoop(pending.id, { endSec: dur })
+				return
+			}
+			await new Promise((r) => setTimeout(r, 150))
 		}
 	}
 
@@ -312,9 +330,14 @@
 		else controller.play()
 	}
 
+	// YouTube's embed is quantized to 0.05 and floored at 0.25; a native <video> takes anything.
+	const rateRange = $derived(isYouTube ? YT_RATE_RANGE : FILE_RATE_RANGE)
+	// A nudge finer than the source's own step would show a rate the player won't actually play.
+	const rateNudges = $derived(isYouTube ? [-0.05, 0.05] : [-0.05, -0.01, 0.01, 0.05])
+
 	function setLoopRate(loop: VideoLoop, rate: number) {
 		// Round to 2dp before clamping so ±0.01/±0.05 nudges don't accumulate float error.
-		const r = Math.min(FILE_RATE_RANGE.max, Math.max(FILE_RATE_RANGE.min, Math.round(rate * 100) / 100))
+		const r = Math.min(rateRange.max, Math.max(rateRange.min, Math.round(rate * 100) / 100))
 		updateLoop(loop.id, { rate: r }) // updateLoop applies rate live when this loop is active
 	}
 
@@ -428,47 +451,29 @@
 </script>
 
 <div class="flex flex-col gap-2">
-	<!-- Playback-speed picker for one loop: YouTube snaps to fixed rates, files get a continuous slider.
+	<!-- Playback-speed picker for one loop: a slider over the source's own rate range (see rateRange).
 		 setLoopRate persists + (via updateLoop/liveLoopId) applies to the player live when this loop plays. -->
 	{#snippet speedControl(loop: VideoLoop)}
-		{#if isYouTube}
-			<div class="flex flex-wrap gap-1">
-				{#each YT_PLAYBACK_RATES as r}
-					<button
-						class="btn btn-xs {loop.rate === r ? 'btn-primary' : 'btn-outline'}"
-						onclick={() => setLoopRate(loop, r)}>{r}×</button
-					>
-				{/each}
-			</div>
-		{:else}
-			<div class="flex items-center gap-2">
-				<input
-					type="range"
-					min={FILE_RATE_RANGE.min}
-					max={FILE_RATE_RANGE.max}
-					step={FILE_RATE_RANGE.step}
-					value={loop.rate}
-					oninput={(e) => setLoopRate(loop, parseFloat((e.target as HTMLInputElement).value))}
-					class="range range-xs flex-1"
-				/>
-				<span class="font-mono text-sm w-12 text-right">{loop.rate.toFixed(2)}×</span>
-			</div>
-			<!-- Exact nudge buttons (the slider is convenient but imprecise): ±0.05 and ±0.01. -->
-			<div class="flex justify-center gap-1">
-				<button class="btn btn-xs btn-outline" onclick={() => setLoopRate(loop, loop.rate - 0.05)}
-					>−0.05</button
+		<div class="flex items-center gap-2">
+			<input
+				type="range"
+				min={rateRange.min}
+				max={rateRange.max}
+				step={rateRange.step}
+				value={loop.rate}
+				oninput={(e) => setLoopRate(loop, parseFloat((e.target as HTMLInputElement).value))}
+				class="range range-xs flex-1"
+			/>
+			<span class="font-mono text-sm w-12 text-right">{loop.rate.toFixed(2)}×</span>
+		</div>
+		<!-- Exact nudge buttons (the slider is convenient but imprecise). -->
+		<div class="flex justify-center gap-1">
+			{#each rateNudges as d}
+				<button class="btn btn-xs btn-outline" onclick={() => setLoopRate(loop, loop.rate + d)}
+					>{d < 0 ? '−' : '+'}{Math.abs(d).toFixed(2)}</button
 				>
-				<button class="btn btn-xs btn-outline" onclick={() => setLoopRate(loop, loop.rate - 0.01)}
-					>−0.01</button
-				>
-				<button class="btn btn-xs btn-outline" onclick={() => setLoopRate(loop, loop.rate + 0.01)}
-					>+0.01</button
-				>
-				<button class="btn btn-xs btn-outline" onclick={() => setLoopRate(loop, loop.rate + 0.05)}
-					>+0.05</button
-				>
-			</div>
-		{/if}
+			{/each}
+		</div>
 	{/snippet}
 
 	<!-- Player surface -->

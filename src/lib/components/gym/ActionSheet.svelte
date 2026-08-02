@@ -24,7 +24,9 @@
 
 <GymSheet {open} {title} {onClose}>
 	<ul class="flex flex-col gap-1 -m-1">
-		{#each actions as a (a.label)}
+		<!-- Keyed by position, not label: callers build these from user-named things (routines), and two
+			 can share a name — a duplicate key is a hard error. The list is static while the sheet is open. -->
+		{#each actions as a, i (i)}
 			<li>
 				<button
 					class="w-full text-left rounded-lg px-3 py-3 flex flex-col gap-0.5

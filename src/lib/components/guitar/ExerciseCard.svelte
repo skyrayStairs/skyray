@@ -3,6 +3,8 @@
 		exerciseKind,
 		makeFretboard,
 		makeStep,
+		makeVideoLoop,
+		PENDING_LOOP_END,
 		type Exercise,
 		type ExerciseKind,
 		type ExerciseStep,
@@ -12,6 +14,8 @@
 	import { uid } from '$lib/utils/id'
 	import { parseYouTubeId } from '$lib/video/parseId'
 	import { putVideoBlob, deleteVideoBlob } from '$lib/storage/videoBlobs'
+	// Lives under gym/ but is feature-agnostic; imported rather than moved to keep the change small.
+	import ActionSheet from '$lib/components/gym/ActionSheet.svelte'
 	import VideoLooper from './VideoLooper.svelte'
 	import MetronomeSettings from './MetronomeSettings.svelte'
 	import FretboardSettings from './FretboardSettings.svelte'
@@ -24,8 +28,10 @@
 		canMoveDown,
 		dragging = false,
 		dropTarget = false,
+		moveTargets = [],
 		onUpdate,
 		onRemove,
+		onMoveToRoutine,
 		onRun,
 		onMoveUp,
 		onMoveDown,
@@ -40,8 +46,10 @@
 		canMoveDown: boolean
 		dragging?: boolean // this card is the one being dragged
 		dropTarget?: boolean // this card is the current drag-over drop slot
+		moveTargets?: { id: string; name: string }[] // routines this exercise can move to (never the current one)
 		onUpdate: (patch: Partial<Exercise>) => void
 		onRemove: () => void
+		onMoveToRoutine: (routineId: string | null) => void // null → move into a brand-new routine
 		onRun: () => void // enter run mode starting from this exercise
 		onMoveUp: () => void
 		onMoveDown: () => void
@@ -81,6 +89,15 @@
 		else if (next === 'multistep') patch.steps = [makeStep()]
 		onUpdate(patch)
 	}
+	// ---- move to another routine ----
+	// A bottom sheet, not a dropdown, for the reasons ActionSheet documents: this ☰ lives inside a
+	// scroller (where an absolute menu gets clipped) at the top of the screen (where a thumb isn't).
+	let menuOpen = $state(false)
+	const moveActions = $derived([
+		...moveTargets.map((r) => ({ label: r.name, onSelect: () => onMoveToRoutine(r.id) })),
+		{ label: '+ New routine', onSelect: () => onMoveToRoutine(null) }
+	])
+
 	function updateSteps(next: ExerciseStep[]) {
 		onUpdate({ steps: next })
 	}
@@ -121,6 +138,12 @@
 	const MEDIA_ACCEPT =
 		'video/*,audio/*,.m4a,.mp3,.aac,.wav,.ogg,.oga,.flac,.opus,.weba,.mp4,.m4v,.mov,.webm,.mkv'
 
+	// Seed loop for a newly added source: spans the whole media, so the user starts with a
+	// full-length loop instead of an empty list. VideoLooper fills in the end once it knows it.
+	function wholeMediaLoop() {
+		return makeVideoLoop(0, 0, PENDING_LOOP_END)
+	}
+
 	function addYouTube() {
 		const id = parseYouTubeId(ytUrl)
 		if (!id) {
@@ -129,7 +152,7 @@
 		}
 		videoErr = ''
 		ytUrl = ''
-		onUpdate({ video: { source: { kind: 'youtube', videoId: id }, loops: [] } })
+		onUpdate({ video: { source: { kind: 'youtube', videoId: id }, loops: [wholeMediaLoop()] } })
 	}
 
 	async function addFile(e: Event) {
@@ -153,7 +176,7 @@
 		onUpdate({
 			video: {
 				source: { kind: 'file', fileId, fileName: file.name, mediaKind },
-				loops: [],
+				loops: [wholeMediaLoop()],
 				preservesPitch: true
 			}
 		})
@@ -208,7 +231,7 @@
 			value={exercise.name}
 			oninput={(e) => onUpdate({ name: (e.target as HTMLInputElement).value })}
 			placeholder="Exercise name"
-			class="input input-xs sm:input-sm input-bordered flex-1 bg-white border-teal/30 font-medium"
+			class="input input-xs sm:input-sm input-bordered flex-1 min-w-0 bg-white border-teal/30 font-medium"
 		/>
 		<button
 			class="btn btn-xs btn-square btn-primary shrink-0"
@@ -227,6 +250,12 @@
 			onclick={onMoveDown}
 			disabled={!canMoveDown}
 			aria-label="Move down">▼</button
+		>
+		<button
+			class="btn btn-xs btn-square btn-ghost shrink-0"
+			onclick={() => (menuOpen = true)}
+			aria-label="Move to another routine"
+			title="Move to another routine">☰</button
 		>
 		<button
 			class="btn btn-xs btn-square btn-ghost btn-error shrink-0"
@@ -347,3 +376,10 @@
 		<p class="text-xs text-red-600">{videoErr}</p>
 	{/if}
 </div>
+
+<ActionSheet
+	open={menuOpen}
+	title="Move “{exercise.name}” to…"
+	actions={moveActions}
+	onClose={() => (menuOpen = false)}
+/>
