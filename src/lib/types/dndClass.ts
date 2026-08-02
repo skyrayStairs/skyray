@@ -31,6 +31,40 @@ export type ClassData = {
 	features: ClassFeature[]
 }
 
+/**
+ * A subclass the user typed in themselves.
+ *
+ * Each SRD ships exactly one subclass per class, and the rest are copyrighted Player's Handbook
+ * text with no open-licensed source. So these live in localStorage on the user's own device and are
+ * never committed or deployed — transcribing a book you own for your own reference is ordinary
+ * personal use; publishing it is not. `downloadSubclasses` is the only way one leaves the browser.
+ */
+export type CustomSubclass = {
+	id: string
+	version: ClassVersion
+	/** Class slug this subclass belongs to. */
+	slug: string
+	name: string
+	features: { name: string; levels: number[]; body: string }[]
+}
+
+/**
+ * Coerce a hand-typed level list into the shape the rest of the page assumes: a non-empty ascending
+ * array of 1–20 integers. `ordered`, `groupHeads` and the open-by-default check all read
+ * `levels[0]`, so an empty or unsorted array from a typo would break the group headings rather than
+ * just one feature. Returns [] when nothing survives, and the caller drops the feature.
+ */
+export function parseLevels(input: string): number[] {
+	return [
+		...new Set(
+			input
+				.split(/[,\s]+/)
+				.map((s) => Number(s.trim()))
+				.filter((n) => Number.isInteger(n) && n >= 1 && n <= 20)
+		)
+	].sort((a, b) => a - b)
+}
+
 /** Same twelve in both rulesets. Artificer is in neither SRD. */
 export const CLASS_SLUGS = [
 	'barbarian',

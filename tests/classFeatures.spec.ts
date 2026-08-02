@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ClassData } from '../src/lib/types/dndClass'
+import { parseLevels } from '../src/lib/types/dndClass'
 import { splitBlocks, renderInline } from '../src/lib/utils/markdown'
 
 // Acceptance gate for the generated class data, mirroring tests/music.spec.ts: it asserts on what
@@ -197,6 +198,21 @@ test('every option has a label and a body', () => {
 			}
 		}
 	}
+})
+
+// A hand-typed subclass goes straight into the same list as the generated ones, and everything
+// downstream reads levels[0] — `ordered`, the group headings, the open-by-default check. A typo in
+// the editor's levels field must not be able to produce a shape that breaks those.
+test('hand-typed levels are clamped to a usable shape', () => {
+	expect(parseLevels('3')).toEqual([3])
+	expect(parseLevels('3, 6, 14')).toEqual([3, 6, 14])
+	expect(parseLevels('14 6 3')).toEqual([3, 6, 14]) // sorted
+	expect(parseLevels('3, 3, 3')).toEqual([3]) // deduped
+	expect(parseLevels('0, 21, -4, 25')).toEqual([]) // out of range
+	expect(parseLevels('abc')).toEqual([])
+	expect(parseLevels('')).toEqual([])
+	expect(parseLevels('2.5')).toEqual([]) // not an integer
+	expect(parseLevels('0, 25, abc, 7, 3, 3')).toEqual([3, 7]) // the mixed-garbage case
 })
 
 test('splitBlocks separates paragraphs, bullets and tables', () => {

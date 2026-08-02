@@ -1,13 +1,17 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
-	import type { ClassData, ClassFeature, ClassVersion } from '$lib/types/dndClass'
+	import type { ClassData, ClassFeature, ClassVersion, CustomSubclass } from '$lib/types/dndClass'
 	import { CLASS_SLUGS, CLASS_NAMES, VERSIONS } from '$lib/types/dndClass'
 	import { renderInline, splitBlocks } from '$lib/utils/markdown'
 	import { scrollGroups } from '$lib/utils/scrollGroups'
+	import { downloadJson, readJsonFile } from '$lib/utils/fileIO'
+	import { uid } from '$lib/utils/id'
 	import ActionSheet from '$lib/components/ActionSheet.svelte'
 	import ToolSwitcherSheet from '$lib/components/dnd/ToolSwitcherSheet.svelte'
+	import SubclassEditor from '$lib/components/dnd/SubclassEditor.svelte'
 
 	const LS_KEY = 'dnd-class-ref'
+	const LS_SUBCLASSES = 'dnd-class-subclasses'
 
 	let version = $state<ClassVersion>('2014')
 	let slug = $state<string>('barbarian')
@@ -16,6 +20,12 @@
 	// Which option you took for each selectable feature, keyed "<version>/<slug>/<feature>" so a
 	// 2014 Fighter's Fighting Style and a 2014 Ranger's don't share one answer.
 	let picks = $state<Record<string, string>>({})
+	// Hand-typed subclasses, and which one is active per class. Kept in a separate key from the rest
+	// of the preferences because this is the only content the user authored — losing it isn't the
+	// same as losing a remembered level.
+	let customSubclasses = $state<CustomSubclass[]>([])
+	let activeSubclass = $state<Record<string, string>>({})
+	let editing = $state<CustomSubclass | null>(null)
 	let initialized = $state(false)
 
 	let data = $state<ClassData | null>(null)
@@ -91,15 +101,35 @@
 					if (typeof v === 'string') picks[k] = v
 				}
 			}
+			if (saved.activeSubclass && typeof saved.activeSubclass === 'object') {
+				for (const [k, v] of Object.entries(saved.activeSubclass)) {
+					if (typeof v === 'string') activeSubclass[k] = v
+				}
+			}
 		} catch {
 			// keep defaults
+		}
+		try {
+			const saved = JSON.parse(localStorage.getItem(LS_SUBCLASSES) ?? '[]')
+			if (Array.isArray(saved)) {
+				customSubclasses = saved.filter(
+					(s) => s?.id && typeof s.name === 'string' && Array.isArray(s.features)
+				)
+			}
+		} catch {
+			// a corrupt store shouldn't take the page down with it
 		}
 		initialized = true
 	})
 
 	$effect(() => {
 		if (!initialized) return
-		localStorage.setItem(LS_KEY, JSON.stringify({ version, slug, levels, picks }))
+		localStorage.setItem(LS_KEY, JSON.stringify({ version, slug, levels, picks, activeSubclass }))
+	})
+
+	$effect(() => {
+		if (!initialized) return
+		localStorage.setItem(LS_SUBCLASSES, JSON.stringify(customSubclasses))
 	})
 
 	const classActions = $derived(
@@ -111,10 +141,56 @@
 		}))
 	)
 
-	// Features in level order, with the first of each level carrying the group heading.
-	const ordered = $derived(
-		data ? [...data.features].sort((a, b) => a.levels[0] - b.levels[0] || a.name.localeCompare(b.name)) : []
-	)
+	const subclassKey = $derived(`${version}/${slug}`)
+	const mySubclasses = $derived(customSubclasses.filter((s) => s.version === version && s.slug === slug))
+	const activeCustom = $derived(mySubclasses.find((s) => s.name === activeSubclass[subclassKey]) ?? null)
+
+	function selectSubclass(name: string) {
+		activeSubclass = { ...activeSubclass, [subclassKey]: name }
+	}
+
+	function saveSubclass(s: CustomSubclass) {
+		const i = customSubclasses.findIndex((x) => x.id === s.id)
+		customSubclasses = i < 0 ? [...customSubclasses, s] : customSubclasses.with(i, s)
+		selectSubclass(s.name)
+	}
+
+	function deleteSubclass(id: string) {
+		const gone = customSubclasses.find((x) => x.id === id)
+		customSubclasses = customSubclasses.filter((x) => x.id !== id)
+		if (gone && activeSubclass[subclassKey] === gone.name) selectSubclass('')
+	}
+
+	async function importSubclasses(e: Event) {
+		const input = e.target as HTMLInputElement
+		const file = input.files?.[0]
+		if (!file) return
+		try {
+			const parsed = await readJsonFile(file)
+			if (!Array.isArray(parsed)) throw new Error('not a list')
+			// Merge by id so re-importing a backup updates rather than duplicates.
+			const byId = new Map(customSubclasses.map((s) => [s.id, s]))
+			for (const s of parsed as CustomSubclass[]) {
+				if (s?.id && s.name && Array.isArray(s.features)) byId.set(s.id, s)
+			}
+			customSubclasses = [...byId.values()]
+		} catch {
+			loadError = 'That file is not a subclass export.'
+		}
+		input.value = ''
+	}
+
+	// Features in level order, with the first of each level carrying the group heading. A custom
+	// subclass REPLACES the SRD one rather than adding to it — filtering on `subclass !== null`
+	// rather than by name, so it holds whatever the user called theirs.
+	const ordered = $derived.by(() => {
+		if (!data) return []
+		const base = activeCustom ? data.features.filter((f) => f.subclass === null) : data.features
+		const extra: ClassFeature[] = activeCustom
+			? activeCustom.features.map((f) => ({ ...f, subclass: activeCustom.name }))
+			: []
+		return [...base, ...extra].sort((a, b) => a.levels[0] - b.levels[0] || a.name.localeCompare(b.name))
+	})
 	const groupHeads = $derived(
 		ordered.map((f, i) => (i === 0 || ordered[i - 1].levels[0] !== f.levels[0] ? f.levels[0] : null))
 	)
@@ -204,6 +280,44 @@
 					{/each}
 				</div>
 			{/if}
+
+			<!--
+			  Subclass row. Deliberately NOT a [data-group-heading] — the ▲▼ buttons walk those, and
+			  this is a control, not a destination. It lives here rather than in the sticky bar because
+			  that row already measures 345.7px of 346 at 390px wide.
+			-->
+			<div class="flex gap-1.5 items-center flex-nowrap">
+				<select
+					class="select select-xs flex-1 min-w-0 bg-white border-teal/30"
+					value={activeSubclass[subclassKey] ?? ''}
+					onchange={(e) => selectSubclass(e.currentTarget.value)}
+				>
+					<option value="">{data.subclassName} (SRD)</option>
+					{#each mySubclasses as s (s.id)}
+						<option value={s.name}>{s.name}</option>
+					{/each}
+				</select>
+				<button
+					class="btn btn-xs btn-outline shrink-0"
+					onclick={() =>
+						(editing = activeCustom ?? { id: uid(), version, slug, name: '', features: [] })}
+				>{activeCustom ? 'Edit' : '+ Subclass'}</button>
+				<button
+					class="btn btn-xs btn-square btn-outline shrink-0"
+					onclick={() => downloadJson('my-subclasses.json', customSubclasses)}
+					disabled={customSubclasses.length === 0}
+					aria-label="Export your subclasses"
+					title="Export — these live only in this browser"
+				>↓</button>
+				<label
+					class="btn btn-xs btn-square btn-outline shrink-0 cursor-pointer"
+					title="Import a subclass export"
+				>
+					↑
+					<span class="sr-only">Import subclasses</span>
+					<input type="file" accept=".json" class="hidden" onchange={importSubclasses} />
+				</label>
+			</div>
 
 			<details class="rounded border border-teal/20 bg-white/50">
 				<summary class="cursor-pointer px-2 py-1.5 text-xs font-semibold">
@@ -360,10 +474,33 @@
 	onClose={() => (toolSheetOpen = false)}
 />
 
+<!-- Keyed so the editor remounts per subclass; its fields initialise from the draft once. -->
+{#if editing}
+	{#key editing.id}
+		<SubclassEditor
+			open
+			draft={editing}
+			onSave={saveSubclass}
+			onDelete={customSubclasses.some((s) => s.id === editing?.id)
+				? () => deleteSubclass(editing!.id)
+				: undefined}
+			onClose={() => (editing = null)}
+		/>
+	{/key}
+{/if}
+
 <style>
 	/* daisyUI's button-pop leaves every .btn resting at scale(0.95), so nominal heights paint short. */
 	.btn {
 		animation: none;
 		transform: none;
+	}
+
+	/* daisyUI fills a disabled button with a translucent dark grey, which on cream reads as a solid
+	   block rather than a dimmed control — the level stepper's − at level 1 looked broken. */
+	.btn:disabled {
+		background-color: transparent;
+		border-color: rgba(2, 52, 63, 0.25);
+		color: rgba(2, 52, 63, 0.35);
 	}
 </style>
