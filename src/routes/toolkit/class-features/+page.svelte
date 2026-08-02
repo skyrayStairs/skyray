@@ -6,6 +6,7 @@
 	import { scrollGroups } from '$lib/utils/scrollGroups'
 	import { downloadJson, readJsonFile } from '$lib/utils/fileIO'
 	import { uid } from '$lib/utils/id'
+	import { subclassIndex } from '$lib/data/subclassIndex'
 	import ActionSheet from '$lib/components/ActionSheet.svelte'
 	import ToolSwitcherSheet from '$lib/components/dnd/ToolSwitcherSheet.svelte'
 	import SubclassEditor from '$lib/components/dnd/SubclassEditor.svelte'
@@ -145,6 +146,32 @@
 	const mySubclasses = $derived(customSubclasses.filter((s) => s.version === version && s.slug === slug))
 	const activeCustom = $derived(mySubclasses.find((s) => s.name === activeSubclass[subclassKey]) ?? null)
 
+	// Outlines are names and levels only — the scaffold. A name you have already filled in drops out
+	// of this list, because your version supersedes it.
+	const outlines = $derived(
+		(subclassIndex(version)[slug] ?? []).filter(
+			(o) => o.name !== data?.subclassName && !mySubclasses.some((s) => s.name === o.name)
+		)
+	)
+	const activeOutline = $derived(
+		activeCustom ? null : (outlines.find((o) => o.name === activeSubclass[subclassKey]) ?? null)
+	)
+
+	/** Fork an outline into an editable subclass so its descriptions can be filled in. */
+	function editActive() {
+		if (activeCustom) return (editing = activeCustom)
+		if (activeOutline) {
+			return (editing = {
+				id: uid(),
+				version,
+				slug,
+				name: activeOutline.name,
+				features: activeOutline.features.map((f) => ({ ...f, body: '' }))
+			})
+		}
+		editing = { id: uid(), version, slug, name: '', features: [] }
+	}
+
 	function selectSubclass(name: string) {
 		activeSubclass = { ...activeSubclass, [subclassKey]: name }
 	}
@@ -185,10 +212,13 @@
 	// rather than by name, so it holds whatever the user called theirs.
 	const ordered = $derived.by(() => {
 		if (!data) return []
-		const base = activeCustom ? data.features.filter((f) => f.subclass === null) : data.features
+		const swap = activeCustom ?? activeOutline
+		const base = swap ? data.features.filter((f) => f.subclass === null) : data.features
 		const extra: ClassFeature[] = activeCustom
 			? activeCustom.features.map((f) => ({ ...f, subclass: activeCustom.name }))
-			: []
+			: activeOutline
+				? activeOutline.features.map((f) => ({ ...f, body: '', subclass: activeOutline.name }))
+				: []
 		return [...base, ...extra].sort((a, b) => a.levels[0] - b.levels[0] || a.name.localeCompare(b.name))
 	})
 	const groupHeads = $derived(
@@ -293,15 +323,24 @@
 					onchange={(e) => selectSubclass(e.currentTarget.value)}
 				>
 					<option value="">{data.subclassName} (SRD)</option>
-					{#each mySubclasses as s (s.id)}
-						<option value={s.name}>{s.name}</option>
-					{/each}
+					{#if mySubclasses.length}
+						<optgroup label="Yours">
+							{#each mySubclasses as s (s.id)}
+								<option value={s.name}>{s.name}</option>
+							{/each}
+						</optgroup>
+					{/if}
+					{#if outlines.length}
+						<optgroup label="Player's Handbook — levels only">
+							{#each outlines as o (o.name)}
+								<option value={o.name}>{o.name}</option>
+							{/each}
+						</optgroup>
+					{/if}
 				</select>
-				<button
-					class="btn btn-xs btn-outline shrink-0"
-					onclick={() =>
-						(editing = activeCustom ?? { id: uid(), version, slug, name: '', features: [] })}
-				>{activeCustom ? 'Edit' : '+ Subclass'}</button>
+				<button class="btn btn-xs btn-outline shrink-0" onclick={editActive}>
+					{activeCustom ? 'Edit' : activeOutline ? 'Fill in' : '+ Subclass'}
+				</button>
 				<button
 					class="btn btn-xs btn-square btn-outline shrink-0"
 					onclick={() => downloadJson('my-subclasses.json', customSubclasses)}
@@ -389,6 +428,12 @@
 						{/if}
 					</summary>
 					<div class="px-2 pb-2">
+						{#if feature.body.trim() === ''}
+							<!-- An outline entry: the name and level are the scaffold, the text is yours to add. -->
+							<p class="text-xs opacity-50">
+								Levels only — tap <strong>Fill in</strong> above to add your own description.
+							</p>
+						{/if}
 						{@render blocks(feature.body)}
 
 						{#if feature.options}
@@ -429,6 +474,22 @@
 				<a class="underline" href="https://creativecommons.org/licenses/by/4.0/legalcode" target="_blank" rel="noreferrer">
 					CC-BY-4.0
 				</a>. Each ruleset's SRD includes one subclass per class; Artificer is in neither.
+			</p>
+
+			<!--
+			  Required verbatim by the Fan Content Policy, which is what permits naming the other
+			  subclasses and their features at all. It also requires this page stay free: no paywall,
+			  no subscription, no email gate.
+			-->
+			<p class="text-xs opacity-50 text-center px-2 pb-6">
+				Remaining subclass names and feature names are unofficial Fan Content permitted under the
+				<a
+					class="underline"
+					href="https://company.wizards.com/en/legal/fancontentpolicy"
+					target="_blank"
+					rel="noreferrer">Fan Content Policy</a
+				>. Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards
+				of the Coast. &copy;Wizards of the Coast LLC.
 			</p>
 		{/if}
 	</div>

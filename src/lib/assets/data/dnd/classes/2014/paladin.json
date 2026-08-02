@@ -390,7 +390,15 @@
 				7
 			],
 			"subclass": "Oath of Devotion",
-			"body": "Starting at 7th level, you and friendly creatures within 10 feet of you can't be charmed while you are conscious.\n\nAt 18th level, the range of this aura increases to 30 feet.\n\n**Purity of Spirit**\n\nBeginning at 15th level, you are always under the effects of a *protection from evil and good* spell."
+			"body": "Starting at 7th level, you and friendly creatures within 10 feet of you can't be charmed while you are conscious.\n\nAt 18th level, the range of this aura increases to 30 feet."
+		},
+		{
+			"name": "Purity of Spirit",
+			"levels": [
+				15
+			],
+			"subclass": "Oath of Devotion",
+			"body": "Beginning at 15th level, you are always under the effects of a *protection from evil and good* spell."
 		},
 		{
 			"name": "Holy Nimbus",

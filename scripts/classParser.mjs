@@ -582,12 +582,16 @@ export function parseClass2014(md, className) {
 			subclassName = s.title // the subclass's own heading carries prose, never a feature
 			continue
 		}
-		if (s.depth === 4 && subclassName) {
+		// Depth 5 as well as 4: OldManUmby marks exactly one subclass feature in the whole corpus at
+		// `#####` — Oath of Devotion's Purity of Spirit — and treating it as a sub-heading folded it
+		// into Aura of Devotion, quietly losing a level-15 feature. Nothing in the corpus nests below
+		// a subclass feature, so there is nothing left for either depth to absorb.
+		if ((s.depth === 4 || s.depth === 5) && subclassName) {
 			const m = s.body.match(LEVEL_IN_PROSE)
 			subFeatures.push({
 				name: s.title,
 				level: m ? Number(m[1]) : null,
-				body: withSubheadings(secs, i, 4)
+				body: withSubheadings(secs, i, 5)
 			})
 		}
 	}
