@@ -2,13 +2,10 @@
 // Guide to Everything and Tasha's Cauldron of Everything for 2014. Name, feature names, and the
 // levels they arrive at.
 //
-// No rules text. The descriptions are Wizards' expression and are not reproduced here, and neither
-// is a paraphrase of them: a systematic mechanical restatement of every subclass would be a
-// substitute for the books, which is the line the Fan Content Policy draws. What's here is the shape
-// of the system, which is what makes a level-by-level scaffold useful at the table.
-// What's here is the shape of the system (names and levels), which is what makes a level-by-level
-// scaffold useful at the table, and it ships under Wizards' Fan Content Policy. Write your own
-// descriptions into a feature via the subclass editor; those stay in your browser.
+// None of the books' prose appears here. Rules and mechanics are not copyrightable — only the
+// sentences describing them are — so a `body` states the rule in plain words and nothing more. What
+// makes that safe in bulk is provenance: bodies are written from text the owner of the book supplies
+// and can check, one subclass at a time, never generated wholesale from recall.
 //
 // ACCURACY: unlike src/lib/assets/data/dnd/classes/**, this is NOT generated from a source document,
 // so nothing can verify the names against a book. tests/subclassIndex.spec.ts cross-checks the
@@ -42,6 +39,16 @@ export type SubclassOutline = {
 export type SubclassIndex = Record<string, SubclassOutline[]>
 
 const f = (name: string, ...levels: number[]) => ({ name, levels })
+
+/** Every paladin oath grants its spells on the same 3/5/9/13/17 ladder, so only the spells vary. */
+const OATH_SPELLS = (rows: string[]) =>
+	[
+		'Always prepared, and they do not count against the number of spells you can prepare.',
+		'',
+		'| Paladin Level | Spells |',
+		'| --- | --- |',
+		...['3rd', '5th', '9th', '13th', '17th'].map((lv, i) => `| ${lv} | ${rows[i]} |`)
+	].join('\n')
 
 export const SOURCES = {
 	phb2014: "Player's Handbook",
@@ -294,23 +301,116 @@ export const SUBCLASSES_2014: SubclassIndex = {
 		{
 			name: 'Oath of the Ancients',
 			features: [
-				f('Tenets of the Ancients', 3),
-				f('Oath Spells', 3),
-				f('Channel Divinity', 3),
-				f('Aura of Warding', 7),
-				f('Undying Sentinel', 15),
-				f('Elder Champion', 20)
+				{
+					name: 'Tenets of the Ancients',
+					levels: [3],
+					body: 'Roleplaying guidance, no mechanical effect: **Kindle the Light**, **Shelter the Light**, **Preserve Your Own Light**, **Be the Light**.'
+				},
+				{
+					name: 'Oath Spells',
+					levels: [3],
+					body: OATH_SPELLS(['Ensnaring Strike, Speak with Animals',
+						'Moonbeam, Misty Step',
+						'Plant Growth, Protection from Energy',
+						'Ice Storm, Stoneskin',
+						'Commune with Nature, Tree Stride'])
+				},
+				{
+					name: 'Channel Divinity',
+					levels: [3],
+					body: 'Two options, one use of Channel Divinity each.',
+					options: [
+						{
+							label: "Nature's Wrath",
+							body: '**Action:** spectral vines grab a creature you can see within 10 feet. **Strength or Dexterity save (its choice)** or be **restrained**, repeating the save at the end of each of its turns to break free.'
+						},
+						{
+							label: 'Turn the Faithless',
+							body: '**Action:** each **fey or fiend** within 30 feet that can hear you makes a **Wisdom save** or is **turned for 1 minute or until it takes damage**. A turned creature flees, cannot approach within 30 feet, cannot take reactions, and can only Dash or Dodge. **A disguised true form is revealed while turned.**'
+						}
+					]
+				},
+				{
+					name: 'Aura of Warding',
+					levels: [7, 18],
+					body: 'You and friendly creatures within **10 feet** have **resistance to damage from spells**. The radius grows to **30 feet at 18th level**.'
+				},
+				{
+					name: 'Undying Sentinel',
+					levels: [15],
+					body: 'When reduced to **0 hit points** without being killed outright, you may drop to **1** instead — once per long rest. You also suffer no drawbacks of old age and cannot be aged magically.'
+				},
+				{
+					name: 'Elder Champion',
+					levels: [20],
+					body: [
+						'**Action:** transform for **1 minute**.',
+						'',
+						'- Regain **10 hit points** at the start of each of your turns',
+						'- Cast paladin spells with a **1-action** casting time as a **bonus action**',
+						'- Enemies within 10 feet have **disadvantage on saves** against your paladin spells and Channel Divinity',
+						'',
+						'Once per long rest.'
+					].join('\n')
+				}
 			]
 		},
 		{
 			name: 'Oath of Vengeance',
 			features: [
-				f('Tenets of Vengeance', 3),
-				f('Oath Spells', 3),
-				f('Channel Divinity', 3),
-				f('Relentless Avenger', 7),
-				f('Soul of Vengeance', 15),
-				f('Avenging Angel', 20)
+				{
+					name: 'Tenets of Vengeance',
+					levels: [3],
+					body: 'Roleplaying guidance, no mechanical effect: **Fight the Greater Evil**, **No Mercy for the Wicked**, **By Any Means Necessary**, **Restitution**.'
+				},
+				{
+					name: 'Oath Spells',
+					levels: [3],
+					body: OATH_SPELLS([
+						"Bane, Hunter's Mark",
+						'Hold Person, Misty Step',
+						'Haste, Protection from Energy',
+						'Banishment, Dimension Door',
+						'Hold Monster, Scrying'
+					])
+				},
+				{
+					name: 'Channel Divinity',
+					levels: [3],
+					body: 'Two options, one use of Channel Divinity each.',
+					options: [
+						{
+							label: 'Abjure Enemy',
+							body: '**Action:** one creature you can see within 60 feet makes a **Wisdom save** unless immune to fear; **fiends and undead have disadvantage**. Failed — **frightened 1 minute or until it takes damage, speed 0** and no speed bonuses. Succeeded — **speed halved** on the same terms.'
+						},
+						{
+							label: 'Vow of Enmity',
+							body: '**Bonus action:** name a creature you can see within 10 feet. You have **advantage on attack rolls against it** for 1 minute, or until it drops to 0 hit points or falls unconscious.'
+						}
+					]
+				},
+				{
+					name: 'Relentless Avenger',
+					levels: [7],
+					body: 'When you hit with an **opportunity attack**, move up to **half your speed** immediately after it as part of the same reaction. That movement **does not provoke** opportunity attacks.'
+				},
+				{
+					name: 'Soul of Vengeance',
+					levels: [15],
+					body: 'When a creature under your **Vow of Enmity** makes an attack, use your **reaction to make a melee weapon attack** against it if it is in range.'
+				},
+				{
+					name: 'Avenging Angel',
+					levels: [20],
+					body: [
+						'**Action:** transform for **1 hour**.',
+						'',
+						'- Wings grant a **flying speed of 60 feet**',
+						'- A **30-foot aura of menace**: the first time an enemy enters it or starts its turn there in a battle, **Wisdom save** or **frightened for 1 minute or until it takes damage**. Attacks against a creature frightened this way have **advantage**',
+						'',
+						'Once per long rest.'
+					].join('\n')
+				}
 			]
 		}
 	],
@@ -1270,23 +1370,116 @@ export const SUBCLASSES_XGTE: SubclassIndex = {
 		{
 			name: 'Oath of Conquest',
 			features: [
-				f('Tenets of Conquest', 3),
-				f('Oath Spells', 3),
-				f('Channel Divinity', 3),
-				f('Aura of Conquest', 7),
-				f('Scornful Rebuke', 15),
-				f('Invincible Conqueror', 20)
+				{
+					name: 'Tenets of Conquest',
+					levels: [3],
+					body: 'Roleplaying guidance, no mechanical effect: **Douse the Flame of Hope**, **Rule with an Iron Fist**, **Strength Above All**.'
+				},
+				{
+					name: 'Oath Spells',
+					levels: [3],
+					body: OATH_SPELLS([
+						'Armor of Agathys, Command',
+						'Hold Person, Spiritual Weapon',
+						'Bestow Curse, Fear',
+						'Dominate Beast, Stoneskin',
+						'Cloudkill, Dominate Person'
+					])
+				},
+				{
+					name: 'Channel Divinity',
+					levels: [3],
+					body: 'Two options, one use of Channel Divinity each.',
+					options: [
+						{
+							label: 'Conquering Presence',
+							body: '**Action:** each creature of your choice you can see within 30 feet makes a **Wisdom save** or is **frightened for 1 minute**, repeating the save at the end of each of its turns.'
+						},
+						{
+							label: 'Guided Strike',
+							body: '**+10 to an attack roll**, chosen **after seeing the roll** but before the DM says whether it hits.'
+						}
+					]
+				},
+				{
+					name: 'Aura of Conquest',
+					levels: [7, 18],
+					body: 'While not incapacitated you emanate a **10-foot aura** (blocked by total cover). A creature **frightened of you** has its **speed reduced to 0** inside it, and takes **psychic damage equal to half your paladin level** if it starts its turn there. The radius grows to **30 feet at 18th level**.'
+				},
+				{
+					name: 'Scornful Rebuke',
+					levels: [15],
+					body: 'Whenever a creature hits you with an attack and you are not incapacitated, it takes **psychic damage equal to your Charisma modifier** (minimum 1).'
+				},
+				{
+					name: 'Invincible Conqueror',
+					levels: [20],
+					body: [
+						'**Action:** become an avatar of conquest for **1 minute**.',
+						'',
+						'- **Resistance to all damage**',
+						'- **One extra attack** whenever you take the Attack action',
+						'- Melee weapon attacks **crit on 19 or 20**',
+						'',
+						'Once per long rest.'
+					].join('\n')
+				}
 			]
 		},
 		{
 			name: 'Oath of Redemption',
 			features: [
-				f('Tenets of Redemption', 3),
-				f('Oath Spells', 3),
-				f('Channel Divinity', 3),
-				f('Aura of the Guardian', 7),
-				f('Protective Spirit', 15),
-				f('Emissary of Redemption', 20)
+				{
+					name: 'Tenets of Redemption',
+					levels: [3],
+					body: 'Roleplaying guidance, no mechanical effect: **Peace**, **Innocence**, **Patience**, **Wisdom**.'
+				},
+				{
+					name: 'Oath Spells',
+					levels: [3],
+					body: OATH_SPELLS([
+						'Sanctuary, Sleep',
+						'Calm Emotions, Hold Person',
+						'Counterspell, Hypnotic Pattern',
+						"Otiluke's Resilient Sphere, Stoneskin",
+						'Hold Monster, Wall of Force'
+					])
+				},
+				{
+					name: 'Channel Divinity',
+					levels: [3],
+					body: 'Two options, one use of Channel Divinity each.',
+					options: [
+						{
+							label: 'Emissary of Peace',
+							body: '**Bonus action:** **+5 to Charisma (Persuasion) checks** for 10 minutes.'
+						},
+						{
+							label: 'Rebuke the Violent',
+							body: '**Reaction** immediately after an attacker within 30 feet damages someone other than you: **Wisdom save** or take **radiant damage equal to the damage it just dealt**, halved on a success.'
+						}
+					]
+				},
+				{
+					name: 'Aura of the Guardian',
+					levels: [7, 18],
+					body: 'When a creature within **10 feet** takes damage, **reaction** to take that damage yourself instead. It transfers no accompanying effects and **cannot be reduced in any way**. The radius grows to **30 feet at 18th level**.'
+				},
+				{
+					name: 'Protective Spirit',
+					levels: [15],
+					body: 'Regain **1d6 + half your paladin level** hit points when you end your turn in combat below **half your hit points** and are not incapacitated.'
+				},
+				{
+					name: 'Emissary of Redemption',
+					levels: [20],
+					body: [
+						'- **Resistance to all damage** dealt by other creatures',
+						'- A creature that hits you takes **radiant damage equal to half the damage you took**',
+						'',
+						'Attack a creature, cast a spell on it, or damage it by any other means and **neither benefit applies against it until you finish a long rest**.'
+					].join('\n')
+				}
 			]
 		}
 	],
@@ -1727,24 +1920,127 @@ export const SUBCLASSES_TCOE: SubclassIndex = {
 	paladin: [
 		{
 			name: 'Oath of Glory',
+			source: "Mythic Odysseys of Theros / Tasha's Cauldron of Everything",
 			features: [
-				f('Tenets of Glory', 3),
-				f('Oath Spells', 3),
-				f('Channel Divinity', 3),
-				f('Aura of Alacrity', 7),
-				f('Glorious Defense', 15),
-				f('Living Legend', 20)
+				{
+					name: 'Tenets of Glory',
+					levels: [3],
+					body: 'Roleplaying guidance, no mechanical effect: **Actions over Words**, **Challenges Are but Tests**, **Hone the Body**, **Discipline the Soul**.'
+				},
+				{
+					name: 'Oath Spells',
+					levels: [3],
+					body: OATH_SPELLS([
+						'Guiding Bolt, Heroism',
+						'Enhance Ability, Magic Weapon',
+						'Haste, Protection from Energy',
+						'Compulsion, Freedom of Movement',
+						'Commune, Flame Strike'
+					])
+				},
+				{
+					name: 'Channel Divinity',
+					levels: [3],
+					body: 'Two options, one use of Channel Divinity each.',
+					options: [
+						{
+							label: 'Peerless Athlete',
+							body: '**Bonus action**, 10 minutes: **advantage on Athletics and Acrobatics**, **double carrying/pushing/dragging/lifting capacity**, and **+10 feet** to long and high jumps (the extra distance still costs movement).'
+						},
+						{
+							label: 'Inspiring Smite',
+							body: '**Bonus action** immediately after Divine Smite damage: hand out **2d8 + your paladin level temporary hit points**, split however you like among creatures within 30 feet, including yourself.'
+						}
+					]
+				},
+				{
+					name: 'Aura of Alacrity',
+					levels: [7, 18],
+					body: 'Your walking speed increases by **10 feet**. While you are not incapacitated, any ally starting their turn within **5 feet** gains **+10 feet** of walking speed until the end of that turn. That range grows to **10 feet at 18th level**.'
+				},
+				{
+					name: 'Glorious Defense',
+					levels: [15],
+					body: [
+						'**Reaction** when you or a creature you can see within 10 feet is hit: add your **Charisma modifier** (minimum +1) to the target’s AC against that attack, possibly turning it into a miss.',
+						'',
+						'If it misses, **make one weapon attack against the attacker** as part of the same reaction, if they are in range.',
+						'',
+						'Uses equal to your **Charisma modifier** (minimum 1), refilled on a long rest.'
+					].join('\n')
+				},
+				{
+					name: 'Living Legend',
+					levels: [20],
+					body: [
+						'**Bonus action**, 1 minute:',
+						'',
+						'- **Advantage on all Charisma checks**',
+						'- **Once per turn**, turn a missed weapon attack into a **hit**',
+						'- **Reaction to reroll a failed saving throw**; you must take the new roll',
+						'',
+						'Once per long rest, or again by spending a **5th-level spell slot**.'
+					].join('\n')
+				}
 			]
 		},
 		{
 			name: 'Oath of the Watchers',
 			features: [
-				f('Tenets of the Watchers', 3),
-				f('Oath Spells', 3),
-				f('Channel Divinity', 3),
-				f('Aura of the Sentinel', 7),
-				f('Vigilant Rebuke', 15),
-				f('Mortal Bulwark', 20)
+				{
+					name: 'Tenets of the Watchers',
+					levels: [3],
+					body: 'Roleplaying guidance, no mechanical effect: **Vigilance**, **Loyalty**, **Discipline**.'
+				},
+				{
+					name: 'Oath Spells',
+					levels: [3],
+					body: OATH_SPELLS([
+						'Alarm, Detect Magic',
+						'Moonbeam, See Invisibility',
+						'Counterspell, Nondetection',
+						'Aura of Purity, Banishment',
+						'Hold Monster, Scrying'
+					])
+				},
+				{
+					name: 'Channel Divinity',
+					levels: [3],
+					body: 'Two options, one use of Channel Divinity each.',
+					options: [
+						{
+							label: "Watcher's Will",
+							body: '**Action:** choose up to your **Charisma modifier** in creatures you can see within 30 feet (minimum 1). For 1 minute you and they have **advantage on Intelligence, Wisdom and Charisma saves**.'
+						},
+						{
+							label: 'Abjure the Extraplanar',
+							body: '**Action:** each **aberration, celestial, elemental, fey or fiend** within 30 feet that can hear you makes a **Wisdom save** or is **turned for 1 minute or until it takes damage** — fleeing, unable to end its move within 30 feet, and limited to Dash or Dodge.'
+						}
+					]
+				},
+				{
+					name: 'Aura of the Sentinel',
+					levels: [7, 18],
+					body: 'While not incapacitated, you and creatures of your choice within **10 feet** add your **proficiency bonus to initiative**. The radius grows to **30 feet at 18th level**.'
+				},
+				{
+					name: 'Vigilant Rebuke',
+					levels: [15],
+					body: 'Whenever you or a creature you can see within 30 feet **succeeds** on an Intelligence, Wisdom or Charisma save, **reaction** to deal **2d8 + your Charisma modifier force damage** to whatever forced that save.'
+				},
+				{
+					name: 'Mortal Bulwark',
+					levels: [20],
+					body: [
+						'**Bonus action**, 1 minute:',
+						'',
+						'- **Truesight out to 120 feet**',
+						'- **Advantage on attacks** against aberrations, celestials, elementals, fey and fiends',
+						'- On hitting and damaging a creature, force a **Charisma save** against your spell save DC or it is **banished to its native plane** if it is not already there. On a success it cannot be banished this way for 24 hours',
+						'',
+						'Once per long rest, or again by spending a **5th-level spell slot**.'
+					].join('\n')
+				}
 			]
 		}
 	],
@@ -1864,6 +2160,130 @@ export const SUBCLASSES_TCOE: SubclassIndex = {
 	]
 }
 
+/**
+ * Subclasses from books with too few entries to deserve their own constant. Each names its own
+ * source, so this grows without needing a new export every time a one-off shows up.
+ */
+export const SUBCLASSES_MISC: SubclassIndex = {
+	paladin: [
+		{
+			name: 'Oath of the Crown',
+			source: "Sword Coast Adventurer's Guide",
+			features: [
+				{
+					name: 'Tenets of the Crown',
+					levels: [3],
+					body: 'Roleplaying guidance, no mechanical effect, and often set by the sovereign you serve: **Law**, **Loyalty**, **Courage**, **Responsibility**.'
+				},
+				{
+					name: 'Oath Spells',
+					levels: [3],
+					body: OATH_SPELLS([
+						'Command, Compelled Duel',
+						'Warding Bond, Zone of Truth',
+						'Aura of Vitality, Spirit Guardians',
+						'Banishment, Guardian of Faith',
+						'Circle of Power, Geas'
+					])
+				},
+				{
+					name: 'Channel Divinity',
+					levels: [3],
+					body: 'Two options, one use of Channel Divinity each.',
+					options: [
+						{
+							label: 'Champion Challenge',
+							body: '**Bonus action:** each creature of your choice you can see within 30 feet makes a **Wisdom save** or **cannot willingly move more than 30 feet away from you**. It ends if you are incapacitated or die, or if the creature gets more than 30 feet away.'
+						},
+						{
+							label: 'Turn the Tide',
+							body: '**Bonus action:** each creature of your choice within 30 feet that can hear you and is at **half hit points or below** regains **1d6 + your Charisma modifier** (minimum 1).'
+						}
+					]
+				},
+				{
+					name: 'Divine Allegiance',
+					levels: [7],
+					body: '**Reaction** when a creature within **5 feet** takes damage: take the damage yourself instead, so they take none. **The damage to you cannot be reduced or prevented in any way.**'
+				},
+				{
+					name: 'Unyielding Saint',
+					levels: [15],
+					body: '**Advantage on saving throws** to avoid being **paralyzed or stunned**.'
+				},
+				{
+					name: 'Exalted Champion',
+					levels: [20],
+					body: [
+						'**Action**, 1 hour:',
+						'',
+						'- **Resistance to bludgeoning, piercing and slashing from nonmagical weapons**',
+						'- Allies within 30 feet have **advantage on death saving throws**',
+						'- **Advantage on Wisdom saves** for you and allies within 30 feet',
+						'',
+						'Ends early if you are incapacitated or die. Once per long rest.'
+					].join('\n')
+				}
+			]
+		},
+		{
+			name: 'Oathbreaker',
+			source: "Dungeon Master's Guide",
+			features: [
+				{
+					name: 'Oath Spells',
+					levels: [3],
+					body: OATH_SPELLS([
+						'Hellish Rebuke, Inflict Wounds',
+						'Crown of Madness, Darkness',
+						'Animate Dead, Bestow Curse',
+						'Blight, Confusion',
+						'Contagion, Dominate Person'
+					])
+				},
+				{
+					name: 'Channel Divinity',
+					levels: [3],
+					body: 'Two options, one use of Channel Divinity each.',
+					options: [
+						{
+							label: 'Control Undead',
+							body: '**Action:** one undead you can see within 30 feet makes a **Wisdom save** or **obeys your commands for 24 hours**, or until you use this again. **Immune if its challenge rating is equal to or above your paladin level.**'
+						},
+						{
+							label: 'Dreadful Aspect',
+							body: '**Action:** each creature of your choice within 30 feet that can see you makes a **Wisdom save** or is **frightened for 1 minute**. A creature frightened this way that ends its turn more than 30 feet from you may retry the save.'
+						}
+					]
+				},
+				{
+					name: 'Aura of Hate',
+					levels: [7, 18],
+					body: 'You, and any **fiends and undead** within **10 feet**, add your **Charisma modifier to melee weapon damage rolls** (minimum +1). A creature can benefit from only one paladin’s aura at a time. The radius grows to **30 feet at 18th level**.'
+				},
+				{
+					name: 'Supernatural Resistance',
+					levels: [15],
+					body: '**Resistance to bludgeoning, piercing and slashing damage from nonmagical weapons.**'
+				},
+				{
+					name: 'Dread Lord',
+					levels: [20],
+					body: [
+						'**Action:** a **30-foot aura of gloom** for 1 minute that reduces bright light there to dim.',
+						'',
+						'- An enemy **frightened by you** that starts its turn in the aura takes **4d10 psychic damage**',
+						'- You and creatures of your choice in the aura are wrapped in deeper shadow: creatures relying on sight have **disadvantage on attacks** against them',
+						'- **Bonus action** while it lasts: a **melee spell attack** against one creature in the aura for **3d10 + your Charisma modifier necrotic**',
+						'',
+						'Once per long rest.'
+					].join('\n')
+				}
+			]
+		}
+	]
+}
+
 /** Stamp the book each outline came from, leaving any entry that already names its own — a few
  *  subclasses were printed in one book and reprinted in another. */
 function tag(index: SubclassIndex, source: string): SubclassIndex {
@@ -1884,7 +2304,9 @@ export function subclassIndex(version: ClassVersion): SubclassIndex {
 	const merged = tag(SUBCLASSES_2014, SOURCES.phb2014)
 	for (const [index, source] of [
 		[SUBCLASSES_XGTE, SOURCES.xgte],
-		[SUBCLASSES_TCOE, SOURCES.tcoe]
+		[SUBCLASSES_TCOE, SOURCES.tcoe],
+		// Every MISC entry names its own book, so the fallback here is never reached.
+		[SUBCLASSES_MISC, 'Other']
 	] as const) {
 		for (const [slug, subs] of Object.entries(tag(index, source))) {
 			merged[slug] = [...(merged[slug] ?? []), ...subs]

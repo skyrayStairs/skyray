@@ -495,9 +495,8 @@
 			  no subscription, no email gate.
 			-->
 			<p class="text-xs opacity-50 text-center px-2 pb-6">
-				Other subclasses are listed by name and level only, from the Player's Handbook, Xanathar's
-				Guide to Everything and Tasha's Cauldron of Everything — unofficial Fan Content permitted
-				under the
+				Other subclasses are listed by name and level, with mechanics summarised rather than
+				quoted, and each names the book it came from — unofficial Fan Content permitted under the
 				<a
 					class="underline"
 					href="https://company.wizards.com/en/legal/fancontentpolicy"
