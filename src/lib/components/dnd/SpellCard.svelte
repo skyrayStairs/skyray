@@ -1,3 +1,18 @@
+<script lang="ts" module>
+	// Exported so list views (spell-sets group headings) can colour-match the cards.
+	export const SCHOOL_CLASSES: Record<string, string> = {
+		abjuration: 'bg-[#1a5276] border-[#1a5276]',
+		conjuration: 'bg-[#6c3483] border-[#6c3483]',
+		divination: 'bg-[#2e4057] border-[#2e4057]',
+		enchantment: 'bg-[#76448a] border-[#76448a]',
+		evocation: 'bg-[#922b21] border-[#922b21]',
+		illusion: 'bg-[#148f77] border-[#148f77]',
+		necromancy: 'bg-[#1c2833] border-[#1c2833]',
+		transmutation: 'bg-[#1e8449] border-[#1e8449]'
+	}
+	export const SCHOOL_FALLBACK = 'bg-gray-700 border-gray-700'
+</script>
+
 <script lang="ts">
 	import type { SpellEntry } from '$lib/types/spell'
 
@@ -24,17 +39,6 @@
 		onSwipeRight?: () => void
 		onDoubleTap?: () => void
 	} = $props()
-
-	const SCHOOL_CLASSES: Record<string, string> = {
-		abjuration: 'bg-[#1a5276] border-[#1a5276]',
-		conjuration: 'bg-[#6c3483] border-[#6c3483]',
-		divination: 'bg-[#2e4057] border-[#2e4057]',
-		enchantment: 'bg-[#76448a] border-[#76448a]',
-		evocation: 'bg-[#922b21] border-[#922b21]',
-		illusion: 'bg-[#148f77] border-[#148f77]',
-		necromancy: 'bg-[#1c2833] border-[#1c2833]',
-		transmutation: 'bg-[#1e8449] border-[#1e8449]'
-	}
 
 	let showDeleteConfirm = $state(false)
 	let hasOverflow = $state(false)
@@ -111,7 +115,7 @@
 		endDrag(false)
 	}
 
-	const schoolClasses = $derived(SCHOOL_CLASSES[spell.school] ?? 'bg-gray-700 border-gray-700')
+	const schoolClasses = $derived(SCHOOL_CLASSES[spell.school] ?? SCHOOL_FALLBACK)
 	const levelLabel = $derived(spell.level === 0 ? 'Cantrip' : `Level ${spell.level}`)
 	const schoolLabel = $derived(spell.school.charAt(0).toUpperCase() + spell.school.slice(1))
 

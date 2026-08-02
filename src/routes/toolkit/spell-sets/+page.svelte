@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
 	import type { SpellEntry } from '$lib/types/spell'
-	import SpellCard from '$lib/components/dnd/SpellCard.svelte'
+	import SpellCard, { SCHOOL_CLASSES, SCHOOL_FALLBACK } from '$lib/components/dnd/SpellCard.svelte'
 	import AddSpellSheet from '$lib/components/dnd/AddSpellSheet.svelte'
 	import { downloadJson, readJsonFile } from '$lib/utils/fileIO'
 
 	const LS_KEY = 'dnd-spell-set'
 	const LS_PREPARED = 'dnd-prepared'
 	const LS_NOTICE_KEY = 'dnd-spell-set-notice-seen'
+	const LS_SORT = 'dnd-spell-sort'
 
 	let spellSet = $state<SpellEntry[]>([]) // = Known (the full collection)
 	let preparedNames = $state<Set<string>>(new Set())
@@ -23,16 +24,14 @@
 	// otherwise share one fold flag, so "Fold/Expand all" would leak across tabs.
 	let foldedPrepared = $state<Set<string>>(new Set())
 	let foldedKnown = $state<Set<string>>(new Set())
-	let scrollIndex = $state(0)
 
-	type SortKey = 'none' | 'level' | 'class' | 'school'
+	type SortKey = 'name' | 'level' | 'school'
 	const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-		{ key: 'none', label: 'Default' },
+		{ key: 'name', label: 'Alphabetical' },
 		{ key: 'level', label: 'Level' },
-		{ key: 'class', label: 'Class' },
 		{ key: 'school', label: 'School' }
 	]
-	let sortKey = $state<SortKey>('none')
+	let sortKey = $state<SortKey>('name')
 	let sortDir = $state<'asc' | 'desc'>('asc')
 	let sortMenuOpen = $state(false)
 
@@ -54,21 +53,44 @@
 	)
 
 	// Non-destructive sort: reorders only the displayed list, not the saved set.
-	function primaryClass(s: SpellEntry): string {
-		return s.classes.length ? [...s.classes].sort()[0] : ''
-	}
-
+	// Name is the tiebreaker for every key, and the sole comparison for 'name'.
 	const displaySet = $derived.by(() => {
-		if (sortKey === 'none') return filteredSet
 		const dir = sortDir === 'asc' ? 1 : -1
 		return [...filteredSet].sort((a, b) => {
 			let cmp = 0
 			if (sortKey === 'level') cmp = a.level - b.level
 			else if (sortKey === 'school') cmp = a.school.localeCompare(b.school)
-			else cmp = primaryClass(a).localeCompare(primaryClass(b))
 			return (cmp || a.name.localeCompare(b.name)) * dir
 		})
 	})
+
+	// The grouping the current sort produces: same key = same heading block.
+	function groupKey(s: SpellEntry): string {
+		if (sortKey === 'level') return String(s.level)
+		if (sortKey === 'school') return s.school
+		return s.name.charAt(0).toUpperCase()
+	}
+
+	function groupLabel(s: SpellEntry): string {
+		if (sortKey === 'level') return s.level === 0 ? 'Cantrips' : `Level ${s.level}`
+		if (sortKey === 'school') return s.school.charAt(0).toUpperCase() + s.school.slice(1)
+		return s.name.charAt(0).toUpperCase()
+	}
+
+	// Heading pills mirror the card colours when grouping by school; teal otherwise.
+	function groupPillClass(s: SpellEntry): string {
+		return sortKey === 'school' ? (SCHOOL_CLASSES[s.school] ?? SCHOOL_FALLBACK) : 'bg-teal'
+	}
+
+	// Non-null only at the first card of each group — that card carries the heading.
+	const groupHeads = $derived(
+		displaySet.map((s, i) => (i === 0 || groupKey(displaySet[i - 1]) !== groupKey(s) ? s : null))
+	)
+
+	function groupCount(s: SpellEntry): number {
+		const k = groupKey(s)
+		return displaySet.filter((x) => groupKey(x) === k).length
+	}
 
 	// Fold set for the active tab only — keeps Prepared/Known fold state independent.
 	const foldedCards = $derived(activeTab === 'prepared' ? foldedPrepared : foldedKnown)
@@ -157,6 +179,17 @@
 			preparedNames = new Set(known)
 		}
 
+		const savedSort = localStorage.getItem(LS_SORT)
+		if (savedSort) {
+			try {
+				const { key, dir } = JSON.parse(savedSort)
+				if (SORT_OPTIONS.some((o) => o.key === key)) sortKey = key
+				if (dir === 'asc' || dir === 'desc') sortDir = dir
+			} catch {
+				// keep defaults
+			}
+		}
+
 		if (!localStorage.getItem(LS_NOTICE_KEY)) {
 			showNotice = true
 		}
@@ -182,10 +215,14 @@
 		localStorage.setItem(LS_PREPARED, JSON.stringify([...preparedNames]))
 	})
 
+	$effect(() => {
+		if (!initialized) return
+		localStorage.setItem(LS_SORT, JSON.stringify({ key: sortKey, dir: sortDir }))
+	})
+
 	// Reset scroll position when switching tabs (list length differs).
 	$effect(() => {
 		activeTab // track
-		scrollIndex = 0
 		const slot = document.getElementById('slot')
 		if (slot) slot.scrollTop = 0
 	})
@@ -238,21 +275,28 @@
 		downloadJson('my-spell-set.json', { known: spellSet, prepared: [...preparedNames] })
 	}
 
-	function scrollCards(dir: 'up' | 'down') {
+	// Jump to the previous/next group heading; no-op past the first/last one.
+	function scrollGroups(dir: 'up' | 'down') {
 		const slot = document.getElementById('slot')
 		if (!slot) return
-		// Fixed step = one card row: wrapper height + the 8px grid row-gap.
-		// cardHeight is recomputed on every resize, so the step tracks screen size.
-		const pitch = (cardHeight || slot.clientHeight) + 8
+		const slotTop = slot.getBoundingClientRect().top
+		const bar = stickyBarEl?.offsetHeight ?? 0
 		const maxScroll = Math.max(0, slot.scrollHeight - slot.clientHeight)
-		const maxIndex = Math.ceil(maxScroll / pitch)
-		// Resync if the user scrolled manually away from our tracked row.
-		if (Math.abs(slot.scrollTop - scrollIndex * pitch) > pitch / 2) {
-			scrollIndex = Math.round(slot.scrollTop / pitch)
-		}
-		// Snap to an absolute multiple of pitch so rapid clicks never land mid-card.
-		scrollIndex = Math.min(Math.max(scrollIndex + (dir === 'down' ? 1 : -1), 0), maxIndex)
-		slot.scrollTo({ top: Math.min(scrollIndex * pitch, maxScroll), behavior: 'smooth' })
+		// Scroll position that parks each heading just below the sticky bar.
+		const tops = [...slot.querySelectorAll<HTMLElement>('[data-group-heading]')].map((el) =>
+			Math.max(
+				0,
+				Math.min(el.getBoundingClientRect().top - slotTop + slot.scrollTop - bar, maxScroll)
+			)
+		)
+		// Epsilon must clear the grid's 8px padding, else the first ▼ jogs instead of jumping.
+		const eps = 16
+		const target =
+			dir === 'down'
+				? tops.find((t) => t > slot.scrollTop + eps)
+				: [...tops].reverse().find((t) => t < slot.scrollTop - eps)
+		if (target === undefined) return
+		slot.scrollTo({ top: target, behavior: 'smooth' })
 	}
 </script>
 
@@ -349,7 +393,7 @@
 					disabled={displaySet.length === 0}
 					aria-haspopup="true"
 					aria-expanded={sortMenuOpen}
-				>Sort{sortKey !== 'none' ? ` ${sortDir === 'asc' ? '↑' : '↓'}` : ''}</button>
+				>Sort {sortDir === 'asc' ? '↑' : '↓'}</button>
 
 				{#if sortMenuOpen}
 					<button
@@ -370,9 +414,8 @@
 						{/each}
 						<div class="my-1 border-t border-teal/10"></div>
 						<button
-							class="flex w-full items-center justify-between px-3 py-1.5 text-left hover:bg-teal/5 disabled:opacity-40"
+							class="flex w-full items-center justify-between px-3 py-1.5 text-left hover:bg-teal/5"
 							onclick={() => (sortDir = sortDir === 'asc' ? 'desc' : 'asc')}
-							disabled={sortKey === 'none'}
 						>
 							<span>Direction</span>
 							<span>{sortDir === 'asc' ? '↑ Asc' : '↓ Desc'}</span>
@@ -383,14 +426,14 @@
 
 			<button
 				class="btn btn-xs btn-square btn-outline shrink-0"
-				onclick={() => scrollCards('up')}
-				aria-label="Previous card"
+				onclick={() => scrollGroups('up')}
+				aria-label="Previous group heading"
 				disabled={displaySet.length === 0}
 			>▲</button>
 			<button
 				class="btn btn-xs btn-square btn-outline shrink-0"
-				onclick={() => scrollCards('down')}
-				aria-label="Next card"
+				onclick={() => scrollGroups('down')}
+				aria-label="Next group heading"
 				disabled={displaySet.length === 0}
 			>▼</button>
 		</div>
@@ -423,7 +466,18 @@
 			class="grid gap-2 p-2 items-start"
 			style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); overflow-x: clip"
 		>
-			{#each displaySet as spell (spell.name)}
+			{#each displaySet as spell, i (spell.name)}
+				{@const head = groupHeads[i]}
+				{#if head}
+					<!-- col-span-full forces a fresh grid row, so each group starts on its own line -->
+					<div data-group-heading class="col-span-full flex items-center gap-2 pt-2 first:pt-0">
+						<span class="h-px flex-1 bg-teal/30"></span>
+						<span class="rounded-full px-2.5 py-0.5 text-xs font-semibold tracking-wide text-cream {groupPillClass(head)}">
+							{groupLabel(head)} · {groupCount(head)}
+						</span>
+						<span class="h-px flex-1 bg-teal/30"></span>
+					</div>
+				{/if}
 				<div
 					data-card-wrapper
 					style={!foldedCards.has(spell.name) && expandedCardName !== spell.name && cardHeight > 0 ? `height: ${cardHeight}px` : ''}
