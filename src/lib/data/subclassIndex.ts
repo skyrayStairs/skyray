@@ -21,7 +21,19 @@ import type { ClassVersion } from '$lib/types/dndClass'
 
 export type SubclassOutline = {
 	name: string
-	features: { name: string; levels: number[] }[]
+	features: {
+		name: string
+		levels: number[]
+		/**
+		 * The mechanical effect, restated. Optional: an entry with no body is a bare scaffold and the
+		 * page says so. Rules and mechanics are not copyrightable — only the prose describing them is
+		 * — so what belongs here is the rule in plain words, never the book's sentences. Filled in
+		 * from a source the owner can check, one subclass at a time, rather than from recall.
+		 */
+		body?: string
+		/** For features that are themselves a choice: Battle Master manoeuvres, Totem Spirit animals. */
+		options?: { label: string; body: string }[]
+	}[]
 	/** Which book it comes from. Grouped by this in the picker so provenance is visible. */
 	source?: string
 }

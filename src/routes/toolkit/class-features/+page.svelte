@@ -224,7 +224,11 @@
 		const extra: ClassFeature[] = activeCustom
 			? activeCustom.features.map((f) => ({ ...f, subclass: activeCustom.name }))
 			: activeOutline
-				? activeOutline.features.map((f) => ({ ...f, body: '', subclass: activeOutline.name }))
+				? activeOutline.features.map((f) => ({
+						...f,
+						body: f.body ?? '',
+						subclass: activeOutline.name
+					}))
 				: []
 		return [...base, ...extra].sort((a, b) => a.levels[0] - b.levels[0] || a.name.localeCompare(b.name))
 	})
