@@ -289,25 +289,36 @@ function withSubheadings(secs, i, depth) {
  */
 const CHOOSES_FROM_LIST = /\bthe following\b|\bbelow\b|\bassociated list\b/i
 
+/** An option on its own line: "**Pact of the Chain**" followed by its paragraph. */
 const BOLD_LINE = /^\*\*(.+?)\*\*$/gm
+/** An option as a run-in heading: "***Colossus Slayer***. Your tenacity can wear down…" */
+const RUN_IN_BOLD = /^\*\*\*(.+?)\*\*\*\.\s*/gm
 
 /**
- * Split "intro, then N bold-headed blocks" into an intro and a list of options — Fighter's Fighting
- * Style, Warlock's Pact Boon, Sorcerer's Metamagic, both Druids' circle-spell tables. Returns null
- * when the shape or the intro doesn't qualify, so the feature is left as ordinary prose.
+ * Split "intro, then N labelled blocks" into an intro and a list of options — Fighter's Fighting
+ * Style, Warlock's Pact Boon, Sorcerer's Metamagic, both Druids' circle-spell tables, and the
+ * Hunter's four pick-one features. Returns null when neither shape nor the intro qualifies, so the
+ * feature is left as ordinary prose.
  */
 export function inlineOptions(body) {
-	const marks = [...body.matchAll(BOLD_LINE)]
-	if (marks.length < 2) return null
-	const intro = body.slice(0, marks[0].index)
-	if (!CHOOSES_FROM_LIST.test(intro)) return null
+	for (const pattern of [BOLD_LINE, RUN_IN_BOLD]) {
+		const marks = [...body.matchAll(pattern)]
+		if (marks.length < 2) continue
+		const intro = body.slice(0, marks[0].index)
+		if (!CHOOSES_FROM_LIST.test(intro)) continue
 
-	const options = marks.map((m, i) => ({
-		// "Table- Arctic Circle Spells" is a caption, not a name; the caption prefix is noise.
-		label: m[1].replace(/^Table\s*[-–—:]\s*/i, '').trim(),
-		body: body.slice(m.index + m[0].length, i + 1 < marks.length ? marks[i + 1].index : body.length).trim()
-	}))
-	return { intro: intro.trim(), options }
+		return {
+			intro: intro.trim(),
+			options: marks.map((m, i) => ({
+				// "Table- Arctic Circle Spells" is a caption, not a name; the prefix is noise.
+				label: m[1].replace(/^Table\s*[-–—:]\s*/i, '').trim(),
+				body: body
+					.slice(m.index + m[0].length, i + 1 < marks.length ? marks[i + 1].index : body.length)
+					.trim()
+			}))
+		}
+	}
+	return null
 }
 
 /**

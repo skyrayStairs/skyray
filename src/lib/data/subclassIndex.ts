@@ -40,15 +40,32 @@ export type SubclassIndex = Record<string, SubclassOutline[]>
 
 const f = (name: string, ...levels: number[]) => ({ name, levels })
 
-/** Every paladin oath grants its spells on the same 3/5/9/13/17 ladder, so only the spells vary. */
-const OATH_SPELLS = (rows: string[]) =>
+/**
+ * Paladin oaths and ranger archetypes both hand out subclass spells on the same 3/5/9/13/17 ladder,
+ * so only the spells and the wording of the caveat differ.
+ */
+const spellLadder = (who: string, note: string, rows: string[]) =>
 	[
-		'Always prepared, and they do not count against the number of spells you can prepare.',
+		note,
 		'',
-		'| Paladin Level | Spells |',
+		`| ${who} Level | Spells |`,
 		'| --- | --- |',
 		...['3rd', '5th', '9th', '13th', '17th'].map((lv, i) => `| ${lv} | ${rows[i]} |`)
 	].join('\n')
+
+const OATH_SPELLS = (rows: string[]) =>
+	spellLadder(
+		'Paladin',
+		'Always prepared, and they do not count against the number of spells you can prepare.',
+		rows
+	)
+
+const RANGER_SPELLS = (rows: string[]) =>
+	spellLadder(
+		'Ranger',
+		'Each counts as a ranger spell for you, but does not count against the number you know.',
+		rows
+	)
 
 export const SOURCES = {
 	phb2014: "Player's Handbook",
@@ -427,10 +444,89 @@ export const SUBCLASSES_2014: SubclassIndex = {
 		{
 			name: 'Beast Master',
 			features: [
-				f("Ranger's Companion", 3),
-				f('Exceptional Training', 7),
-				f('Bestial Fury', 11),
-				f('Share Spells', 15)
+				{
+					name: "Ranger's Companion",
+					levels: [3],
+					body: [
+						'A beast of **Medium or smaller** size and **CR 1/4 or lower**. Add your **proficiency bonus** to its AC, attack rolls, damage rolls, and any saves and skills it is proficient in. Its **hit point maximum is the higher of its own or four times your ranger level**, and it can spend Hit Dice on a short rest.',
+						'',
+						'It acts on your initiative. Commanding it to **move** costs nothing; commanding it to **Attack, Dash, Disengage or Help** costs your **action**. Uncommanded, it **Dodges**. Once you have Extra Attack, you may make one weapon attack yourself when you command it to Attack.',
+						'',
+						'It never needs a command to use its **reaction**. If you are incapacitated or absent it acts on its own to protect you both. Travelling through your favoured terrain with only the beast, you can **move stealthily at a normal pace**.',
+						'',
+						'If it dies, **8 hours** of bonding gets you another non-hostile beast.'
+					].join('\n')
+				},
+				{
+					name: 'Primal Companion (optional)',
+					levels: [3],
+					body: [
+						"**Tasha's optional replacement for Ranger's Companion.** You summon a primal beast that is friendly to you and obeys you; pick its stat block below. It uses your proficiency bonus (**PB**) throughout.",
+						'',
+						'It acts on your turn. It moves and uses its reaction on its own, but its only action is **Dodge** unless you spend a **bonus action** to command another, or **sacrifice one of your attacks** on the Attack action to have it Attack. If you are incapacitated it acts freely.',
+						'',
+						'Dead within the last hour: **action + a spell slot of 1st level or higher** revives it with full hit points after 1 minute. A long rest lets you summon a different one; the old vanishes, as does the beast if you die.',
+						'',
+						'All three share **Primal Bond**: add your proficiency bonus to any ability check or save the beast makes.'
+					].join('\n'),
+					options: [
+						{
+							label: 'Beast of the Land',
+							body: [
+								'Medium beast · **AC 13 + PB** · **HP 5 + 5 per ranger level** (d8 Hit Dice) · Speed **40 ft., climb 40 ft.** · darkvision 60 ft.',
+								'',
+								'| STR | DEX | CON | INT | WIS | CHA |',
+								'| --- | --- | --- | --- | --- | --- |',
+								'| 14 | 14 | 15 | 8 | 14 | 11 |',
+								'',
+								'**Charge.** Move at least 20 feet straight at a target and hit it with Maul the same turn: **+1d6 slashing**, and a creature must make a **Strength save** against your spell save DC or be **knocked prone**.',
+								'',
+								'**Maul.** Melee attack, your spell attack modifier, reach 5 ft. **1d8 + 2 + PB slashing**.'
+							].join('\n')
+						},
+						{
+							label: 'Beast of the Sea',
+							body: [
+								'Medium beast · **AC 13 + PB** · **HP 5 + 5 per ranger level** (d8 Hit Dice) · Speed **5 ft., swim 60 ft.** · darkvision 60 ft. · **Amphibious**',
+								'',
+								'| STR | DEX | CON | INT | WIS | CHA |',
+								'| --- | --- | --- | --- | --- | --- |',
+								'| 14 | 14 | 15 | 8 | 14 | 11 |',
+								'',
+								'**Binding Strike.** Melee attack, your spell attack modifier, reach 5 ft. **1d6 + 2 + PB piercing or bludgeoning** (your choice), and the target is **grappled** (escape DC = your spell save DC). It cannot use this attack on anyone else until that grapple ends.'
+							].join('\n')
+						},
+						{
+							label: 'Beast of the Sky',
+							body: [
+								'Small beast · **AC 13 + PB** · **HP 4 + 4 per ranger level** (d6 Hit Dice) · Speed **10 ft., fly 60 ft.** · darkvision 60 ft.',
+								'',
+								'| STR | DEX | CON | INT | WIS | CHA |',
+								'| --- | --- | --- | --- | --- | --- |',
+								'| 6 | 16 | 13 | 8 | 14 | 11 |',
+								'',
+								'**Flyby.** No opportunity attacks provoked when it flies out of reach.',
+								'',
+								'**Shred.** Melee attack, your spell attack modifier, reach 5 ft. **1d4 + 3 + PB slashing**.'
+							].join('\n')
+						}
+					]
+				},
+				{
+					name: 'Exceptional Training',
+					levels: [7],
+					body: 'On a turn your companion does not attack, a **bonus action** commands it to **Dash, Disengage or Help**. Its attacks also count as **magical**.'
+				},
+				{
+					name: 'Bestial Fury',
+					levels: [11],
+					body: 'When commanded to take the Attack action, the beast makes **two attacks**, or takes its **Multiattack** action if it has one.'
+				},
+				{
+					name: 'Share Spells',
+					levels: [15],
+					body: 'A spell you cast **targeting yourself** can also affect your companion if it is within **30 feet**.'
+				}
 			]
 		}
 	],
@@ -1487,34 +1583,128 @@ export const SUBCLASSES_XGTE: SubclassIndex = {
 		{
 			name: 'Gloom Stalker',
 			features: [
-				f('Gloom Stalker Magic', 3),
-				f('Dread Ambusher', 3),
-				f('Umbral Sight', 3),
-				f('Iron Mind', 7),
-				f("Stalker's Flurry", 11),
-				f('Shadowy Dodge', 15)
+				{
+					name: 'Gloom Stalker Magic',
+					levels: [3],
+					body: RANGER_SPELLS([
+						'Disguise Self',
+						'Rope Trick',
+						'Fear',
+						'Greater Invisibility',
+						'Seeming'
+					])
+				},
+				{
+					name: 'Dread Ambusher',
+					levels: [3],
+					body: [
+						'Add your **Wisdom modifier to initiative**.',
+						'',
+						'On your **first turn of each combat**, your walking speed increases by **10 feet** for that turn, and if you take the Attack action you make **one extra weapon attack**. That attack, on a hit, deals **an extra 1d8** of the weapon’s damage type.'
+					].join('\n')
+				},
+				{
+					name: 'Umbral Sight',
+					levels: [3],
+					body: '**Darkvision 60 feet**, or **+30 feet** if you already had it. While in darkness you are **invisible to any creature relying on darkvision** to see you there.'
+				},
+				{
+					name: 'Iron Mind',
+					levels: [7],
+					body: 'Proficiency in **Wisdom saving throws** — or **Intelligence or Charisma** (your choice) if you already have it.'
+				},
+				{
+					name: "Stalker's Flurry",
+					levels: [11],
+					body: '**Once on each of your turns**, when you miss with a weapon attack, make **another weapon attack** as part of the same action.'
+				},
+				{
+					name: 'Shadowy Dodge',
+					levels: [15],
+					body: '**Reaction** to impose **disadvantage** on an attack roll against you that does not already have advantage. You must use it **before you know the outcome**.'
+				}
 			]
 		},
 		{
 			name: 'Horizon Walker',
 			features: [
-				f('Horizon Walker Magic', 3),
-				f('Detect Portal', 3),
-				f('Planar Warrior', 3),
-				f('Ethereal Step', 7),
-				f('Distant Strike', 11),
-				f('Spectral Defense', 15)
+				{
+					name: 'Horizon Walker Magic',
+					levels: [3],
+					body: RANGER_SPELLS([
+						'Protection from Evil and Good',
+						'Misty Step',
+						'Haste',
+						'Banishment',
+						'Teleportation Circle'
+					])
+				},
+				{
+					name: 'Detect Portal',
+					levels: [3],
+					body: '**Action:** sense the distance and direction to the nearest **planar portal within 1 mile**. Once per short or long rest.'
+				},
+				{
+					name: 'Planar Warrior',
+					levels: [3, 11],
+					body: '**Bonus action:** mark a creature you can see within 30 feet. The next time you hit it **this turn** with a weapon attack, **all the attack’s damage becomes force** and it takes **an extra 1d8 force**, rising to **2d8 at 11th level**.'
+				},
+				{
+					name: 'Ethereal Step',
+					levels: [7],
+					body: '**Bonus action:** cast **Etherealness** without a spell slot, but it **ends at the end of the current turn**. Once per short or long rest.'
+				},
+				{
+					name: 'Distant Strike',
+					levels: [11],
+					body: 'On the Attack action, **teleport up to 10 feet before each attack** to a space you can see. Attack **two different creatures** with the action and you get **one extra attack against a third**.'
+				},
+				{
+					name: 'Spectral Defense',
+					levels: [15],
+					body: '**Reaction** when you take damage from an attack: gain **resistance to all of that attack’s damage** this turn.'
+				}
 			]
 		},
 		{
 			name: 'Monster Slayer',
 			features: [
-				f('Monster Slayer Magic', 3),
-				f("Hunter's Sense", 3),
-				f("Slayer's Prey", 3),
-				f('Supernatural Defense', 7),
-				f("Magic-User's Nemesis", 11),
-				f("Slayer's Counter", 15)
+				{
+					name: 'Monster Slayer Magic',
+					levels: [3],
+					body: RANGER_SPELLS([
+						'Protection from Evil and Good',
+						'Zone of Truth',
+						'Magic Circle',
+						'Banishment',
+						'Hold Monster'
+					])
+				},
+				{
+					name: "Hunter's Sense",
+					levels: [3],
+					body: '**Action:** learn one creature within 60 feet’s **damage immunities, resistances and vulnerabilities**. A creature hidden from divination reads as having none. Uses equal to your **Wisdom modifier** (minimum 1), refilled on a long rest.'
+				},
+				{
+					name: "Slayer's Prey",
+					levels: [3],
+					body: '**Bonus action:** mark one creature you can see within 60 feet. The **first time each turn** you hit it with a weapon attack it takes **an extra 1d6**. Lasts until you finish a short or long rest, or until you mark someone else.'
+				},
+				{
+					name: 'Supernatural Defense',
+					levels: [7],
+					body: 'Add **1d6** whenever your **Slayer’s Prey** target forces you to make a saving throw, and to ability checks to escape its grapple.'
+				},
+				{
+					name: "Magic-User's Nemesis",
+					levels: [11],
+					body: '**Reaction** when you see a creature within 60 feet **casting a spell or teleporting**: **Wisdom save** against your spell save DC or the spell or teleport **fails and is wasted**. Once per short or long rest.'
+				},
+				{
+					name: "Slayer's Counter",
+					levels: [15],
+					body: 'When your **Slayer’s Prey** target forces you to make a save, **reaction** to make **one weapon attack** against it first. **If the attack hits, the save automatically succeeds.**'
+				}
 			]
 		}
 	],
@@ -2048,22 +2238,102 @@ export const SUBCLASSES_TCOE: SubclassIndex = {
 		{
 			name: 'Fey Wanderer',
 			features: [
-				f('Dreadful Strikes', 3),
-				f('Fey Wanderer Magic', 3),
-				f('Otherworldly Glamour', 3),
-				f('Beguiling Twist', 7),
-				f('Fey Reinforcements', 11),
-				f('Misty Wanderer', 15)
+				{
+					name: 'Dreadful Strikes',
+					levels: [3, 11],
+					body: 'On hitting a creature with a weapon, deal **an extra 1d4 psychic**, **once per turn per target**. Rises to **1d6 at 11th level**.'
+				},
+				{
+					name: 'Fey Wanderer Magic',
+					levels: [3],
+					body: [
+						RANGER_SPELLS([
+							'Charm Person',
+							'Misty Step',
+							'Dispel Magic',
+							'Dimension Door',
+							'Mislead'
+						]),
+						'',
+						'You also carry a **Feywild gift** — purely cosmetic, rolled on a d6 or chosen: illusory butterflies at rest, seasonal flowers in your hair, a comforting scent, a shadow that dances unobserved, horns or antlers, or hair and skin that recolour with the season.'
+					].join('\n')
+				},
+				{
+					name: 'Otherworldly Glamour',
+					levels: [3],
+					body: 'Add your **Wisdom modifier** (minimum +1) to **every Charisma check**, and gain proficiency in **Deception, Performance or Persuasion**.'
+				},
+				{
+					name: 'Beguiling Twist',
+					levels: [7],
+					body: [
+						'**Advantage on saves against being charmed or frightened.**',
+						'',
+						'**Reaction** whenever you or a creature you can see within 120 feet **succeeds** on such a save: a different creature you can see within 120 feet makes a **Wisdom save** against your spell save DC or is **charmed or frightened by you** (your choice) for 1 minute, repeating the save at the end of each of its turns.'
+					].join('\n')
+				},
+				{
+					name: 'Fey Reinforcements',
+					levels: [11],
+					body: 'You know **Summon Fey**; it does not count against your spells known and needs **no material component**. Once per long rest you can cast it **without a spell slot**. You may also cast it **without concentration**, in which case its duration becomes **1 minute**.'
+				},
+				{
+					name: 'Misty Wanderer',
+					levels: [15],
+					body: 'Cast **Misty Step without a slot**, uses equal to your **Wisdom modifier** (minimum 1), refilled on a long rest. Any Misty Step you cast can **bring one willing creature** within 5 feet along, landing them within 5 feet of you.'
+				}
 			]
 		},
 		{
 			name: 'Swarmkeeper',
 			features: [
-				f('Gathered Swarm', 3),
-				f('Swarmkeeper Magic', 3),
-				f('Writhing Tide', 7),
-				f('Mighty Swarm', 11),
-				f('Swarming Dispersal', 15)
+				{
+					name: 'Gathered Swarm',
+					levels: [3],
+					body: [
+						'Intangible nature spirits share your space — insects, twig blights, birds or pixies, your choice.',
+						'',
+						'**Once on each of your turns**, immediately after you hit with an attack, the swarm does one of:',
+						'',
+						'- The target takes **1d6 piercing**',
+						'- The target makes a **Strength save** against your spell save DC or is **moved up to 15 feet horizontally**',
+						'- **You** are moved **5 feet horizontally**'
+					].join('\n')
+				},
+				{
+					name: 'Swarmkeeper Magic',
+					levels: [3],
+					body: [
+						'You learn **Mage Hand** if you do not know it; the hand appears as your swarm.',
+						'',
+						RANGER_SPELLS([
+							'Faerie Fire, Mage Hand',
+							'Web',
+							'Gaseous Form',
+							'Arcane Eye',
+							'Insect Plague'
+						])
+					].join('\n')
+				},
+				{
+					name: 'Writhing Tide',
+					levels: [7],
+					body: '**Bonus action:** gain a **flying speed of 10 feet with hovering** for 1 minute, or until incapacitated. Uses equal to your **proficiency bonus**, refilled on a long rest.'
+				},
+				{
+					name: 'Mighty Swarm',
+					levels: [11],
+					body: [
+						'- Gathered Swarm damage rises to **1d8**',
+						'- A creature that **fails** the save to be moved can also be **knocked prone**',
+						'- When the swarm moves **you**, you gain **half cover** until the start of your next turn'
+					].join('\n')
+				},
+				{
+					name: 'Swarming Dispersal',
+					levels: [15],
+					body: '**Reaction** when you take damage: gain **resistance to that damage** and **teleport** to an unoccupied space you can see within **30 feet**. Uses equal to your **proficiency bonus**, refilled on a long rest.'
+				}
 			]
 		}
 	],
@@ -2165,6 +2435,67 @@ export const SUBCLASSES_TCOE: SubclassIndex = {
  * source, so this grows without needing a new export every time a one-off shows up.
  */
 export const SUBCLASSES_MISC: SubclassIndex = {
+	ranger: [
+		{
+			name: 'Drakewarden',
+			source: "Fizban's Treasury of Dragons",
+			features: [
+				{
+					name: 'Draconic Gift',
+					levels: [3],
+					body: 'You learn **Thaumaturgy** (a ranger spell for you), and to speak, read and write **Draconic** or one other language of your choice.'
+				},
+				{
+					name: 'Drake Companion',
+					levels: [3],
+					body: [
+						'**Action:** summon your drake into a space within 30 feet. It is friendly to you and obeys you, and uses your proficiency bonus (**PB**) throughout. Choose its **Draconic Essence** damage type each time you summon it: **acid, cold, fire, lightning or poison**.',
+						'',
+						'It shares your initiative but acts **immediately after you**. It moves and uses its reaction on its own, but its only action is **Dodge** unless you spend a **bonus action** to command another. If you are incapacitated it acts freely.',
+						'',
+						'It stays until reduced to 0 hit points, resummoned, or you die. **Once per long rest**, or again by spending a **spell slot of 1st level or higher**.',
+						'',
+						'Small dragon · **AC 14 + PB** · **HP 5 + 5 per ranger level** (d10 Hit Dice) · Speed **40 ft.** · darkvision 60 ft. · **immune to its Essence damage type** · saves **Dex +1 + PB, Wis +2 + PB**',
+						'',
+						'| STR | DEX | CON | INT | WIS | CHA |',
+						'| --- | --- | --- | --- | --- | --- |',
+						'| 16 | 12 | 15 | 8 | 14 | 8 |',
+						'',
+						'**Bite.** Melee attack, **+3 + PB** to hit, reach 5 ft. **1d6 + PB piercing**.',
+						'',
+						'**Infused Strikes (reaction).** When another creature it can see within 30 feet hits with a weapon attack, the target takes **an extra 1d6** of the drake’s Essence type.'
+					].join('\n')
+				},
+				{
+					name: 'Bond of Fang and Scale',
+					levels: [7],
+					body: [
+						'Your summoned drake grows **wings**, gaining a flying speed equal to its walking speed. While it is summoned:',
+						'',
+						'- **Drake Mount.** It becomes **Medium** and can carry you if you are Medium or smaller — though it cannot use that flying speed while you ride it',
+						'- **Magic Fang.** Its Bite deals **an extra 1d6** of its Essence type',
+						'- **Resistance.** You gain **resistance** to its Essence damage type'
+					].join('\n')
+				},
+				{
+					name: "Drake's Breath",
+					levels: [11, 15],
+					body: '**Action:** you or the drake exhale a **30-foot cone**. Choose **acid, cold, fire, lightning or poison** — it need not match the drake’s Essence. **Dexterity save** against your spell save DC for **8d6**, half on a success, rising to **10d6 at 15th level**. Once per long rest, or again by spending a **spell slot of 3rd level or higher**.'
+				},
+				{
+					name: 'Perfected Bond',
+					levels: [15],
+					body: [
+						'While the drake is summoned:',
+						'',
+						'- **Empowered Bite.** Another **+1d6** of its Essence type, for **2d6** extra in total',
+						'- **Large Drake.** It becomes **Large**, and can now use its flying speed while you ride it',
+						'- **Reflexive Resistance.** When you or the drake takes damage within 30 feet of each other, **reaction** to give either of you **resistance to that instance**. Uses equal to your **proficiency bonus**, refilled on a long rest'
+					].join('\n')
+				}
+			]
+		}
+	],
 	paladin: [
 		{
 			name: 'Oath of the Crown',
