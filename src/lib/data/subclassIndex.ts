@@ -1,26 +1,42 @@
-// Structural index of every Player's Handbook subclass: its name, its feature names, and the levels
-// they arrive at. No rules text — the descriptions are Wizards' expression and are not reproduced.
+// Structural index of published subclasses — Player's Handbook (both rulesets), plus Xanathar's
+// Guide to Everything and Tasha's Cauldron of Everything for 2014. Name, feature names, and the
+// levels they arrive at.
+//
+// No rules text. The descriptions are Wizards' expression and are not reproduced here, and neither
+// is a paraphrase of them: a systematic mechanical restatement of every subclass would be a
+// substitute for the books, which is the line the Fan Content Policy draws. What's here is the shape
+// of the system, which is what makes a level-by-level scaffold useful at the table.
 // What's here is the shape of the system (names and levels), which is what makes a level-by-level
 // scaffold useful at the table, and it ships under Wizards' Fan Content Policy. Write your own
 // descriptions into a feature via the subclass editor; those stay in your browser.
 //
 // ACCURACY: unlike src/lib/assets/data/dnd/classes/**, this is NOT generated from a source document,
 // so nothing can verify the names against a book. tests/subclassIndex.spec.ts cross-checks the
-// twelve SRD subclasses against the generated SRD data, which catches systematic error but proves
-// nothing about the other sixty-four. Proofread against your own PHB and correct what's wrong —
-// every entry is editable in the app.
+// twelve SRD subclasses against the generated SRD data — that already caught two wrong entries and
+// one parser bug — but it can say nothing about the rest, and nothing at all about the expansion
+// books, which have no SRD. Treat every unverified entry as a draft: proofread against your own
+// copy and correct what's wrong. Every entry is editable in the app.
 
 import type { ClassVersion } from '$lib/types/dndClass'
 
 export type SubclassOutline = {
 	name: string
 	features: { name: string; levels: number[] }[]
+	/** Which book it comes from. Grouped by this in the picker so provenance is visible. */
+	source?: string
 }
 
 /** slug -> subclasses, per ruleset. Includes the SRD subclass so the list reads as one whole set. */
 export type SubclassIndex = Record<string, SubclassOutline[]>
 
 const f = (name: string, ...levels: number[]) => ({ name, levels })
+
+export const SOURCES = {
+	phb2014: "Player's Handbook",
+	phb2024: "Player's Handbook",
+	xgte: "Xanathar's Guide to Everything",
+	tcoe: "Tasha's Cauldron of Everything"
+} as const
 
 export const SUBCLASSES_2014: SubclassIndex = {
 	barbarian: [
@@ -954,6 +970,667 @@ export const SUBCLASSES_2024: SubclassIndex = {
 	]
 }
 
+export const SUBCLASSES_XGTE: SubclassIndex = {
+	barbarian: [
+		{
+			name: 'Path of the Ancestral Guardian',
+			features: [
+				f('Ancestral Protectors', 3),
+				f('Spirit Shield', 6, 10, 14),
+				f('Consult the Spirits', 10),
+				f('Vengeful Ancestors', 14)
+			]
+		},
+		{
+			name: 'Path of the Storm Herald',
+			features: [
+				f('Storm Aura', 3),
+				f('Storm Soul', 6),
+				f('Shielding Storm', 10),
+				f('Raging Storm', 14)
+			]
+		},
+		{
+			name: 'Path of the Zealot',
+			features: [
+				f('Divine Fury', 3),
+				f('Warrior of the Gods', 3),
+				f('Fanatical Focus', 6),
+				f('Zealous Presence', 10),
+				f('Rage beyond Death', 14)
+			]
+		}
+	],
+	bard: [
+		{
+			name: 'College of Glamour',
+			features: [
+				f('Mantle of Inspiration', 3),
+				f('Enthralling Performance', 3),
+				f('Mantle of Majesty', 6),
+				f('Unbreakable Majesty', 14)
+			]
+		},
+		{
+			name: 'College of Swords',
+			features: [
+				f('Bonus Proficiencies', 3),
+				f('Fighting Style', 3),
+				f('Blade Flourish', 3),
+				f('Extra Attack', 6),
+				f("Master's Flourish", 14)
+			]
+		},
+		{
+			name: 'College of Whispers',
+			features: [
+				f('Psychic Blades', 3),
+				f('Words of Terror', 3),
+				f('Mantle of Whispers', 6),
+				f('Shadow Lore', 14)
+			]
+		}
+	],
+	cleric: [
+		{
+			name: 'Forge Domain',
+			features: [
+				f('Bonus Proficiencies', 1),
+				f('Blessing of the Forge', 1),
+				f("Channel Divinity: Artisan's Blessing", 2),
+				f('Soul of the Forge', 6),
+				f('Divine Strike', 8),
+				f('Saint of Forge and Fire', 17)
+			]
+		},
+		{
+			name: 'Grave Domain',
+			features: [
+				f('Circle of Mortality', 1),
+				f('Eyes of the Grave', 1),
+				f('Channel Divinity: Path to the Grave', 2),
+				f("Sentinel at Death's Door", 6),
+				f('Potent Spellcasting', 8),
+				f('Keeper of Souls', 17)
+			]
+		}
+	],
+	druid: [
+		{
+			name: 'Circle of Dreams',
+			features: [
+				f('Balm of the Summer Court', 2),
+				f('Hearth of Moonlight and Shadow', 6),
+				f('Hidden Paths', 10),
+				f('Walker in Dreams', 14)
+			]
+		},
+		{
+			name: 'Circle of the Shepherd',
+			features: [
+				f('Speech of the Woods', 2),
+				f('Spirit Totem', 2),
+				f('Mighty Summoner', 6),
+				f('Guardian Spirit', 10),
+				f('Faithful Summons', 14)
+			]
+		}
+	],
+	fighter: [
+		{
+			name: 'Arcane Archer',
+			features: [
+				f('Arcane Archer Lore', 3),
+				f('Arcane Shot', 3),
+				f('Magic Arrow', 7),
+				f('Curving Shot', 7),
+				f('Ever-Ready Shot', 15)
+			]
+		},
+		{
+			name: 'Cavalier',
+			features: [
+				f('Bonus Proficiency', 3),
+				f('Born to the Saddle', 3),
+				f('Unwavering Mark', 3),
+				f('Warding Maneuver', 7),
+				f('Hold the Line', 10),
+				f('Ferocious Charger', 15),
+				f('Vigilant Defender', 18)
+			]
+		},
+		{
+			name: 'Samurai',
+			features: [
+				f('Bonus Proficiency', 3),
+				f('Fighting Spirit', 3),
+				f('Elegant Courtier', 7),
+				f('Tireless Spirit', 10),
+				f('Rapid Strike', 15),
+				f('Strength before Death', 18)
+			]
+		}
+	],
+	monk: [
+		{
+			name: 'Way of the Drunken Master',
+			features: [
+				f('Bonus Proficiencies', 3),
+				f('Drunken Technique', 3),
+				f('Tipsy Sway', 6),
+				f("Drunkard's Luck", 11),
+				f('Intoxicated Frenzy', 17)
+			]
+		},
+		{
+			name: 'Way of the Kensei',
+			features: [
+				f('Path of the Kensei', 3),
+				f('One with the Blade', 6),
+				f('Sharpen the Blade', 11),
+				f('Unerring Accuracy', 17)
+			]
+		},
+		{
+			name: 'Way of the Sun Soul',
+			features: [
+				f('Radiant Sun Bolt', 3),
+				f('Searing Arc Strike', 6),
+				f('Searing Sunburst', 11),
+				f('Sun Shield', 17)
+			]
+		}
+	],
+	paladin: [
+		{
+			name: 'Oath of Conquest',
+			features: [
+				f('Tenets of Conquest', 3),
+				f('Oath Spells', 3),
+				f('Channel Divinity', 3),
+				f('Aura of Conquest', 7),
+				f('Scornful Rebuke', 15),
+				f('Invincible Conqueror', 20)
+			]
+		},
+		{
+			name: 'Oath of Redemption',
+			features: [
+				f('Tenets of Redemption', 3),
+				f('Oath Spells', 3),
+				f('Channel Divinity', 3),
+				f('Aura of the Guardian', 7),
+				f('Protective Spirit', 15),
+				f('Emissary of Redemption', 20)
+			]
+		}
+	],
+	ranger: [
+		{
+			name: 'Gloom Stalker',
+			features: [
+				f('Gloom Stalker Magic', 3),
+				f('Dread Ambusher', 3),
+				f('Umbral Sight', 3),
+				f('Iron Mind', 7),
+				f("Stalker's Flurry", 11),
+				f('Shadowy Dodge', 15)
+			]
+		},
+		{
+			name: 'Horizon Walker',
+			features: [
+				f('Horizon Walker Magic', 3),
+				f('Detect Portal', 3),
+				f('Planar Warrior', 3),
+				f('Ethereal Step', 7),
+				f('Distant Strike', 11),
+				f('Spectral Defense', 15)
+			]
+		},
+		{
+			name: 'Monster Slayer',
+			features: [
+				f('Monster Slayer Magic', 3),
+				f("Hunter's Sense", 3),
+				f("Slayer's Prey", 3),
+				f('Supernatural Defense', 7),
+				f("Magic-User's Nemesis", 11),
+				f("Slayer's Counter", 15)
+			]
+		}
+	],
+	rogue: [
+		{
+			name: 'Inquisitive',
+			features: [
+				f('Ear for Deceit', 3),
+				f('Eye for Detail', 3),
+				f('Insightful Fighting', 3),
+				f('Steady Eye', 9),
+				f('Unerring Eye', 13),
+				f('Eye for Weakness', 17)
+			]
+		},
+		{
+			name: 'Mastermind',
+			features: [
+				f('Master of Intrigue', 3),
+				f('Master of Tactics', 3),
+				f('Insightful Manipulator', 9),
+				f('Misdirection', 13),
+				f('Soul of Deceit', 17)
+			]
+		},
+		{
+			name: 'Scout',
+			features: [
+				f('Skirmisher', 3),
+				f('Survivalist', 3),
+				f('Superior Mobility', 9),
+				f('Ambush Master', 13),
+				f('Sudden Strike', 17)
+			]
+		},
+		{
+			name: 'Swashbuckler',
+			features: [
+				f('Fancy Footwork', 3),
+				f('Rakish Audacity', 3),
+				f('Panache', 9),
+				f('Elegant Maneuver', 13),
+				f('Master Duelist', 17)
+			]
+		}
+	],
+	sorcerer: [
+		{
+			name: 'Divine Soul',
+			features: [
+				f('Divine Magic', 1),
+				f('Favored by the Gods', 1),
+				f('Empowered Healing', 6),
+				f('Otherworldly Wings', 14),
+				f('Unearthly Recovery', 18)
+			]
+		},
+		{
+			name: 'Shadow Magic',
+			features: [
+				f('Eyes of the Dark', 1),
+				f('Strength of the Grave', 1),
+				f('Hound of Ill Omen', 6),
+				f('Shadow Walk', 14),
+				f('Umbral Form', 18)
+			]
+		},
+		{
+			name: 'Storm Sorcery',
+			features: [
+				f('Wind Speaker', 1),
+				f('Tempestuous Magic', 1),
+				f('Heart of the Storm', 6),
+				f('Storm Guide', 6),
+				f("Storm's Fury", 14),
+				f('Wind Soul', 18)
+			]
+		}
+	],
+	warlock: [
+		{
+			name: 'The Celestial',
+			features: [
+				f('Expanded Spell List', 1),
+				f('Bonus Cantrips', 1),
+				f('Healing Light', 1),
+				f('Radiant Soul', 6),
+				f('Celestial Resilience', 10),
+				f('Searing Vengeance', 14)
+			]
+		},
+		{
+			name: 'The Hexblade',
+			features: [
+				f('Expanded Spell List', 1),
+				f("Hexblade's Curse", 1),
+				f('Hex Warrior', 1),
+				f('Accursed Specter', 6),
+				f('Armor of Hexes', 10),
+				f('Master of Hexes', 14)
+			]
+		}
+	],
+	wizard: [
+		{
+			name: 'War Magic',
+			features: [
+				f('Arcane Deflection', 2),
+				f('Tactical Wit', 2),
+				f('Power Surge', 6),
+				f('Durable Magic', 10),
+				f('Deflecting Shroud', 14)
+			]
+		}
+	]
+}
+
+export const SUBCLASSES_TCOE: SubclassIndex = {
+	barbarian: [
+		{
+			name: 'Path of the Beast',
+			features: [
+				f('Form of the Beast', 3),
+				f('Bestial Soul', 6),
+				f('Infectious Fury', 10),
+				f('Call the Hunt', 14)
+			]
+		},
+		{
+			name: 'Path of Wild Magic',
+			features: [
+				f('Magic Awareness', 3),
+				f('Wild Surge', 3),
+				f('Bolstering Magic', 6),
+				f('Unstable Backlash', 10),
+				f('Controlled Surge', 14)
+			]
+		}
+	],
+	bard: [
+		{
+			name: 'College of Creation',
+			features: [
+				f('Note of Potential', 3),
+				f('Performance of Creation', 3),
+				f('Animating Performance', 6),
+				f('Creative Crescendo', 14)
+			]
+		},
+		{
+			name: 'College of Eloquence',
+			features: [
+				f('Silver Tongue', 3),
+				f('Unsettling Words', 3),
+				f('Unfailing Inspiration', 6),
+				f('Universal Speech', 6),
+				f('Infectious Inspiration', 14)
+			]
+		}
+	],
+	cleric: [
+		{
+			name: 'Order Domain',
+			features: [
+				f('Bonus Proficiencies', 1),
+				f('Voice of Authority', 1),
+				f("Channel Divinity: Order's Demand", 2),
+				f('Embodiment of the Law', 6),
+				f('Divine Strike', 8),
+				f("Order's Wrath", 17)
+			]
+		},
+		{
+			name: 'Peace Domain',
+			features: [
+				f('Implement of Peace', 1),
+				f('Emboldening Bond', 1),
+				f('Channel Divinity: Balm of Peace', 2),
+				f('Protective Bond', 6),
+				f('Potent Spellcasting', 8),
+				f('Expansive Bond', 17)
+			]
+		},
+		{
+			name: 'Twilight Domain',
+			features: [
+				f('Eyes of Night', 1),
+				f('Vigilant Blessing', 1),
+				f('Channel Divinity: Twilight Sanctuary', 2),
+				f('Steps of Night', 6),
+				f('Divine Strike', 8),
+				f('Twilight Shroud', 17)
+			]
+		}
+	],
+	druid: [
+		{
+			name: 'Circle of Spores',
+			features: [
+				f('Circle Spells', 2),
+				f('Halo of Spores', 2),
+				f('Symbiotic Entity', 2),
+				f('Fungal Infestation', 6),
+				f('Spreading Spores', 10),
+				f('Fungal Body', 14)
+			]
+		},
+		{
+			name: 'Circle of Stars',
+			features: [
+				f('Star Map', 2),
+				f('Starry Form', 2),
+				f('Cosmic Omen', 6),
+				f('Twinkling Constellations', 10),
+				f('Full of Stars', 14)
+			]
+		},
+		{
+			name: 'Circle of Wildfire',
+			features: [
+				f('Circle Spells', 2),
+				f('Summon Wildfire Spirit', 2),
+				f('Enhanced Bond', 6),
+				f('Cauterizing Flames', 10),
+				f('Blazing Revival', 14)
+			]
+		}
+	],
+	fighter: [
+		{
+			name: 'Psi Warrior',
+			features: [
+				f('Psionic Power', 3),
+				f('Telekinetic Adept', 7),
+				f('Guarded Mind', 10),
+				f('Bulwark of Force', 15),
+				f('Telekinetic Master', 18)
+			]
+		},
+		{
+			name: 'Rune Knight',
+			features: [
+				f('Bonus Proficiencies', 3),
+				f('Rune Carver', 3),
+				f("Giant's Might", 3),
+				f('Runic Shield', 7),
+				f('Great Stature', 7),
+				f('Master of Runes', 10),
+				f('Runic Juggernaut', 15)
+			]
+		}
+	],
+	monk: [
+		{
+			name: 'Way of Mercy',
+			features: [
+				f('Implements of Mercy', 3),
+				f('Hand of Healing', 3),
+				f('Hand of Harm', 3),
+				f("Physician's Touch", 6),
+				f('Flurry of Healing and Harm', 11),
+				f('Hand of Ultimate Mercy', 17)
+			]
+		},
+		{
+			name: 'Way of the Astral Self',
+			features: [
+				f('Arms of the Astral Self', 3),
+				f('Visage of the Astral Self', 6),
+				f('Body of the Astral Self', 11),
+				f('Awakened Astral Self', 17)
+			]
+		}
+	],
+	paladin: [
+		{
+			name: 'Oath of Glory',
+			features: [
+				f('Tenets of Glory', 3),
+				f('Oath Spells', 3),
+				f('Channel Divinity', 3),
+				f('Aura of Alacrity', 7),
+				f('Glorious Defense', 15),
+				f('Living Legend', 20)
+			]
+		},
+		{
+			name: 'Oath of the Watchers',
+			features: [
+				f('Tenets of the Watchers', 3),
+				f('Oath Spells', 3),
+				f('Channel Divinity', 3),
+				f('Aura of the Sentinel', 7),
+				f('Vigilant Rebuke', 15),
+				f('Mortal Bulwark', 20)
+			]
+		}
+	],
+	ranger: [
+		{
+			name: 'Fey Wanderer',
+			features: [
+				f('Dreadful Strikes', 3),
+				f('Fey Wanderer Magic', 3),
+				f('Otherworldly Glamour', 3),
+				f('Beguiling Twist', 7),
+				f('Fey Reinforcements', 11),
+				f('Misty Wanderer', 15)
+			]
+		},
+		{
+			name: 'Swarmkeeper',
+			features: [
+				f('Gathered Swarm', 3),
+				f('Swarmkeeper Magic', 3),
+				f('Writhing Tide', 7),
+				f('Mighty Swarm', 11),
+				f('Swarming Dispersal', 15)
+			]
+		}
+	],
+	rogue: [
+		{
+			name: 'Phantom',
+			features: [
+				f('Whispers of the Dead', 3),
+				f('Wails from the Grave', 3),
+				f('Tokens of the Departed', 9),
+				f('Ghost Walk', 13),
+				f("Death's Friend", 17)
+			]
+		},
+		{
+			name: 'Soulknife',
+			features: [
+				f('Psionic Power', 3),
+				f('Psychic Blades', 3),
+				f('Soul Blades', 9),
+				f('Psychic Veil', 13),
+				f('Rend Mind', 17)
+			]
+		}
+	],
+	sorcerer: [
+		{
+			name: 'Aberrant Mind',
+			features: [
+				f('Psionic Spells', 1),
+				f('Telepathic Speech', 1),
+				f('Psionic Sorcery', 6),
+				f('Psychic Defenses', 6),
+				f('Revelation in Flesh', 14),
+				f('Warping Implosion', 18)
+			]
+		},
+		{
+			name: 'Clockwork Soul',
+			features: [
+				f('Clockwork Magic', 1),
+				f('Restore Balance', 1),
+				f('Bastion of Law', 6),
+				f('Trance of Order', 14),
+				f('Clockwork Cavalcade', 18)
+			]
+		}
+	],
+	warlock: [
+		{
+			name: 'The Fathomless',
+			features: [
+				f('Expanded Spell List', 1),
+				f('Tentacle of the Deeps', 1),
+				f('Gift of the Sea', 1),
+				f('Oceanic Soul', 6),
+				f('Guardian Coil', 6),
+				f('Grasping Tentacles', 10),
+				f('Fathomless Plunge', 14)
+			]
+		},
+		{
+			name: 'The Genie',
+			features: [
+				f('Expanded Spell List', 1),
+				f("Genie's Vessel", 1),
+				f('Elemental Gift', 6),
+				f('Sanctuary Vessel', 10),
+				f('Limited Wish', 14)
+			]
+		}
+	],
+	wizard: [
+		{
+			name: 'Bladesinging',
+			features: [
+				f('Training in War and Song', 2),
+				f('Bladesong', 2),
+				f('Extra Attack', 6),
+				f('Song of Defense', 10),
+				f('Song of Victory', 14)
+			]
+		},
+		{
+			name: 'Order of Scribes',
+			features: [
+				f('Wizardly Quill', 2),
+				f('Awakened Spellbook', 2),
+				f('Manifest Mind', 6),
+				f('Master Scrivener', 10),
+				f('One with the Word', 14)
+			]
+		}
+	]
+}
+
+function tag(index: SubclassIndex, source: string): SubclassIndex {
+	return Object.fromEntries(
+		Object.entries(index).map(([slug, subs]) => [slug, subs.map((s) => ({ ...s, source }))])
+	)
+}
+
+/**
+ * The 2014 ruleset accumulates across books; 2024 is the Player's Handbook alone so far. Expansion
+ * subclasses are the same tier as the PHB outlines above — names and levels, no rules text.
+ */
 export function subclassIndex(version: ClassVersion): SubclassIndex {
-	return version === '2024' ? SUBCLASSES_2024 : SUBCLASSES_2014
+	if (version === '2024') return tag(SUBCLASSES_2024, SOURCES.phb2024)
+	const merged = tag(SUBCLASSES_2014, SOURCES.phb2014)
+	for (const [index, source] of [
+		[SUBCLASSES_XGTE, SOURCES.xgte],
+		[SUBCLASSES_TCOE, SOURCES.tcoe]
+	] as const) {
+		for (const [slug, subs] of Object.entries(tag(index, source))) {
+			merged[slug] = [...(merged[slug] ?? []), ...subs]
+		}
+	}
+	return merged
 }

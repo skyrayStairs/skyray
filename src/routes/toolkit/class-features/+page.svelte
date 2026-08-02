@@ -157,6 +157,13 @@
 		activeCustom ? null : (outlines.find((o) => o.name === activeSubclass[subclassKey]) ?? null)
 	)
 
+	/** Grouped by source book, so it's obvious which shelf a subclass came off. */
+	const outlineGroups = $derived.by(() => {
+		const by = new Map<string, typeof outlines>()
+		for (const o of outlines) by.set(o.source ?? 'Other', [...(by.get(o.source ?? 'Other') ?? []), o])
+		return [...by]
+	})
+
 	/** Fork an outline into an editable subclass so its descriptions can be filled in. */
 	function editActive() {
 		if (activeCustom) return (editing = activeCustom)
@@ -330,13 +337,13 @@
 							{/each}
 						</optgroup>
 					{/if}
-					{#if outlines.length}
-						<optgroup label="Player's Handbook — levels only">
-							{#each outlines as o (o.name)}
+					{#each outlineGroups as [source, subs] (source)}
+						<optgroup label="{source} — levels only">
+							{#each subs as o (o.name)}
 								<option value={o.name}>{o.name}</option>
 							{/each}
 						</optgroup>
-					{/if}
+					{/each}
 				</select>
 				<button class="btn btn-xs btn-outline shrink-0" onclick={editActive}>
 					{activeCustom ? 'Edit' : activeOutline ? 'Fill in' : '+ Subclass'}
@@ -482,7 +489,9 @@
 			  no subscription, no email gate.
 			-->
 			<p class="text-xs opacity-50 text-center px-2 pb-6">
-				Remaining subclass names and feature names are unofficial Fan Content permitted under the
+				Other subclasses are listed by name and level only, from the Player's Handbook, Xanathar's
+				Guide to Everything and Tasha's Cauldron of Everything — unofficial Fan Content permitted
+				under the
 				<a
 					class="underline"
 					href="https://company.wizards.com/en/legal/fancontentpolicy"

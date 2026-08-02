@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ClassData } from '../src/lib/types/dndClass'
 import { CLASS_SLUGS } from '../src/lib/types/dndClass'
-import { SUBCLASSES_2014, SUBCLASSES_2024 } from '../src/lib/data/subclassIndex'
+import { SUBCLASSES_2024, subclassIndex } from '../src/lib/data/subclassIndex'
 
 // src/lib/data/subclassIndex.ts is the one piece of D&D data in this repo that is NOT derived from a
 // source document — it's the structural outline of every PHB subclass, written from knowledge. There
@@ -19,9 +19,10 @@ const ROOT = join(import.meta.dirname, '..', 'src', 'lib', 'assets', 'data', 'dn
 const load = (version: string, slug: string): ClassData =>
 	JSON.parse(readFileSync(join(ROOT, version, `${slug}.json`), 'utf8'))
 
+// The merged view, so expansion-book outlines get the same structural checks as the PHB ones.
 const INDEXES = [
-	['2014', SUBCLASSES_2014],
-	['2024', SUBCLASSES_2024]
+	['2014', subclassIndex('2014')],
+	['2024', subclassIndex('2024')]
 ] as const
 
 test('the index covers every class in both rulesets', () => {
@@ -49,6 +50,7 @@ test('every outline is structurally usable', () => {
 				const tag = `${version}/${slug} ${sub.name}`
 				expect(sub.name.trim(), tag).not.toBe('')
 				expect(sub.features.length, tag).toBeGreaterThan(1)
+				expect(sub.source, `${tag} has no source book`).toBeTruthy()
 				for (const f of sub.features) {
 					expect(f.name.trim(), tag).not.toBe('')
 					// A stray leading "." or trailing space is the kind of typo that survives review.
