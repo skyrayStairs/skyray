@@ -279,7 +279,25 @@
 				2
 			],
 			"subclass": null,
-			"body": "At 2nd level, you adopt a particular style of fighting as your specialty. Choose one of the following options. You can't take a Fighting Style option more than once, even if you later get to choose again.\n\n**Archery**\n\nYou gain a +2 bonus to attack rolls you make with ranged weapons.\n\n**Defense**\n\nWhile you are wearing armor, you gain a +1 bonus to AC.\n\n**Dueling**\n\nWhen you are wielding a melee weapon in one hand and no other weapons, you gain a +2 bonus to damage rolls with that weapon.\n\n**Two-Weapon Fighting**\n\nWhen you engage in two-weapon fighting, you can add your ability modifier to the damage of the second attack."
+			"body": "At 2nd level, you adopt a particular style of fighting as your specialty. Choose one of the following options. You can't take a Fighting Style option more than once, even if you later get to choose again.",
+			"options": [
+				{
+					"label": "Archery",
+					"body": "You gain a +2 bonus to attack rolls you make with ranged weapons."
+				},
+				{
+					"label": "Defense",
+					"body": "While you are wearing armor, you gain a +1 bonus to AC."
+				},
+				{
+					"label": "Dueling",
+					"body": "When you are wielding a melee weapon in one hand and no other weapons, you gain a +2 bonus to damage rolls with that weapon."
+				},
+				{
+					"label": "Two-Weapon Fighting",
+					"body": "When you engage in two-weapon fighting, you can add your ability modifier to the damage of the second attack."
+				}
+			]
 		},
 		{
 			"name": "Spellcasting",

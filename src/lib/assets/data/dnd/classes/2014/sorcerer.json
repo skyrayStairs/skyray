@@ -411,7 +411,41 @@
 				17
 			],
 			"subclass": null,
-			"body": "At 3rd level, you gain the ability to twist your spells to suit your needs. You gain two of the following Metamagic options of your choice. You gain another one at 10th and 17th level.\n\nYou can use only one Metamagic option on a spell when you cast it, unless otherwise noted.\n\n**Careful Spell**\n\nWhen you cast a spell that forces other creatures to make a saving throw, you can protect some of those creatures from the spell's full force. To do so, you spend 1 sorcery point and choose a number of those creatures up to your Charisma modifier (minimum of one creature). A chosen creature automatically succeeds on its saving throw against the spell.\n\n**Distant Spell**\n\nWhen you cast a spell that has a range of 5 feet or greater, you can spend 1 sorcery point to double the range of the spell.\n\nWhen you cast a spell that has a range of touch, you can spend 1 sorcery point to make the range of the spell 30 feet.\n\n**Empowered Spell**\n\nWhen you roll damage for a spell, you can spend 1 sorcery point to reroll a number of the damage dice up to your Charisma modifier (minimum of one). You must use the new rolls.\n\nYou can use Empowered Spell even if you have already used a different Metamagic option during the casting of the spell.\n\n**Extended Spell**\n\nWhen you cast a spell that has a duration of 1 minute or longer, you can spend 1 sorcery point to double its duration, to a maximum duration of 24 hours.\n\n**Heightened Spell**\n\nWhen you cast a spell that forces a creature to make a saving throw to resist its effects, you can spend 3 sorcery points to give one target of the spell disadvantage on its first saving throw made against the spell.\n\n**Quickened Spell**\n\nWhen you cast a spell that has a casting time of 1 action, you can spend 2 sorcery points to change the casting time to 1 bonus action for this casting.\n\n**Subtle Spell**\n\nWhen you cast a spell, you can spend 1 sorcery point to cast it without any somatic or verbal components.\n\n**Twinned Spell**\n\nWhen you cast a spell that targets only one creature and doesn't have a range of self, you can spend a number of sorcery points equal to the spell's level to target a second creature in range with the same spell (1 sorcery point if the spell is a cantrip).\n\nTo be eligible, a spell must be incapable of targeting more than one creature at the spell's current level. For example, *magic missile* and *scorching ray* aren't eligible, but *ray of frost* and *chromatic orb* are."
+			"body": "At 3rd level, you gain the ability to twist your spells to suit your needs. You gain two of the following Metamagic options of your choice. You gain another one at 10th and 17th level.\n\nYou can use only one Metamagic option on a spell when you cast it, unless otherwise noted.",
+			"options": [
+				{
+					"label": "Careful Spell",
+					"body": "When you cast a spell that forces other creatures to make a saving throw, you can protect some of those creatures from the spell's full force. To do so, you spend 1 sorcery point and choose a number of those creatures up to your Charisma modifier (minimum of one creature). A chosen creature automatically succeeds on its saving throw against the spell."
+				},
+				{
+					"label": "Distant Spell",
+					"body": "When you cast a spell that has a range of 5 feet or greater, you can spend 1 sorcery point to double the range of the spell.\n\nWhen you cast a spell that has a range of touch, you can spend 1 sorcery point to make the range of the spell 30 feet."
+				},
+				{
+					"label": "Empowered Spell",
+					"body": "When you roll damage for a spell, you can spend 1 sorcery point to reroll a number of the damage dice up to your Charisma modifier (minimum of one). You must use the new rolls.\n\nYou can use Empowered Spell even if you have already used a different Metamagic option during the casting of the spell."
+				},
+				{
+					"label": "Extended Spell",
+					"body": "When you cast a spell that has a duration of 1 minute or longer, you can spend 1 sorcery point to double its duration, to a maximum duration of 24 hours."
+				},
+				{
+					"label": "Heightened Spell",
+					"body": "When you cast a spell that forces a creature to make a saving throw to resist its effects, you can spend 3 sorcery points to give one target of the spell disadvantage on its first saving throw made against the spell."
+				},
+				{
+					"label": "Quickened Spell",
+					"body": "When you cast a spell that has a casting time of 1 action, you can spend 2 sorcery points to change the casting time to 1 bonus action for this casting."
+				},
+				{
+					"label": "Subtle Spell",
+					"body": "When you cast a spell, you can spend 1 sorcery point to cast it without any somatic or verbal components."
+				},
+				{
+					"label": "Twinned Spell",
+					"body": "When you cast a spell that targets only one creature and doesn't have a range of self, you can spend a number of sorcery points equal to the spell's level to target a second creature in range with the same spell (1 sorcery point if the spell is a cantrip).\n\nTo be eligible, a spell must be incapable of targeting more than one creature at the spell's current level. For example, *magic missile* and *scorching ray* aren't eligible, but *ray of frost* and *chromatic orb* are."
+				}
+			]
 		},
 		{
 			"name": "Ability Score Improvement",
@@ -439,7 +473,49 @@
 				1
 			],
 			"subclass": "Draconic Bloodline",
-			"body": "At 1st level, you choose one type of dragon as your ancestor. The damage type associated with each dragon is used by features you gain later.\n\n**Table- Draconic Ancestry**\n\n| Dragon | Damage Type |\n|--------|-------------|\n| Black  | Acid        |\n| Blue   | Lightning   |\n| Brass  | Fire        |\n| Bronze | Lightning   |\n| Copper | Acid        |\n| Gold   | Fire        |\n| Green  | Poison      |\n| Red    | Fire        |\n| Silver | Cold        |\n| White  | Cold        |\n|        |             |\n\nYou can speak, read, and write Draconic. Additionally, whenever you make a Charisma check when interacting with dragons, your proficiency bonus is doubled if it applies to the check."
+			"body": "At 1st level, you choose one type of dragon as your ancestor. The damage type associated with each dragon is used by features you gain later.\n\n**Table- Draconic Ancestry**\n\nYou can speak, read, and write Draconic. Additionally, whenever you make a Charisma check when interacting with dragons, your proficiency bonus is doubled if it applies to the check.",
+			"options": [
+				{
+					"label": "Black",
+					"body": "**Damage Type:** Acid"
+				},
+				{
+					"label": "Blue",
+					"body": "**Damage Type:** Lightning"
+				},
+				{
+					"label": "Brass",
+					"body": "**Damage Type:** Fire"
+				},
+				{
+					"label": "Bronze",
+					"body": "**Damage Type:** Lightning"
+				},
+				{
+					"label": "Copper",
+					"body": "**Damage Type:** Acid"
+				},
+				{
+					"label": "Gold",
+					"body": "**Damage Type:** Fire"
+				},
+				{
+					"label": "Green",
+					"body": "**Damage Type:** Poison"
+				},
+				{
+					"label": "Red",
+					"body": "**Damage Type:** Fire"
+				},
+				{
+					"label": "Silver",
+					"body": "**Damage Type:** Cold"
+				},
+				{
+					"label": "White",
+					"body": "**Damage Type:** Cold"
+				}
+			]
 		},
 		{
 			"name": "Draconic Resilience",

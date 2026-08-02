@@ -12,6 +12,12 @@ export type ClassFeature = {
 	subclass: string | null
 	/** Markdown limited to what splitBlocks/renderInline handle: paragraphs, "- " lists, GFM tables. */
 	body: string
+	/**
+	 * Present when the feature is a choice rather than a fixed benefit — a Fighting Style, a Pact
+	 * Boon, which land your circle spells come from, which dragon your bloodline descends from. The
+	 * `body` above is then just the intro that governs the list.
+	 */
+	options?: { label: string; body: string }[]
 }
 
 export type ClassData = {

@@ -133,6 +133,72 @@ test('the 2024 HTML tables survived conversion to pipe tables', () => {
 	}
 })
 
+// Selectable features. The detector is a heuristic over prose, so both what it catches and what it
+// deliberately does not are pinned here.
+test('features that are a choice carry their options', () => {
+	const opts = (v: '2024' | '2014', slug: string, name: string) =>
+		load(v, slug).features.find((f) => f.name === name)?.options?.map((o) => o.label)
+
+	expect(opts('2014', 'fighter', 'Fighting Style')).toEqual([
+		'Archery',
+		'Defense',
+		'Dueling',
+		'Great Weapon Fighting',
+		'Protection',
+		'Two-Weapon Fighting'
+	])
+	expect(opts('2014', 'warlock', 'Pact Boon')).toEqual([
+		'Pact of the Chain',
+		'Pact of the Blade',
+		'Pact of the Tome'
+	])
+	// A table whose rows are the choice, not sub-headed prose.
+	expect(opts('2014', 'sorcerer', 'Dragon Ancestor')).toEqual([
+		'Black', 'Blue', 'Brass', 'Bronze', 'Copper', 'Gold', 'Green', 'Red', 'Silver', 'White'
+	])
+	expect(opts('2024', 'druid', 'Circle of the Land Spells')).toEqual([
+		'Arid Land', 'Polar Land', 'Temperate Land', 'Tropical Land'
+	])
+	expect(opts('2014', 'druid', 'Circle Spells')).toHaveLength(7)
+	// 2024 parks these in their own "### X Options" section further down the class; without pulling
+	// them back onto the feature they are dropped from the page entirely.
+	expect(opts('2024', 'sorcerer', 'Metamagic')?.length).toBeGreaterThan(5)
+	expect(opts('2024', 'warlock', 'Eldritch Invocations')?.length).toBeGreaterThan(20)
+	// 2014 repeats the heading instead; the catalogue belongs to the level-2 feature, not to the
+	// level-20 capstone that happens to precede it in the file.
+	const warlock2014 = load('2014', 'warlock')
+	expect(warlock2014.features.find((f) => f.name === 'Eldritch Invocations')?.levels).toEqual([2])
+	expect(warlock2014.features.find((f) => f.name === 'Eldritch Master')?.options).toBeUndefined()
+})
+
+test('features that merely contain sub-sections are not turned into pickers', () => {
+	const noOptions = (v: '2024' | '2014', slug: string, name: string) =>
+		expect(load(v, slug).features.find((f) => f.name === name)?.options, `${v}/${slug} ${name}`)
+			.toBeUndefined()
+	// All of these have two or more bold sub-blocks but you get every one of them.
+	noOptions('2014', 'bard', 'Spellcasting')
+	noOptions('2014', 'monk', 'Ki')
+	noOptions('2014', 'sorcerer', 'Font of Magic')
+	// "Now you choose the Oath of Devotion…" — but its sub-blocks are Oath Spells and Channel
+	// Divinity, which are not the things being chosen between.
+	noOptions('2014', 'paladin', 'Sacred Oath')
+})
+
+test('every option has a label and a body', () => {
+	for (const c of ALL) {
+		for (const f of c.features) {
+			if (!f.options) continue
+			expect(f.options.length, `${c.version}/${c.slug} ${f.name}`).toBeGreaterThan(1)
+			const labels = f.options.map((o) => o.label)
+			expect(new Set(labels).size, `${c.version}/${c.slug} ${f.name} duplicate labels`).toBe(labels.length)
+			for (const o of f.options) {
+				expect(o.label.trim(), `${c.version}/${c.slug} ${f.name}`).not.toBe('')
+				expect(o.body.trim(), `${c.version}/${c.slug} ${f.name} :: ${o.label}`).not.toBe('')
+			}
+		}
+	}
+})
+
 test('splitBlocks separates paragraphs, bullets and tables', () => {
 	const blocks = splitBlocks(
 		'Intro line.\n\n- first\n- second\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\nTrailing.'

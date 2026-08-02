@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
-	import type { ClassData, ClassVersion } from '$lib/types/dndClass'
+	import type { ClassData, ClassFeature, ClassVersion } from '$lib/types/dndClass'
 	import { CLASS_SLUGS, CLASS_NAMES, VERSIONS } from '$lib/types/dndClass'
 	import { renderInline, splitBlocks } from '$lib/utils/markdown'
 	import { scrollGroups } from '$lib/utils/scrollGroups'
@@ -9,10 +9,13 @@
 
 	const LS_KEY = 'dnd-class-ref'
 
-	let version = $state<ClassVersion>('2024')
+	let version = $state<ClassVersion>('2014')
 	let slug = $state<string>('barbarian')
 	// Level is remembered per class, not globally — you have one character per class, not one level.
 	let levels = $state<Record<string, number>>({})
+	// Which option you took for each selectable feature, keyed "<version>/<slug>/<feature>" so a
+	// 2014 Fighter's Fighting Style and a 2014 Ranger's don't share one answer.
+	let picks = $state<Record<string, string>>({})
 	let initialized = $state(false)
 
 	let data = $state<ClassData | null>(null)
@@ -29,6 +32,22 @@
 
 	function setLevel(next: number) {
 		levels = { ...levels, [slug]: Math.min(20, Math.max(1, next)) }
+	}
+
+	const pickKey = (feature: ClassFeature) => `${version}/${slug}/${feature.name}`
+
+	/** The chosen option, or null for "show them all" — which is the default, so nothing starts hidden. */
+	function chosen(feature: ClassFeature) {
+		const label = picks[pickKey(feature)]
+		return feature.options?.find((o) => o.label === label) ?? null
+	}
+
+	function setPick(feature: ClassFeature, label: string) {
+		const next = { ...picks }
+		// Empty label = "show all", which is the absence of a pick rather than a pick of its own.
+		if (label) next[pickKey(feature)] = label
+		else delete next[pickKey(feature)]
+		picks = next
 	}
 
 	$effect(() => {
@@ -65,6 +84,13 @@
 					}
 				}
 			}
+			// Picks are validated lazily instead: an option label from an older SRD refresh simply
+			// won't match, and `chosen()` falls back to showing every option rather than nothing.
+			if (saved.picks && typeof saved.picks === 'object') {
+				for (const [k, v] of Object.entries(saved.picks)) {
+					if (typeof v === 'string') picks[k] = v
+				}
+			}
 		} catch {
 			// keep defaults
 		}
@@ -73,7 +99,7 @@
 
 	$effect(() => {
 		if (!initialized) return
-		localStorage.setItem(LS_KEY, JSON.stringify({ version, slug, levels }))
+		localStorage.setItem(LS_KEY, JSON.stringify({ version, slug, levels, picks }))
 	})
 
 	const classActions = $derived(
@@ -248,7 +274,35 @@
 							</span>
 						{/if}
 					</summary>
-					<div class="px-2 pb-2">{@render blocks(feature.body)}</div>
+					<div class="px-2 pb-2">
+						{@render blocks(feature.body)}
+
+						{#if feature.options}
+							{@const pick = chosen(feature)}
+							<label class="mt-2 flex items-center gap-2">
+								<span class="sr-only">Choose your {feature.name}</span>
+								<select
+									class="select select-xs w-full bg-white border-teal/30"
+									value={pick?.label ?? ''}
+									onchange={(e) => setPick(feature, e.currentTarget.value)}
+								>
+									<option value="">Show all {feature.options.length} options</option>
+									{#each feature.options as o}
+										<option value={o.label}>{o.label}</option>
+									{/each}
+								</select>
+							</label>
+
+							<div class="mt-2 flex flex-col gap-2">
+								{#each pick ? [pick] : feature.options as o (o.label)}
+									<div class="rounded border border-teal/15 bg-white/60 px-2 py-1.5">
+										<p class="text-xs font-bold uppercase tracking-wide opacity-60">{o.label}</p>
+										{@render blocks(o.body)}
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</div>
 				</details>
 			{/each}
 

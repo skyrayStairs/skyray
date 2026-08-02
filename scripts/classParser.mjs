@@ -277,6 +277,74 @@ function withSubheadings(secs, i, depth) {
 	return body.trim()
 }
 
+// ---------------------------------------------------------------- selectable options
+
+/**
+ * Does this feature's intro promise that a list follows and you pick from it?
+ *
+ * The bar is deliberately "the choice is in the text below", not merely the word "choose". Paladin's
+ * Sacred Oath says "Now you choose the Oath of Devotion…" but its two sub-blocks are Oath Spells and
+ * Channel Divinity — things you get, not things you pick between. Every real option list in either
+ * corpus points forward: "one of the following", "the table below", "consult the associated list".
+ */
+const CHOOSES_FROM_LIST = /\bthe following\b|\bbelow\b|\bassociated list\b/i
+
+const BOLD_LINE = /^\*\*(.+?)\*\*$/gm
+
+/**
+ * Split "intro, then N bold-headed blocks" into an intro and a list of options — Fighter's Fighting
+ * Style, Warlock's Pact Boon, Sorcerer's Metamagic, both Druids' circle-spell tables. Returns null
+ * when the shape or the intro doesn't qualify, so the feature is left as ordinary prose.
+ */
+export function inlineOptions(body) {
+	const marks = [...body.matchAll(BOLD_LINE)]
+	if (marks.length < 2) return null
+	const intro = body.slice(0, marks[0].index)
+	if (!CHOOSES_FROM_LIST.test(intro)) return null
+
+	const options = marks.map((m, i) => ({
+		// "Table- Arctic Circle Spells" is a caption, not a name; the caption prefix is noise.
+		label: m[1].replace(/^Table\s*[-–—:]\s*/i, '').trim(),
+		body: body.slice(m.index + m[0].length, i + 1 < marks.length ? marks[i + 1].index : body.length).trim()
+	}))
+	return { intro: intro.trim(), options }
+}
+
+/**
+ * A feature whose single table *is* the choice: 2014 Sorcerer's Draconic Ancestry, where each row is
+ * a dragon and its damage type. The only instance in either corpus, hence the narrow trigger.
+ */
+export function tableRowOptions(body) {
+	if (!/\bchoose one type of\b/i.test(body)) return null
+	const lines = body.split('\n')
+	let start = -1
+	for (let i = 0; i < lines.length - 1; i++) {
+		if (PIPE_ROW.test(lines[i]) && PIPE_SEP.test(lines[i + 1])) {
+			start = i
+			break
+		}
+	}
+	if (start < 0) return null
+	const head = splitCells(lines[start])
+	const rows = []
+	let end = start + 2
+	for (; end < lines.length && PIPE_ROW.test(lines[end]); end++) {
+		const cells = splitCells(lines[end])
+		if (cells.some((c) => c !== '') && cells[0]) rows.push(cells)
+	}
+	if (rows.length < 2) return null
+
+	const intro = [...lines.slice(0, start), ...lines.slice(end)].join('\n').replace(/\n{3,}/g, '\n\n').trim()
+	const options = rows.map((r) => ({
+		label: r[0],
+		body: head
+			.slice(1)
+			.map((h, i) => `**${h}:** ${r[i + 1] ?? ''}`)
+			.join('\n')
+	}))
+	return { intro, options }
+}
+
 function addFeature(features, name, levels, subclass, body) {
 	const existing = features.find((f) => f.name === name && f.subclass === subclass)
 	if (existing) {
@@ -288,6 +356,27 @@ function addFeature(features, name, levels, subclass, body) {
 	const f = { name, levels: [...levels].sort((a, b) => a - b), subclass, body }
 	features.push(f)
 	return f
+}
+
+/**
+ * Last pass over a finished class: lift any inline option list out of each feature's body into a
+ * structured `options` array the page can render as a picker. Returns what it found so the build
+ * can print it — the detector is a heuristic over prose, so every hit is worth a human glance.
+ */
+function extractOptions(features) {
+	const found = []
+	for (const f of features) {
+		if (f.options) {
+			found.push({ feature: f.name, count: f.options.length, via: 'section' })
+			continue
+		}
+		const hit = inlineOptions(f.body) ?? tableRowOptions(f.body)
+		if (!hit) continue
+		f.body = hit.intro
+		f.options = hit.options
+		found.push({ feature: f.name, count: hit.options.length, via: 'inline' })
+	}
+	return found
 }
 
 // ---------------------------------------------------------------- 2024
@@ -324,6 +413,23 @@ export function parseClass2024(sectionMd, className) {
 			continue
 		}
 
+		// "### Metamagic Options" / "### Eldritch Invocation Options" — 2024 parks the choices for a
+		// feature in their own section further down the class ("…later in this class's description"),
+		// so they have to be pulled back onto the feature they belong to or they vanish entirely.
+		const opt = s.title.match(/^(.+?) Options$/)
+		if (opt) {
+			const target = features.find((f) => normalizeName(f.name) === normalizeName(opt[1]))
+				// "Eldritch Invocation Options" belongs to the feature "Eldritch Invocations".
+				?? features.find((f) => depluralize(normalizeName(f.name)) === depluralize(normalizeName(opt[1])))
+			if (target) {
+				target.options = []
+				for (let j = i + 1; j < secs.length && secs[j].depth > 3; j++) {
+					if (secs[j].depth === 4) target.options.push({ label: secs[j].title, body: secs[j].body })
+				}
+			}
+			continue
+		}
+
 		// "### Barbarian Subclass: Path of the Berserker"
 		const sub = s.title.match(new RegExp(`^${className} Subclass:\\s*(.+)$`))
 		if (sub) {
@@ -343,6 +449,7 @@ export function parseClass2024(sectionMd, className) {
 	// Headings give the level the feature first appears; the table gives every level it recurs at.
 	const base = features.filter((f) => f.subclass === null)
 	const { resolution, unresolvedTableNames } = joinProgression(base, progression)
+	const optionGroups = extractOptions(features)
 
 	return {
 		data: {
@@ -355,6 +462,7 @@ export function parseClass2024(sectionMd, className) {
 			features
 		},
 		resolution,
+		optionGroups,
 		folded: [],
 		fallbacks: [],
 		unresolvedTableNames
@@ -438,6 +546,23 @@ export function parseClass2014(md, className) {
 			last = h
 			continue
 		}
+		// A repeated heading is 2014's equivalent of 2024's "### X Options" section: Warlock lists
+		// "### Eldritch Invocations" twice, once as the level-2 feature and once as the catalogue of
+		// all 33 invocations. Those belong to the feature of the same name, not to whichever heading
+		// happened to precede the catalogue (which was the level-20 capstone).
+		const twin = features.find((f) => normalizeName(f.name) === normalizeName(h.name))
+		if (twin) {
+			const marks = [...h.body.matchAll(BOLD_LINE)]
+			if (marks.length >= 2) {
+				twin.options = marks.map((m, i) => ({
+					label: m[1].trim(),
+					body: h.body
+						.slice(m.index + m[0].length, i + 1 < marks.length ? marks[i + 1].index : h.body.length)
+						.trim()
+				}))
+				continue
+			}
+		}
 		if (last) {
 			last.body += `\n\n**${h.name}**\n\n${h.body}`
 			folded.push(h.name)
@@ -479,6 +604,8 @@ export function parseClass2014(md, className) {
 		addFeature(features, f.name, [f.level ?? chosenAt], subclassName, f.body)
 	}
 
+	const optionGroups = extractOptions(features)
+
 	return {
 		data: {
 			name: className,
@@ -490,6 +617,7 @@ export function parseClass2014(md, className) {
 			features
 		},
 		resolution,
+		optionGroups,
 		folded,
 		fallbacks,
 		unmatched,

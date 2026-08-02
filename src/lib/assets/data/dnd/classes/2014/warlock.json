@@ -254,7 +254,137 @@
 				2
 			],
 			"subclass": null,
-			"body": "In your study of occult lore, you have unearthed eldritch invocations, fragments of forbidden knowledge that imbue you with an abiding magical ability.\n\nAt 2nd level, you gain two eldritch invocations of your choice. Your invocation options are detailed at the end of the class description. When you gain certain warlock levels, you gain additional invocations of your choice, as shown in the Invocations Known column of the Warlock table.\n\nAdditionally, when you gain a level in this class, you can choose one of the invocations you know and replace it with another invocation that you could learn at that level."
+			"body": "In your study of occult lore, you have unearthed eldritch invocations, fragments of forbidden knowledge that imbue you with an abiding magical ability.\n\nAt 2nd level, you gain two eldritch invocations of your choice. Your invocation options are detailed at the end of the class description. When you gain certain warlock levels, you gain additional invocations of your choice, as shown in the Invocations Known column of the Warlock table.\n\nAdditionally, when you gain a level in this class, you can choose one of the invocations you know and replace it with another invocation that you could learn at that level.",
+			"options": [
+				{
+					"label": "Agonizing Blast",
+					"body": "*Prerequisite: Eldritch Blast cantrip*\n\nWhen you cast *eldritch blast*, add your Charisma modifier to the damage it deals on a hit."
+				},
+				{
+					"label": "Armor of Shadows",
+					"body": "You can cast *mage armor* on yourself at will, without expending a spell slot or material components."
+				},
+				{
+					"label": "Ascendant Step",
+					"body": "*Prerequisite: 9th level*\n\nYou can cast *levitate* on yourself at will, without expending a spell slot or material components."
+				},
+				{
+					"label": "Beast Speech",
+					"body": "You can cast *speak with animals* at will, without expending a spell slot."
+				},
+				{
+					"label": "Beguiling Influence",
+					"body": "You gain proficiency in the Deception and Persuasion skills."
+				},
+				{
+					"label": "Bewitching Whispers",
+					"body": "*Prerequisite: 7th level*\n\nYou can cast *compulsion* once using a warlock spell slot. You can't do so again until you finish a long rest."
+				},
+				{
+					"label": "Book of Ancient Secrets",
+					"body": "*Prerequisite: Pact of the Tome feature*\n\nYou can now inscribe magical rituals in your Book of Shadows. Choose two 1st-level spells that have the ritual tag from any class's spell list (the two needn't be from the same list). The spells appear in the book and don't count against the number of spells you know. With your Book of Shadows in hand, you can cast the chosen spells as rituals. You can't cast the spells except as rituals, unless you've learned them by some other means. You can also cast a warlock spell you know as a ritual if it has the ritual tag.\n\nOn your adventures, you can add other ritual spells to your Book of Shadows. When you find such a spell, you can add it to the book if the spell's level is equal to or less than half your warlock level (rounded up) and if you can spare the time to transcribe the spell. For each level of the spell, the transcription process takes 2 hours and costs 50 gp for the rare inks needed to inscribe it."
+				},
+				{
+					"label": "Chains of Carceri",
+					"body": "*Prerequisite: 15th level, Pact of the Chain feature*\n\nYou can cast *hold monster* at will-targeting a celestial, fiend, or elemental-without expending a spell slot or material components. You must finish a long rest before you can use this invocation on the same creature again."
+				},
+				{
+					"label": "Devil's Sight",
+					"body": "You can see normally in darkness, both magical and nonmagical, to a distance of 120 feet."
+				},
+				{
+					"label": "Dreadful Word",
+					"body": "*Prerequisite: 7th level*\n\nYou can cast *confusion* once using a warlock spell slot. You can't do so again until you finish a long rest."
+				},
+				{
+					"label": "Eldritch Sight",
+					"body": "You can cast *detect magic* at will, without expending a spell slot."
+				},
+				{
+					"label": "Eldritch Spear",
+					"body": "*Prerequisite: Eldritch Blast cantrip*\n\nWhen you cast *eldritch blast*, its range is 300 feet."
+				},
+				{
+					"label": "Eyes of the Rune Keeper",
+					"body": "You can read all writing."
+				},
+				{
+					"label": "Fiendish Vigor",
+					"body": "You can cast *false life* on yourself at will as a 1st-level spell, without expending a spell slot or material components."
+				},
+				{
+					"label": "Gaze of Two Minds",
+					"body": "You can use your action to touch a willing humanoid and perceive through its senses until the end of your next turn. As long as the creature is on the same plane of existence as you, you can use your action on subsequent turns to maintain this connection, extending the duration until the end of your next turn. While perceiving through the other creature's senses, you benefit from any special senses possessed by that creature, and you are blinded and deafened to your own surroundings."
+				},
+				{
+					"label": "Lifedrinker",
+					"body": "*Prerequisite: 12th level, Pact of the Blade feature*\n\nWhen you hit a creature with your pact weapon, the creature takes extra necrotic damage equal to your Charisma modifier (minimum 1)."
+				},
+				{
+					"label": "Mask of Many Faces",
+					"body": "You can cast *disguise self* at will, without expending a spell slot."
+				},
+				{
+					"label": "Master of Myriad Forms",
+					"body": "*Prerequisite: 15th level*\n\nYou can cast *alter self* at will, without expending a spell slot."
+				},
+				{
+					"label": "Minions of Chaos",
+					"body": "*Prerequisite: 9th level*\n\nYou can cast *conjure elemental* once using a warlock spell slot. You can't do so again until you finish a long rest."
+				},
+				{
+					"label": "Mire the Mind",
+					"body": "*Prerequisite: 5th level*\n\nYou can cast *slow* once using a warlock spell slot. You can't do so again until you finish a long rest."
+				},
+				{
+					"label": "Misty Visions",
+					"body": "You can cast *silent image* at will, without expending a spell slot or material components."
+				},
+				{
+					"label": "One with Shadows",
+					"body": "*Prerequisite: 5th level*\n\nWhen you are in an area of dim light or darkness, you can use your action to become invisible until you move or take an action or a reaction."
+				},
+				{
+					"label": "Otherworldly Leap",
+					"body": "*Prerequisite: 9th level*\n\nYou can cast *jump* on yourself at will, without expending a spell slot or material components."
+				},
+				{
+					"label": "Repelling Blast",
+					"body": "*Prerequisite: Eldritch Blast cantrip*\n\nWhen you hit a creature with *eldritch blast*, you can push the creature up to 10 feet away from you in a straight line."
+				},
+				{
+					"label": "Sculptor of Flesh",
+					"body": "*Prerequisite: 7th level*\n\nYou can cast *polymorph* once using a warlock spell slot. You can't do so again until you finish a long rest."
+				},
+				{
+					"label": "Sign of Ill Omen",
+					"body": "*Prerequisite: 5th level*\n\nYou can cast *bestow curse* once using a warlock spell slot. You can't do so again until you finish a long rest."
+				},
+				{
+					"label": "Thief of Five Fates",
+					"body": "You can cast *bane* once using a warlock spell slot. You can't do so again until you finish a long rest."
+				},
+				{
+					"label": "Thirsting Blade",
+					"body": "*Prerequisite: 5th level, Pact of the Blade feature*\n\nYou can attack with your pact weapon twice, instead of once, whenever you take the Attack action on your turn."
+				},
+				{
+					"label": "Visions of Distant Realms",
+					"body": "*Prerequisite: 15th level*\n\nYou can cast *arcane eye* at will, without expending a spell slot."
+				},
+				{
+					"label": "Voice of the Chain Master",
+					"body": "*Prerequisite: Pact of the Chain feature*\n\nYou can communicate telepathically with your familiar and perceive through your familiar's senses as long as you are on the same plane of existence. Additionally, while perceiving through your familiar's senses, you can also speak through your familiar in your own voice, even if your familiar is normally incapable of speech."
+				},
+				{
+					"label": "Whispers of the Grave",
+					"body": "*Prerequisite: 9th level*\n\nYou can cast *speak with dead* at will, without expending a spell slot."
+				},
+				{
+					"label": "Witch Sight",
+					"body": "*Prerequisite: 15th level*\n\nYou can see the true form of any shapechanger or creature concealed by illusion or transmutation magic while the creature is within 30 feet of you and within line of sight."
+				}
+			]
 		},
 		{
 			"name": "Pact Boon",
@@ -262,7 +392,21 @@
 				3
 			],
 			"subclass": null,
-			"body": "At 3rd level, your otherworldly patron bestows a gift upon you for your loyal service. You gain one of the following features of your choice.\n\n**Pact of the Chain**\n\nYou learn the *find familiar* spell and can cast it as a ritual. The spell doesn't count against your number of spells known.\n\nWhen you cast the spell, you can choose one of the normal forms for your familiar or one of the following special forms: imp, pseudodragon, quasit, or sprite.\n\nAdditionally, when you take the Attack action, you can forgo one of your own attacks to allow your familiar to make one attack with its reaction.\n\n**Pact of the Blade**\n\nYou can use your action to create a pact weapon in your empty hand. You can choose the form that this melee weapon takes each time you create it. You are proficient with it while you wield it. This weapon counts as magical for the purpose of overcoming resistance and immunity to nonmagical attacks and damage.\n\nYour pact weapon disappears if it is more than 5 feet away from you for 1 minute or more. It also disappears if you use this feature again, if you dismiss the weapon (no action required), or if you die.\n\nYou can transform one magic weapon into your pact weapon by performing a special ritual while you hold the weapon. You perform the ritual over the course of 1 hour, which can be done during a short rest. You can then dismiss the weapon, shunting it into an extradimensional space, and it appears whenever you create your pact weapon thereafter. You can't affect an artifact or a sentient weapon in this way. The weapon ceases being your pact weapon if you die, if you perform the 1-hour ritual on a different weapon, or if you use a 1-hour ritual to break your bond to it. The weapon appears at your feet if it is in the extradimensional space when the bond breaks.\n\n**Pact of the Tome**\n\nYour patron gives you a grimoire called a Book of Shadows. When you gain this feature, choose three cantrips from any class's spell list (the three needn't be from the same list). While the book is on your person, you can cast those cantrips at will. They don't count against your number of cantrips known. If they don't appear on the warlock spell list, they are nonetheless warlock spells for you.\n\nIf you lose your Book of Shadows, you can perform a 1-hour ceremony to receive a replacement from your patron. This ceremony can be performed during a short or long rest, and it destroys the previous book. The book turns to ash when you die."
+			"body": "At 3rd level, your otherworldly patron bestows a gift upon you for your loyal service. You gain one of the following features of your choice.",
+			"options": [
+				{
+					"label": "Pact of the Chain",
+					"body": "You learn the *find familiar* spell and can cast it as a ritual. The spell doesn't count against your number of spells known.\n\nWhen you cast the spell, you can choose one of the normal forms for your familiar or one of the following special forms: imp, pseudodragon, quasit, or sprite.\n\nAdditionally, when you take the Attack action, you can forgo one of your own attacks to allow your familiar to make one attack with its reaction."
+				},
+				{
+					"label": "Pact of the Blade",
+					"body": "You can use your action to create a pact weapon in your empty hand. You can choose the form that this melee weapon takes each time you create it. You are proficient with it while you wield it. This weapon counts as magical for the purpose of overcoming resistance and immunity to nonmagical attacks and damage.\n\nYour pact weapon disappears if it is more than 5 feet away from you for 1 minute or more. It also disappears if you use this feature again, if you dismiss the weapon (no action required), or if you die.\n\nYou can transform one magic weapon into your pact weapon by performing a special ritual while you hold the weapon. You perform the ritual over the course of 1 hour, which can be done during a short rest. You can then dismiss the weapon, shunting it into an extradimensional space, and it appears whenever you create your pact weapon thereafter. You can't affect an artifact or a sentient weapon in this way. The weapon ceases being your pact weapon if you die, if you perform the 1-hour ritual on a different weapon, or if you use a 1-hour ritual to break your bond to it. The weapon appears at your feet if it is in the extradimensional space when the bond breaks."
+				},
+				{
+					"label": "Pact of the Tome",
+					"body": "Your patron gives you a grimoire called a Book of Shadows. When you gain this feature, choose three cantrips from any class's spell list (the three needn't be from the same list). While the book is on your person, you can cast those cantrips at will. They don't count against your number of cantrips known. If they don't appear on the warlock spell list, they are nonetheless warlock spells for you.\n\nIf you lose your Book of Shadows, you can perform a 1-hour ceremony to receive a replacement from your patron. This ceremony can be performed during a short or long rest, and it destroys the previous book. The book turns to ash when you die."
+				}
+			]
 		},
 		{
 			"name": "Ability Score Improvement",
@@ -293,7 +437,7 @@
 				20
 			],
 			"subclass": null,
-			"body": "At 20th level, you can draw on your inner reserve of mystical power while entreating your patron to regain expended spell slots. You can spend 1 minute entreating your patron for aid to regain all your expended spell slots from your Pact Magic feature. Once you regain spell slots with this feature, you must finish a long rest before you can do so again.\n\n**Eldritch Invocations**\n\nIf an eldritch invocation has prerequisites, you must meet them to learn it. You can learn the invocation at the same time that you meet its prerequisites. A level prerequisite refers to your level in this class.\n\n**Agonizing Blast**\n\n*Prerequisite: Eldritch Blast cantrip*\n\nWhen you cast *eldritch blast*, add your Charisma modifier to the damage it deals on a hit.\n\n**Armor of Shadows**\n\nYou can cast *mage armor* on yourself at will, without expending a spell slot or material components.\n\n**Ascendant Step**\n\n*Prerequisite: 9th level*\n\nYou can cast *levitate* on yourself at will, without expending a spell slot or material components.\n\n**Beast Speech**\n\nYou can cast *speak with animals* at will, without expending a spell slot.\n\n**Beguiling Influence**\n\nYou gain proficiency in the Deception and Persuasion skills.\n\n**Bewitching Whispers**\n\n*Prerequisite: 7th level*\n\nYou can cast *compulsion* once using a warlock spell slot. You can't do so again until you finish a long rest.\n\n**Book of Ancient Secrets**\n\n*Prerequisite: Pact of the Tome feature*\n\nYou can now inscribe magical rituals in your Book of Shadows. Choose two 1st-level spells that have the ritual tag from any class's spell list (the two needn't be from the same list). The spells appear in the book and don't count against the number of spells you know. With your Book of Shadows in hand, you can cast the chosen spells as rituals. You can't cast the spells except as rituals, unless you've learned them by some other means. You can also cast a warlock spell you know as a ritual if it has the ritual tag.\n\nOn your adventures, you can add other ritual spells to your Book of Shadows. When you find such a spell, you can add it to the book if the spell's level is equal to or less than half your warlock level (rounded up) and if you can spare the time to transcribe the spell. For each level of the spell, the transcription process takes 2 hours and costs 50 gp for the rare inks needed to inscribe it.\n\n**Chains of Carceri**\n\n*Prerequisite: 15th level, Pact of the Chain feature*\n\nYou can cast *hold monster* at will-targeting a celestial, fiend, or elemental-without expending a spell slot or material components. You must finish a long rest before you can use this invocation on the same creature again.\n\n**Devil's Sight**\n\nYou can see normally in darkness, both magical and nonmagical, to a distance of 120 feet.\n\n**Dreadful Word**\n\n*Prerequisite: 7th level*\n\nYou can cast *confusion* once using a warlock spell slot. You can't do so again until you finish a long rest.\n\n**Eldritch Sight**\n\nYou can cast *detect magic* at will, without expending a spell slot.\n\n**Eldritch Spear**\n\n*Prerequisite: Eldritch Blast cantrip*\n\nWhen you cast *eldritch blast*, its range is 300 feet.\n\n**Eyes of the Rune Keeper**\n\nYou can read all writing.\n\n**Fiendish Vigor**\n\nYou can cast *false life* on yourself at will as a 1st-level spell, without expending a spell slot or material components.\n\n**Gaze of Two Minds**\n\nYou can use your action to touch a willing humanoid and perceive through its senses until the end of your next turn. As long as the creature is on the same plane of existence as you, you can use your action on subsequent turns to maintain this connection, extending the duration until the end of your next turn. While perceiving through the other creature's senses, you benefit from any special senses possessed by that creature, and you are blinded and deafened to your own surroundings.\n\n**Lifedrinker**\n\n*Prerequisite: 12th level, Pact of the Blade feature*\n\nWhen you hit a creature with your pact weapon, the creature takes extra necrotic damage equal to your Charisma modifier (minimum 1).\n\n**Mask of Many Faces**\n\nYou can cast *disguise self* at will, without expending a spell slot.\n\n**Master of Myriad Forms**\n\n*Prerequisite: 15th level*\n\nYou can cast *alter self* at will, without expending a spell slot.\n\n**Minions of Chaos**\n\n*Prerequisite: 9th level*\n\nYou can cast *conjure elemental* once using a warlock spell slot. You can't do so again until you finish a long rest.\n\n**Mire the Mind**\n\n*Prerequisite: 5th level*\n\nYou can cast *slow* once using a warlock spell slot. You can't do so again until you finish a long rest.\n\n**Misty Visions**\n\nYou can cast *silent image* at will, without expending a spell slot or material components.\n\n**One with Shadows**\n\n*Prerequisite: 5th level*\n\nWhen you are in an area of dim light or darkness, you can use your action to become invisible until you move or take an action or a reaction.\n\n**Otherworldly Leap**\n\n*Prerequisite: 9th level*\n\nYou can cast *jump* on yourself at will, without expending a spell slot or material components.\n\n**Repelling Blast**\n\n*Prerequisite: Eldritch Blast cantrip*\n\nWhen you hit a creature with *eldritch blast*, you can push the creature up to 10 feet away from you in a straight line.\n\n**Sculptor of Flesh**\n\n*Prerequisite: 7th level*\n\nYou can cast *polymorph* once using a warlock spell slot. You can't do so again until you finish a long rest.\n\n**Sign of Ill Omen**\n\n*Prerequisite: 5th level*\n\nYou can cast *bestow curse* once using a warlock spell slot. You can't do so again until you finish a long rest.\n\n**Thief of Five Fates**\n\nYou can cast *bane* once using a warlock spell slot. You can't do so again until you finish a long rest.\n\n**Thirsting Blade**\n\n*Prerequisite: 5th level, Pact of the Blade feature*\n\nYou can attack with your pact weapon twice, instead of once, whenever you take the Attack action on your turn.\n\n**Visions of Distant Realms**\n\n*Prerequisite: 15th level*\n\nYou can cast *arcane eye* at will, without expending a spell slot.\n\n**Voice of the Chain Master**\n\n*Prerequisite: Pact of the Chain feature*\n\nYou can communicate telepathically with your familiar and perceive through your familiar's senses as long as you are on the same plane of existence. Additionally, while perceiving through your familiar's senses, you can also speak through your familiar in your own voice, even if your familiar is normally incapable of speech.\n\n**Whispers of the Grave**\n\n*Prerequisite: 9th level*\n\nYou can cast *speak with dead* at will, without expending a spell slot.\n\n**Witch Sight**\n\n*Prerequisite: 15th level*\n\nYou can see the true form of any shapechanger or creature concealed by illusion or transmutation magic while the creature is within 30 feet of you and within line of sight."
+			"body": "At 20th level, you can draw on your inner reserve of mystical power while entreating your patron to regain expended spell slots. You can spend 1 minute entreating your patron for aid to regain all your expended spell slots from your Pact Magic feature. Once you regain spell slots with this feature, you must finish a long rest before you can do so again."
 		},
 		{
 			"name": "Expanded Spell List",

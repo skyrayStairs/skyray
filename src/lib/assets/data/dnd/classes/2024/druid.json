@@ -638,7 +638,25 @@
 				3
 			],
 			"subclass": "Circle of the Land",
-			"body": "Whenever you finish a Long Rest, choose one type of land: arid, polar, temperate, or tropical. Consult the table below that corresponds to the chosen type; you have the spells listed for your Druid level and lower prepared.\n\n**Arid Land**\n\n| Druid Level | Circle Spells |\n| --- | --- |\n| 3 | Blur, Burning Hands, Fire Bolt |\n| 5 | Fireball |\n| 7 | Blight |\n| 9 | Wall of Stone |\n\n**Polar Land**\n\n| Druid Level | Circle Spells |\n| --- | --- |\n| 3 | Fog Cloud, Hold Person, Ray of Frost |\n| 5 | Sleet Storm |\n| 7 | Ice Storm |\n| 9 | Cone of Cold |\n\n**Temperate Land**\n\n| Druid Level | Circle Spells |\n| --- | --- |\n| 3 | Misty Step, Shocking Grasp, Sleep |\n| 5 | Lightning Bolt |\n| 7 | Freedom of Movement |\n| 9 | Tree Stride |\n\n**Tropical Land**\n\n| Druid Level | Circle Spells |\n| --- | --- |\n| 3 | Acid Splash, Ray of Sickness, Web |\n| 5 | Stinking Cloud |\n| 7 | Polymorph |\n| 9 | Insect Plague |"
+			"body": "Whenever you finish a Long Rest, choose one type of land: arid, polar, temperate, or tropical. Consult the table below that corresponds to the chosen type; you have the spells listed for your Druid level and lower prepared.",
+			"options": [
+				{
+					"label": "Arid Land",
+					"body": "| Druid Level | Circle Spells |\n| --- | --- |\n| 3 | Blur, Burning Hands, Fire Bolt |\n| 5 | Fireball |\n| 7 | Blight |\n| 9 | Wall of Stone |"
+				},
+				{
+					"label": "Polar Land",
+					"body": "| Druid Level | Circle Spells |\n| --- | --- |\n| 3 | Fog Cloud, Hold Person, Ray of Frost |\n| 5 | Sleet Storm |\n| 7 | Ice Storm |\n| 9 | Cone of Cold |"
+				},
+				{
+					"label": "Temperate Land",
+					"body": "| Druid Level | Circle Spells |\n| --- | --- |\n| 3 | Misty Step, Shocking Grasp, Sleep |\n| 5 | Lightning Bolt |\n| 7 | Freedom of Movement |\n| 9 | Tree Stride |"
+				},
+				{
+					"label": "Tropical Land",
+					"body": "| Druid Level | Circle Spells |\n| --- | --- |\n| 3 | Acid Splash, Ray of Sickness, Web |\n| 5 | Stinking Cloud |\n| 7 | Polymorph |\n| 9 | Insect Plague |"
+				}
+			]
 		},
 		{
 			"name": "Land's Aid",
