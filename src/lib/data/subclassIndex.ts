@@ -185,11 +185,40 @@ export const SUBCLASSES_2014: SubclassIndex = {
 		{
 			name: 'Circle of the Moon',
 			features: [
-				f('Combat Wild Shape', 2),
-				f('Circle Forms', 2),
-				f('Primal Strike', 6),
-				f('Elemental Wild Shape', 10),
-				f('Thousand Forms', 14)
+				{
+					name: 'Combat Wild Shape',
+					levels: [2],
+					body: [
+						'Wild Shape as a **bonus action** rather than an action.',
+						'',
+						'While transformed, a **bonus action plus a spell slot** heals you **1d8 per level of the slot**.'
+					].join('\n')
+				},
+				{
+					// The table's "Circle Forms" row is level 2, but the feature explicitly improves at 6.
+					name: 'Circle Forms',
+					levels: [2, 6],
+					body: [
+						'Wild Shape into beasts of **challenge rating 1** or lower — you ignore the Max CR column of the Beast Shapes table but obey its other limits.',
+						'',
+						'From **6th level**, the cap becomes **your druid level divided by 3, rounded down**.'
+					].join('\n')
+				},
+				{
+					name: 'Primal Strike',
+					levels: [6],
+					body: 'Your attacks in beast form count as **magical** for overcoming resistance and immunity to nonmagical attacks and damage.'
+				},
+				{
+					name: 'Elemental Wild Shape',
+					levels: [10],
+					body: 'Spend **two Wild Shape uses at once** to become an **air, earth, fire or water elemental**.'
+				},
+				{
+					name: 'Thousand Forms',
+					levels: [14],
+					body: 'You can cast **Alter Self at will**.'
+				}
 			]
 		}
 	],
@@ -1071,20 +1100,104 @@ export const SUBCLASSES_XGTE: SubclassIndex = {
 		{
 			name: 'Circle of Dreams',
 			features: [
-				f('Balm of the Summer Court', 2),
-				f('Hearth of Moonlight and Shadow', 6),
-				f('Hidden Paths', 10),
-				f('Walker in Dreams', 14)
+				{
+					name: 'Balm of the Summer Court',
+					levels: [2],
+					body: [
+						'A pool of **d6 dice equal to your druid level**.',
+						'',
+						'**Bonus action:** pick an ally you can see within 120 feet and spend up to **half your druid level** in dice. They regain the total rolled, plus **1 temporary hit point per die spent**.',
+						'',
+						'The pool refills on a long rest.'
+					].join('\n')
+				},
+				{
+					name: 'Hearth of Moonlight and Shadow',
+					levels: [6],
+					body: [
+						'At the start of a short or long rest, touch a point to raise an invisible **30-foot-radius sphere** centred there. Total cover blocks it.',
+						'',
+						'Inside it, you and your allies get **+5 to Stealth and Perception**, and light from open flames inside is not visible from outside.',
+						'',
+						'It ends when the rest ends or when you leave.'
+					].join('\n')
+				},
+				{
+					name: 'Hidden Paths',
+					levels: [10],
+					body: [
+						'**Bonus action:** teleport yourself up to **60 feet** to an unoccupied space you can see.',
+						'',
+						'**Action:** teleport one willing creature you touch up to **30 feet** instead.',
+						'',
+						'Uses equal to your **Wisdom modifier** (minimum 1), refilled on a long rest.'
+					].join('\n')
+				},
+				{
+					name: 'Walker in Dreams',
+					levels: [14],
+					body: [
+						'After a short rest, cast one of **Dream** (you as the messenger), **Scrying**, or **Teleportation Circle** free — no slot, no material components.',
+						'',
+						'That Teleportation Circle opens to wherever you last finished a long rest on your current plane. If you have not rested on this plane it fails, but the use is not spent.',
+						'',
+						'Once per long rest.'
+					].join('\n')
+				}
 			]
 		},
 		{
 			name: 'Circle of the Shepherd',
 			features: [
-				f('Speech of the Woods', 2),
-				f('Spirit Totem', 2),
-				f('Mighty Summoner', 6),
-				f('Guardian Spirit', 10),
-				f('Faithful Summons', 14)
+				{
+					name: 'Speech of the Woods',
+					levels: [2],
+					body: 'You speak, read and write **Sylvan**. Beasts understand your speech and you can read their noises and movements — enough for a friendly one to report what it recently saw or heard. It grants no special friendliness on its own.'
+				},
+				{
+					name: 'Spirit Totem',
+					levels: [2],
+					body: [
+						'**Bonus action:** summon an incorporeal spirit at a point you can see within 60 feet. It projects a **30-foot-radius aura** and counts as neither creature nor object. A bonus action moves it up to 60 feet.',
+						'',
+						'Lasts **1 minute**, once per short or long rest. Choose the spirit when you summon it.'
+					].join('\n'),
+					options: [
+						{
+							label: 'Bear Spirit',
+							body: 'Creatures of your choice in the aura when it appears gain **temporary hit points equal to 5 + your druid level**. You and your allies have **advantage on Strength checks and Strength saving throws** while in it.'
+						},
+						{
+							label: 'Hawk Spirit',
+							body: 'When a creature makes an attack roll against a target in the aura, you can use your **reaction to give that attack advantage**. You and your allies have **advantage on Perception checks** while in it.'
+						},
+						{
+							label: 'Unicorn Spirit',
+							body: 'You and your allies have **advantage on ability checks to detect creatures** in the aura. When you spend a spell slot to restore hit points to any creature, each creature of your choice in the aura **also regains hit points equal to your druid level**.'
+						}
+					]
+				},
+				{
+					name: 'Mighty Summoner',
+					levels: [6],
+					body: 'Any beast or fey you summon or create with a spell gets **2 extra hit points per Hit Die**, and its natural weapons count as **magical**.'
+				},
+				{
+					name: 'Guardian Spirit',
+					levels: [10],
+					body: 'A beast or fey you summoned or created regains **half your druid level in hit points** when it ends its turn inside your Spirit Totem aura.'
+				},
+				{
+					name: 'Faithful Summons',
+					levels: [14],
+					body: [
+						'When you drop to **0 hit points** or are incapacitated against your will, you immediately gain the benefit of **Conjure Animals as if cast with a 9th-level slot** — four beasts of **CR 2 or lower**, appearing within 20 feet.',
+						'',
+						'They last 1 hour without concentration, or until dismissed, and defend you if given no commands.',
+						'',
+						'Once per long rest.'
+					].join('\n')
+				}
 			]
 		}
 	],
@@ -1407,23 +1520,151 @@ export const SUBCLASSES_TCOE: SubclassIndex = {
 	druid: [
 		{
 			name: 'Circle of Spores',
+			source: "Guildmaster's Guide to Ravnica / Tasha's Cauldron of Everything",
 			features: [
-				f('Circle Spells', 2),
-				f('Halo of Spores', 2),
-				f('Symbiotic Entity', 2),
-				f('Fungal Infestation', 6),
-				f('Spreading Spores', 10),
-				f('Fungal Body', 14)
+				{
+					name: 'Circle Spells',
+					levels: [2],
+					body: [
+						'Always prepared, never counting against your prepared limit, and druid spells for you even when they are off the list.',
+						'',
+						'| Druid Level | Circle Spells |',
+						'| --- | --- |',
+						'| 2nd | Chill Touch |',
+						'| 3rd | Blindness/Deafness, Gentle Repose |',
+						'| 5th | Animate Dead, Gaseous Form |',
+						'| 7th | Blight, Confusion |',
+						'| 9th | Cloudkill, Contagion |'
+					].join('\n')
+				},
+				{
+					name: 'Halo of Spores',
+					levels: [2],
+					body: [
+						'**Reaction** when a creature you can see moves within 10 feet of you or starts its turn there: **1d4 necrotic** unless it succeeds on a **Constitution save** against your spell save DC.',
+						'',
+						'The die grows to **1d6 at 6th, 1d8 at 10th, 1d10 at 14th**.'
+					].join('\n')
+				},
+				{
+					name: 'Symbiotic Entity',
+					levels: [2],
+					body: [
+						'**Action:** spend a Wild Shape use to wake the spores instead of transforming. Gain **4 temporary hit points per druid level**.',
+						'',
+						'While active:',
+						'',
+						'- Halo of Spores rolls its damage die **twice**',
+						'- Your melee weapon hits deal an extra **1d6 necrotic**',
+						'',
+						'Lasts 10 minutes, until the temporary hit points are gone, or until you Wild Shape again.'
+					].join('\n')
+				},
+				{
+					name: 'Fungal Infestation',
+					levels: [6],
+					body: [
+						'**Reaction** when a Small or Medium beast or humanoid dies within 10 feet: it rises with **1 hit point** as a **Zombie** (Monster Manual stat block) for **1 hour**, then collapses.',
+						'',
+						'It acts immediately after you, obeys your mental commands, and can only take the **Attack action for one melee attack**.',
+						'',
+						'Uses equal to your **Wisdom modifier** (minimum 1), refilled on a long rest.'
+					].join('\n')
+				},
+				{
+					name: 'Spreading Spores',
+					levels: [10],
+					body: [
+						'**Bonus action** while Symbiotic Entity is active: throw spores up to 30 feet into a **10-foot cube** for 1 minute.',
+						'',
+						'A creature entering or starting its turn there takes your **Halo of Spores damage** (Constitution save to avoid), at most **once per turn**.',
+						'',
+						'Ends early if you use this again, dismiss it as a bonus action, or Symbiotic Entity ends. **You cannot use the Halo of Spores reaction while the cube lasts.**'
+					].join('\n')
+				},
+				{
+					name: 'Fungal Body',
+					levels: [14],
+					body: 'You cannot be **blinded, deafened, frightened or poisoned**, and a critical hit against you counts as a normal hit unless you are incapacitated.'
+				}
 			]
 		},
 		{
 			name: 'Circle of Stars',
 			features: [
-				f('Star Map', 2),
-				f('Starry Form', 2),
-				f('Cosmic Omen', 6),
-				f('Twinkling Constellations', 10),
-				f('Full of Stars', 14)
+				{
+					name: 'Star Map',
+					levels: [2],
+					body: [
+						'A Tiny object that works as a **spellcasting focus**. While holding it:',
+						'',
+						'- You know **Guidance**',
+						'- **Guiding Bolt** is always prepared, counts as a druid spell, and does not count against your prepared limit',
+						'- You can cast Guiding Bolt **without a slot, proficiency-bonus times per long rest**',
+						'',
+						'Lose it and a 1-hour ceremony during a rest makes a replacement, destroying the old one.',
+						'',
+						'| d6 | Map Form |',
+						'| --- | --- |',
+						'| 1 | A scroll covered with depictions of constellations |',
+						'| 2 | A stone tablet with fine holes drilled through it |',
+						'| 3 | A speckled owlbear hide, tooled with raised marks |',
+						'| 4 | A collection of maps bound in an ebony cover |',
+						'| 5 | A crystal that projects starry patterns before a light |',
+						'| 6 | Glass disks that depict constellations |'
+					].join('\n')
+				},
+				{
+					name: 'Starry Form',
+					levels: [2],
+					body: [
+						'**Bonus action:** spend a Wild Shape use to go starry rather than take a beast form.',
+						'',
+						'You keep your own statistics and shed **bright light 10 feet, dim light 10 beyond**. Lasts **10 minutes**, ending early if you dismiss it, are incapacitated, die, or use it again.',
+						'',
+						'Choose a constellation each time you assume the form.'
+					].join('\n'),
+					options: [
+						{
+							label: 'Archer',
+							body: 'On activation, and as a **bonus action** on later turns, make a **ranged spell attack** against one creature within 60 feet for **1d8 + your Wisdom modifier radiant**.'
+						},
+						{
+							label: 'Chalice',
+							body: 'Whenever you spend a spell slot to restore hit points to a creature, **you or another creature within 30 feet** regains **1d8 + your Wisdom modifier**.'
+						},
+						{
+							label: 'Dragon',
+							body: 'On an **Intelligence or Wisdom check**, or a **Constitution save to hold concentration**, treat a d20 roll of **9 or lower as a 10**.'
+						}
+					]
+				},
+				{
+					name: 'Cosmic Omen',
+					levels: [6],
+					body: [
+						'After a long rest, consult the map and roll a die. Until your next long rest you gain one reaction, depending on the parity:',
+						'',
+						'- **Weal (even):** when a creature you can see within 30 feet is about to make an attack roll, save or ability check, **add 1d6** to it',
+						'- **Woe (odd):** the same, but **subtract 1d6**',
+						'',
+						'Uses equal to your **proficiency bonus**, refilled on a long rest.'
+					].join('\n')
+				},
+				{
+					name: 'Twinkling Constellations',
+					levels: [10],
+					body: [
+						'Archer and Chalice go from **1d8 to 2d8**, and Dragon grants a **flying speed of 20 feet with hovering**.',
+						'',
+						'You may also **change constellation at the start of each of your turns** while in Starry Form.'
+					].join('\n')
+				},
+				{
+					name: 'Full of Stars',
+					levels: [14],
+					body: 'While in Starry Form you are partly incorporeal, giving **resistance to bludgeoning, piercing and slashing damage**.'
+				}
 			]
 		},
 		{
@@ -1623,9 +1864,14 @@ export const SUBCLASSES_TCOE: SubclassIndex = {
 	]
 }
 
+/** Stamp the book each outline came from, leaving any entry that already names its own — a few
+ *  subclasses were printed in one book and reprinted in another. */
 function tag(index: SubclassIndex, source: string): SubclassIndex {
 	return Object.fromEntries(
-		Object.entries(index).map(([slug, subs]) => [slug, subs.map((s) => ({ ...s, source }))])
+		Object.entries(index).map(([slug, subs]) => [
+			slug,
+			subs.map((s) => ({ ...s, source: s.source ?? source }))
+		])
 	)
 }
 

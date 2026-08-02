@@ -341,8 +341,10 @@
 							{/each}
 						</optgroup>
 					{/if}
+					<!-- Grouped by book. Whether an entry is a bare scaffold or filled in varies per
+					     feature now, so that's said on the feature itself rather than on the group. -->
 					{#each outlineGroups as [source, subs] (source)}
-						<optgroup label="{source} — levels only">
+						<optgroup label={source}>
 							{#each subs as o (o.name)}
 								<option value={o.name}>{o.name}</option>
 							{/each}
