@@ -91,6 +91,25 @@ test('2014 subclass levels come from the feature prose', () => {
 	])
 })
 
+// Berserker is the easy case: all four of its features name their level in the opening sentence.
+// These are the three shapes that don't, and each was wrong before it was pinned here.
+test('2014 subclass features that state no level land on the subclass-choice level', () => {
+	const at = (slug: string, name: string) =>
+		load('2014', slug).features.find((f) => f.name === name && f.subclass)?.levels
+	// "The Fiend lets you choose from an expanded list of spells" — no level at all. You pick a
+	// Warlock patron at 1, not at 6, which is merely the first level the table says it improves.
+	expect(at('warlock', 'Expanded Spell List')).toEqual([1])
+	// Paladin takes the oath at 3; 7/15/20 are the "Oath feature" rows.
+	expect(at('paladin', 'Tenets of Devotion')).toEqual([3])
+	expect(at('paladin', 'Oath Spells')).toEqual([3])
+	expect(at('paladin', 'Aura of Devotion')).toEqual([7]) // this one does state its level
+})
+
+test('an enumerated level list resolves to its first level', () => {
+	// Circle Spells opens "At 3rd, 5th, 7th, and 9th level" — you gain it at 3, not 9.
+	expect(load('2014', 'druid').features.find((f) => f.name === 'Circle Spells')?.levels).toEqual([3])
+})
+
 test('2024 headings supply the first level and the table supplies the repeats', () => {
 	const at = (slug: string, name: string) =>
 		load('2024', slug).features.find((x) => x.name === name)?.levels

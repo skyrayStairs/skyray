@@ -345,7 +345,7 @@
 		{
 			"name": "Tenets of Devotion",
 			"levels": [
-				7
+				3
 			],
 			"subclass": "Oath of Devotion",
 			"body": "Though the exact words and strictures of the Oath of Devotion vary, paladins of this oath share these tenets.\n\n***Honesty***. Don't lie or cheat. Let your word be your promise.\n\n***Courage***. Never fear to act, though caution is wise.\n\n***Compassion***. Aid others, protect the weak, and punish those who threaten them. Show mercy to your foes, but temper it with wisdom.\n\n***Honor***. Treat others with fairness, and let your honorable deeds be an example to them. Do as much good as possible while causing the least amount of harm.\n\n***Duty***. Be responsible for your actions and their consequences, protect those entrusted to your care, and obey those who have just authority over you."
@@ -353,7 +353,7 @@
 		{
 			"name": "Oath Spells",
 			"levels": [
-				7
+				3
 			],
 			"subclass": "Oath of Devotion",
 			"body": "You gain oath spells at the paladin levels listed.\n\n**Table- Oath of Devotion Spells**\n\n| Level | Paladin Spells                           |\n|-------|------------------------------------------|\n| 3rd   | protection from evil and good, sanctuary |\n| 5th   | lesser restoration, zone of truth        |\n| 9th   | beacon of hope, dispel magic             |\n| 13th  | freedom of movement, guardian of faith   |\n| 17th  | commune, flame strike                    |\n|       |                                          |"

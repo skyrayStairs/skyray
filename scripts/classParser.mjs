@@ -356,6 +356,7 @@ export function parseClass2024(sectionMd, className) {
 		},
 		resolution,
 		folded: [],
+		fallbacks: [],
 		unresolvedTableNames
 	}
 }
@@ -389,7 +390,15 @@ export function splitClasses2024(md) {
 
 // ---------------------------------------------------------------- 2014
 
-const LEVEL_IN_PROSE = /\b(\d{1,2})(?:st|nd|rd|th)[- ]level\b/i
+/**
+ * The level a 2014 subclass feature is gained at, stated only in its opening prose.
+ *
+ * The trailing repeat group is not optional decoration: Druid's Circle Spells opens "At 3rd, 5th,
+ * 7th, and 9th level", and matching only the ordinal that sits directly before the word "level"
+ * would read that as 9th. The whole enumeration has to be consumed so the FIRST number wins.
+ */
+const LEVEL_IN_PROSE =
+	/\b(\d{1,2})(?:st|nd|rd|th)(?:\s*,\s*(?:and\s+)?\d{1,2}(?:st|nd|rd|th))*(?:\s+and\s+\d{1,2}(?:st|nd|rd|th))?[- ]level\b/i
 
 export function parseClass2014(md, className) {
 	const progression = findProgression(md)
@@ -400,6 +409,7 @@ export function parseClass2014(md, className) {
 	const features = []
 	const unmatched = []
 	const folded = []
+	const fallbacks = []
 
 	// Everything before the first `##` group heading is the base class; the group heading
 	// ("## Barbarian Paths", "## Martial Archetypes") opens the subclass.
@@ -436,10 +446,11 @@ export function parseClass2014(md, className) {
 		}
 	}
 
-	// Subclass: "### <Name>" under the group heading, then its "####" features.
+	// Subclass: "### <Name>" under the group heading, then its "####" features. Two passes, because
+	// a feature with no level in its prose needs the level the subclass itself is chosen at, and
+	// that is only knowable once the other features have been read.
 	let subclassName = ''
-	const choiceLevels = placeholderLevels(progression)
-	const fallbackLevel = choiceLevels.length ? Math.min(...choiceLevels) : 1
+	const subFeatures = []
 	for (let i = baseEnd; i < secs.length; i++) {
 		const s = secs[i]
 		if (s.depth === 3 && !subclassName) {
@@ -448,11 +459,24 @@ export function parseClass2014(md, className) {
 		}
 		if (s.depth === 4 && subclassName) {
 			const m = s.body.match(LEVEL_IN_PROSE)
-			// A few subclass features ("Expanded Spell List") state no level because you get them the
-			// moment you pick the subclass — that's the level of the first "<X> feature" table row.
-			const level = m ? Number(m[1]) : fallbackLevel
-			addFeature(features, s.title, [level], subclassName, withSubheadings(secs, i, 4))
+			subFeatures.push({
+				name: s.title,
+				level: m ? Number(m[1]) : null,
+				body: withSubheadings(secs, i, 4)
+			})
 		}
+	}
+
+	// Features like Paladin's "Tenets of Devotion" or Warlock's "Expanded Spell List" state no level
+	// because you get them the instant you pick the subclass. That moment is the earliest level the
+	// subclass touches at all — earlier than any "<X> feature" table row, which only marks where it
+	// *improves*, so the prose-derived levels have to be in the minimum too.
+	const known = subFeatures.map((f) => f.level).filter((l) => l !== null)
+	const choiceLevels = [...known, ...placeholderLevels(progression)]
+	const chosenAt = choiceLevels.length ? Math.min(...choiceLevels) : 1
+	for (const f of subFeatures) {
+		if (f.level === null) fallbacks.push({ name: f.name, level: chosenAt })
+		addFeature(features, f.name, [f.level ?? chosenAt], subclassName, f.body)
 	}
 
 	return {
@@ -467,6 +491,7 @@ export function parseClass2014(md, className) {
 		},
 		resolution,
 		folded,
+		fallbacks,
 		unmatched,
 		unresolvedTableNames
 	}

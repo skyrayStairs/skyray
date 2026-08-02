@@ -298,7 +298,7 @@
 		{
 			"name": "Expanded Spell List",
 			"levels": [
-				6
+				1
 			],
 			"subclass": "The Fiend",
 			"body": "The Fiend lets you choose from an expanded list of spells when you learn a warlock spell. The following spells are added to the warlock spell list for you.\n\n**Table- Fiend Expanded Spells**\n\n| Spell Level | Spells                            |\n|-------------|-----------------------------------|\n| 1st         | burning hands, command            |\n| 2nd         | blindness/deafness, scorching ray |\n| 3rd         | fireball, stinking cloud          |\n| 4th         | fire shield, wall of fire         |\n| 5th         | flame strike, hallow              |\n|             |                                   |"

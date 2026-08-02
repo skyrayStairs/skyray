@@ -113,6 +113,9 @@ for (const s of summaries) {
 		console.log(`${' '.repeat(22)}~ table "${r.table}" -> ${r.features.map((f) => `"${f}"`).join(', ') || '(nothing)'} (${r.via})`)
 	}
 	for (const f of s.folded) console.log(`${' '.repeat(22)}+ folded "${f}" into the preceding feature`)
+	for (const f of s.fallbacks) {
+		console.log(`${' '.repeat(22)}! "${f.name}" states no level; using the subclass-choice level ${f.level}`)
+	}
 }
 
 if (problems.length) {
