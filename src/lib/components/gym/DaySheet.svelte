@@ -47,7 +47,9 @@
 	function setSummary(ex: GymDay['exercises'][number]): string {
 		const work = workingSets(ex)
 		if (!work.length) return 'no working sets'
-		const targets = work.map((s) => range(s.targetRepsMin, s.targetRepsMax))
+		// A timed exercise plans in seconds in the same fields, so the unit is the only thing that moves.
+		const unit = ex.mode === 'time' ? 's' : ''
+		const targets = work.map((s) => range(s.targetRepsMin, s.targetRepsMax) + unit)
 		const uniform = targets.every((t) => t === targets[0])
 		return uniform ? `${work.length} × ${targets[0]}` : targets.join(' · ')
 	}

@@ -11,14 +11,27 @@ export const DEFAULT_REST_SET_SEC = 120
 export const DEFAULT_REST_WARMUP_SEC = 45
 export const DEFAULT_REST_EXERCISE_SEC = 120
 export const DEFAULT_TARGET_REPS = 8
+export const DEFAULT_HOLD_SEC = 30
 export const DEFAULT_SET_COUNT = 3
 
 /** Warm-ups are grouped ahead of working sets and excluded from working-set counts. */
 export type SetKind = 'warmup' | 'working'
 
 /**
+ * What a set of this exercise is measured in: reps under load (bench press) or seconds under load
+ * (dead hang, plank). Weight applies to both — a hang can be weighted, and usually is eventually.
+ */
+export type ExerciseMode = 'reps' | 'time'
+
+/**
  * One planned set. `targetRepsMax: null` means a single target rather than a range.
  * `restSec` is the rest taken after this set — see `restForSet` for when it is superseded.
+ *
+ * In a `time` exercise the two target fields hold SECONDS rather than reps, and so does the
+ * `reps` an entry/log records. Deliberately the same fields: everything built on them — the range
+ * mode, the previous-run placeholder, the assumed flag, the log — means exactly the same thing for
+ * a 30-second hang as for 8 reps, and a parallel set of hold fields would have to duplicate all of
+ * it to say so. `GymExercise.mode` (snapshotted onto `LoggedSet.mode`) is what names the unit.
  */
 export type GymSet = {
 	id: string
@@ -40,6 +53,8 @@ export type GymSet = {
 export type GymExercise = {
 	id: string
 	name: string
+	/** Absent in files written before timed holds existed; normalization reads those as 'reps'. */
+	mode: ExerciseMode
 	sets: GymSet[]
 	defaultRestSec: number
 	restAfterSec: number
@@ -70,6 +85,8 @@ export type LoggedSet = {
 	setId: string
 	exerciseName: string
 	kind: SetKind
+	/** Snapshot like `exerciseName`: flipping a lift to timed later must not relabel old sessions. */
+	mode: ExerciseMode
 	setIndex: number
 	targetRepsMin: number
 	targetRepsMax: number | null
@@ -134,10 +151,12 @@ export function makeSet(init: Partial<Omit<GymSet, 'id'>> = {}): GymSet {
 	}
 }
 
+/** Always a reps exercise: timed ones are made by flipping `mode`, which leaves the numbers alone. */
 export function makeExercise(name = '', setCount = DEFAULT_SET_COUNT): GymExercise {
 	return {
 		id: uid(),
 		name,
+		mode: 'reps',
 		sets: Array.from({ length: Math.max(0, setCount) }, () => makeSet()),
 		defaultRestSec: DEFAULT_REST_SET_SEC,
 		restAfterSec: DEFAULT_REST_EXERCISE_SEC,
@@ -213,6 +232,7 @@ export function plansDiffer(template: GymExercise[], plan: GymExercise[]): boole
 		return (
 			ex.id !== other.id ||
 			displayName(ex.name) !== displayName(other.name) ||
+			ex.mode !== other.mode ||
 			(ex.sets?.length ?? 0) !== (other.sets?.length ?? 0)
 		)
 	})
@@ -308,6 +328,7 @@ export function sessionToLog(
 				setId: set.id,
 				exerciseName: displayName(ex.name),
 				kind: set.kind,
+				mode: ex.mode === 'time' ? 'time' : 'reps',
 				setIndex,
 				targetRepsMin: set.targetRepsMin,
 				targetRepsMax: set.targetRepsMax,
@@ -378,6 +399,7 @@ function normalizeExercise(raw: unknown): GymExercise {
 	return {
 		id: str(ex.id) || uid(),
 		name: str(ex.name),
+		mode: ex.mode === 'time' ? 'time' : 'reps',
 		// Sorted here so "last set of the exercise" is unambiguous on every load path.
 		sets: sortSets(Array.isArray(ex.sets) ? ex.sets.map(normalizeSet) : []),
 		defaultRestSec: Math.max(0, Math.round(num(ex.defaultRestSec, DEFAULT_REST_SET_SEC))),
@@ -416,6 +438,7 @@ function normalizeLoggedSet(raw: unknown): LoggedSet {
 		setId: str(v.setId),
 		exerciseName: displayName(str(v.exerciseName)),
 		kind: v.kind === 'warmup' ? 'warmup' : 'working',
+		mode: v.mode === 'time' ? 'time' : 'reps',
 		setIndex: Math.max(0, Math.round(num(v.setIndex))),
 		targetRepsMin: min,
 		targetRepsMax:

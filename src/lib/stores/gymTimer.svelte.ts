@@ -18,14 +18,25 @@ class RestTimer {
 	#segmentStartedAt = 0
 	#lastBellSec = -1
 	#ctx: AudioContext | null = null
+	#onDone: ((ranSec: number) => void) | null = null
+	/** Counting time banked by segments already closed out by a pause or a nudge — see `#finish`. */
+	#elapsed = 0
 
 	/**
 	 * Arm a countdown. Must be called from a user gesture (a done-box tap or the Start button) —
 	 * that's what unlocks the AudioContext, and without it the bells never sound.
+	 *
+	 * `onDone` fires when the countdown elapses, and only then: it is how a timed hold chains its
+	 * lead-in into the hold and the hold into the rest. Skipping or clearing the timer drops it, so
+	 * abandoning a hold half way can't tick the set or start a rest you didn't earn. It is handed the
+	 * seconds the clock actually counted, which is not `sec` once anyone has nudged it.
 	 */
-	start(sec: number, label = '') {
+	start(sec: number, label = '', onDone?: (ranSec: number) => void) {
 		const total = Math.max(0, Math.round(sec))
 		this.#ensureAudio()
+		// Assigned before the zero-length bail so re-arming always replaces the previous chain rather
+		// than leaving the old callback armed behind a stopped clock.
+		this.#onDone = onDone ?? null
 		if (total === 0) {
 			this.stop()
 			return
@@ -33,6 +44,7 @@ class RestTimer {
 		this.total = total
 		this.remaining = total
 		this.label = label
+		this.#elapsed = 0
 		this.#remAtSegmentStart = total
 		this.#segmentStartedAt = performance.now()
 		this.#lastBellSec = -1
@@ -42,6 +54,7 @@ class RestTimer {
 
 	pause() {
 		if (!this.running) return
+		this.#elapsed += this.#remAtSegmentStart - this.remaining // bank what this segment counted
 		this.#remAtSegmentStart = this.remaining // freeze where we are
 		this.running = false
 		this.#stopLoop()
@@ -63,20 +76,24 @@ class RestTimer {
 	nudge(delta: number) {
 		if (this.total === 0) return
 		const next = this.remaining + delta
+		// Banked before the jump, so what a hold reports having counted stays true across a nudge in
+		// either direction: +30 while hanging is 30 more seconds held, −15 is 15 fewer.
+		this.#elapsed += this.#remAtSegmentStart - this.remaining
+		this.#remAtSegmentStart = Math.max(0, next)
+		this.remaining = Math.max(0, next)
 		if (next <= 0) {
 			this.#finish()
 			return
 		}
-		this.#remAtSegmentStart = next
-		this.remaining = next
 		this.total = Math.max(this.total, Math.ceil(next))
 		this.#segmentStartedAt = performance.now()
 		this.#lastBellSec = -1
 	}
 
-	/** Clear the timer without the end-of-rest beep (Skip, or leaving the page). */
+	/** Clear the timer without the end-of-rest beep (Skip, or leaving the page). Drops the chain. */
 	stop() {
 		this.#stopLoop()
+		this.#onDone = null
 		this.running = false
 		this.remaining = 0
 		this.total = 0
@@ -93,12 +110,20 @@ class RestTimer {
 	}
 
 	#finish() {
+		// Taken and cleared before the state reset, so a callback that arms the next segment isn't
+		// fighting its own assignment — everything below this line is teardown of the segment that ended.
+		const next = this.#onDone
+		this.#onDone = null
+		// The open segment ran all the way down, so all of it counted. `nudge` zeroes this itself
+		// before jumping here, which is what keeps a nudged-to-zero hold from claiming the remainder.
+		const ranSec = this.#elapsed + this.#remAtSegmentStart
 		this.#stopLoop()
 		this.running = false
 		this.remaining = 0
 		this.total = 0
 		this.label = ''
 		if (this.#ctx) beep(this.#ctx)
+		next?.(ranSec)
 	}
 
 	// setInterval, not requestAnimationFrame: rAF stops entirely while the tab is hidden, and a rest
@@ -111,6 +136,9 @@ class RestTimer {
 	// missed or coalesced — but because every tick recomputes from the delta, the moment the page is
 	// looked at again the countdown shows the truth and finishes immediately. Exact bells while
 	// hidden would need a Web Worker clock or tones scheduled ahead on the AudioContext.
+	// A timed hold is the case that suffers: a rest running long costs you nothing, but a hold whose
+	// last bells arrive late means hanging past the number with no way to know — the same Web Worker
+	// clock is the fix if it turns out phones do this with the screen off mid-set.
 	#startLoop() {
 		this.#stopLoop()
 		this.#tickId = setInterval(() => {

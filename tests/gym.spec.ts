@@ -113,6 +113,7 @@ const logged = (setId: string, reps: number) => ({
 	setId,
 	exerciseName: 'Bench Press',
 	kind: 'working' as const,
+	mode: 'reps' as const,
 	setIndex: 0,
 	targetRepsMin: 8,
 	targetRepsMax: null,
@@ -193,7 +194,8 @@ test('finishing logs only ticked sets and skips ones deleted mid-workout', () =>
 			targetRepsMax: 12,
 			reps: 11,
 			weight: 100,
-			assumed: false
+			assumed: false,
+			mode: 'reps'
 		}
 	])
 	expect(log?.routineId).toBe(routine.id)
@@ -206,6 +208,50 @@ test('finishing with nothing ticked logs nothing', () => {
 	expect(
 		sessionToLog(makeActiveSession(routine.id, routine.days[0].id), routine, routine.days[0])
 	).toBeNull()
+})
+
+// ---- timed exercises --------------------------------------------------------
+// A hold reuses the rep fields for seconds (see types/gym.ts), so `mode` is the only thing that
+// says which unit a number is in — and it has to survive into the log, or history silently
+// relabels a 30-second hang as 30 reps the moment the exercise is switched back.
+
+test('a timed exercise logs its seconds and the mode that names them', () => {
+	const routine = makeRoutine('PPL')
+	const d = routine.days[0]
+	const set = makeSet({ targetRepsMin: 30 })
+	d.exercises = [{ ...ex('Dead Hang', [set], 120), mode: 'time' as const }]
+
+	const session = makeActiveSession(routine.id, d.id, d.exercises)
+	// What a finished hold writes: the length the clock actually ran, measured rather than assumed.
+	session.entries[set.id] = {
+		reps: 30,
+		weight: 10,
+		doneAt: '2026-07-26T10:00:00.000Z',
+		assumed: false
+	}
+
+	expect(sessionToLog(session, routine, d)?.sets[0]).toMatchObject({
+		exerciseName: 'Dead Hang',
+		mode: 'time',
+		reps: 30,
+		targetRepsMin: 30,
+		assumed: false
+	})
+})
+
+test('switching an exercise between reps and seconds is a change to the plan', () => {
+	const template = [ex('Dead Hang', [makeSet({ targetRepsMin: 30 })], 120)]
+	const plan = JSON.parse(JSON.stringify(template))
+	plan[0].mode = 'time'
+	expect(plansDiffer(template, plan)).toBe(true)
+})
+
+test('an export written before timed holds imports as reps', () => {
+	const routine = makeRoutine('Old')
+	routine.days[0].exercises = [ex('Squat', [makeSet()], 120)]
+	const bundle = JSON.parse(JSON.stringify(makeGymFile([routine], [])))
+	delete bundle.routines[0].days[0].exercises[0].mode
+	expect(readGymFile(bundle).routines[0].days[0].exercises[0].mode).toBe('reps')
 })
 
 test('an assumed rep count stays marked as assumed all the way into history', () => {
@@ -352,7 +398,7 @@ test('a v1 export still imports, migrating single targets and set kinds', () => 
 	const back = readGymFile(v1)
 	const set = back.routines[0].days[0].exercises[0].sets[0]
 	expect(set).toMatchObject({ kind: 'working', targetRepsMin: 5, targetRepsMax: null, note: '' })
-	expect(back.routines[0].days[0].exercises[0].note).toBe('')
+	expect(back.routines[0].days[0].exercises[0]).toMatchObject({ note: '', mode: 'reps' })
 	// A v1 log has no set ids, so it must not become a placeholder source for anything.
 	expect(back.logs[0].sets[0]).toMatchObject({ setId: '', kind: 'working', targetRepsMin: 5 })
 	expect(previousReps(back.logs, 'r1', 'd1', 's1')).toBeNull()

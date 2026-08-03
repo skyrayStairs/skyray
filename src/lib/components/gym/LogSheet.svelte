@@ -12,8 +12,12 @@
 		onClose
 	}: { open?: boolean; logs: SessionLog[]; onExport: () => void; onClose: () => void } = $props()
 
+	/** Timed sets are excluded: seconds × kg is not volume, and a 60s hang would add 1200 to it. */
 	const volume = (l: SessionLog) =>
-		l.sets.filter((s) => s.kind !== 'warmup').reduce((n, s) => n + s.reps * s.weight, 0)
+		l.sets
+			.filter((s) => s.kind !== 'warmup' && s.mode !== 'time')
+			.reduce((n, s) => n + s.reps * s.weight, 0)
+	const workingSetCount = (l: SessionLog) => l.sets.filter((s) => s.kind !== 'warmup').length
 	const when = (iso: string) =>
 		iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—'
 	const targetLabel = (min: number, max: number | null) =>
@@ -40,19 +44,27 @@
 					<span class="font-semibold">{log.routineName} — {log.dayName}</span>
 					<span class="opacity-60 text-xs">{when(log.startedAt)}</span>
 					<span class="opacity-60 text-xs ml-auto tabular-nums">
-						{log.sets.filter((s) => s.kind !== 'warmup').length} sets · {Math.round(volume(log))} kg
+						{workingSetCount(log)} sets{#if volume(log) > 0}
+							· {Math.round(volume(log))} kg{/if}
 					</span>
 				</div>
 				<ul class="mt-1 grid gap-x-4 gap-y-0.5 sm:grid-cols-2 text-xs opacity-80">
 					{#each log.sets as s, i (i)}
+						<!-- A timed set reads "45s at 20 kg", not "45 × 20 kg": the number is a duration held,
+						     and × would make it look like volume. -->
 						<li>
 							{#if s.kind === 'warmup'}<span class="opacity-50">warm-up</span>{/if}
-							{s.exerciseName} — <span class:opacity-50={s.assumed}>{s.reps}</span>
+							{s.exerciseName} — <span class:opacity-50={s.assumed}
+								>{s.reps}{s.mode === 'time' ? 's' : ''}</span
+							>
 							{#if s.assumed}<span class="opacity-50" title="Assumed, not entered">≈</span>{/if}
-							× {s.weight} kg
+							{s.mode === 'time' ? 'at' : '×'}
+							{s.weight} kg
 							{#if s.kind !== 'warmup'}
 								<span class="opacity-60">
-									(target {targetLabel(s.targetRepsMin, s.targetRepsMax)})
+									(target {targetLabel(s.targetRepsMin, s.targetRepsMax)}{s.mode === 'time'
+										? 's'
+										: ''})
 								</span>
 							{/if}
 						</li>

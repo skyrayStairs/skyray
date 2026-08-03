@@ -7,6 +7,7 @@
 	// That is what lets Finish ask whether today was a one-off or the new plan: if the day had been
 	// mutated in place, the question would already have been answered.
 	import {
+		DEFAULT_HOLD_SEC,
 		DEFAULT_REST_WARMUP_SEC,
 		displayName,
 		makeExercise,
@@ -65,6 +66,8 @@
 	const QUICK_TIMERS = [30, 60, 120, 180]
 	const resting = $derived(restTimer.total > 0)
 	const readout = $derived(formatMmss(Math.ceil(restTimer.remaining)))
+	/** The clock runs lead-ins and holds as well as rests now, so its own label names what it is. */
+	const clockLabel = $derived(restTimer.label || 'Timer')
 
 	/**
 	 * The header clock is the only rest display now — the sticky bar that used to sit above the action
@@ -80,7 +83,9 @@
 					},
 					{ label: '+30 seconds', onSelect: () => restTimer.nudge(30) },
 					{ label: '−15 seconds', onSelect: () => restTimer.nudge(-15) },
-					{ label: 'Skip the rest', onSelect: () => restTimer.stop() }
+					// Not "Skip the rest": this same clock may be counting a hold down, and skipping one
+					// abandons it — the set stays unticked and no rest follows.
+					{ label: 'Skip', onSelect: () => restTimer.stop() }
 				]
 			: []),
 		...QUICK_TIMERS.map((sec) => ({
@@ -106,7 +111,55 @@
 			? `${set.targetRepsMin}–${set.targetRepsMax}`
 			: `${set.targetRepsMin}`
 
+	/** In a timed exercise the goal is a duration, and the same fields hold it — see types/gym.ts. */
+	const timed = (ex: GymExercise) => ex.mode === 'time'
+	const goalText = (ex: GymExercise, set: GymSet) =>
+		timed(ex) ? `hold ${target(set)}s` : `goal ${target(set)}`
+
 	const numberVal = (e: Event) => (e.currentTarget as HTMLInputElement).valueAsNumber
+
+	/** Five seconds to get to the bar. Bell-counted, because you can't watch the phone from a hang. */
+	const HOLD_LEADIN_SEC = 5
+
+	/** The rest a just-finished set earns. `start` routes 0 to `stop`, which is the end of the day. */
+	function startRest(exIndex: number, setIndex: number, label: string) {
+		const ex = session.plan[exIndex]
+		restTimer.start(
+			restForSet(runDay, exIndex, setIndex),
+			`${displayName(ex.name)} · after ${label}`
+		)
+	}
+
+	/**
+	 * A timed set runs itself: five seconds to get into position, then the hold, then the rest —
+	 * three segments of the one clock, each bell-counting its own last five seconds with a beep at
+	 * the handover. Nothing to tap while hanging, which is the point.
+	 *
+	 * The set is ticked by the hold *elapsing*, so what lands in the log is measured, not assumed:
+	 * `assumed` stays for numbers nobody confirmed, and what gets written is the seconds the clock
+	 * counted rather than the target, since +30 mid-hang is real time under the bar.
+	 * Skipping mid-hold drops the chain (see `RestTimer.stop`) and leaves the set open to type into.
+	 *
+	 * The callbacks land twenty-odd seconds after the tap, which is long enough to drop the exercise
+	 * from the ⋯ menu — so the plan is re-checked before anything is written. Without that, the
+	 * index has moved and the set is either logged against the wrong exercise or logged against
+	 * nothing at all.
+	 */
+	function startHold(exIndex: number, set: GymSet, setIndex: number, label: string) {
+		const name = displayName(session.plan[exIndex].name)
+		restTimer.start(HOLD_LEADIN_SEC, `${name} · get ready`, () =>
+			restTimer.start(set.targetRepsMin, `${name} · hold ${label}`, (heldSec) => {
+				if (!session.plan[exIndex]?.sets.some((s) => s.id === set.id)) return
+				session.entries[set.id] = {
+					reps: Math.round(heldSec),
+					weight: set.weight,
+					doneAt: new Date().toISOString(),
+					assumed: false
+				}
+				startRest(exIndex, setIndex, label)
+			})
+		)
+	}
 
 	function toggleDone(exIndex: number, set: GymSet, setIndex: number, label: string) {
 		const current = session.entries[set.id]
@@ -126,10 +179,7 @@
 			doneAt: new Date().toISOString(),
 			assumed: typed === undefined
 		}
-		const rest = restForSet(runDay, exIndex, setIndex)
-		const ex = session.plan[exIndex]
-		if (rest > 0) restTimer.start(rest, `${displayName(ex.name)} · after ${label}`)
-		else restTimer.stop() // end of the day — nothing to get ready for
+		startRest(exIndex, setIndex, label)
 	}
 
 	function setReps(set: GymSet, reps: number | null) {
@@ -160,10 +210,13 @@
 	function addSet(ex: GymExercise, kind: 'warmup' | 'working') {
 		const sameKind = ex.sets.filter((s) => s.kind === kind)
 		const last = sameKind[sameKind.length - 1]
+		// With nothing of this kind to copy, a timed exercise's first set would otherwise open as an
+		// 8-second hold — the rep default read as seconds.
+		const seed = last ?? (timed(ex) ? { targetRepsMin: DEFAULT_HOLD_SEC } : {})
 		ex.sets = sortSets([
 			...ex.sets,
 			makeSet({
-				...(last ?? {}),
+				...seed,
 				kind,
 				restSec: kind === 'warmup' ? DEFAULT_REST_WARMUP_SEC : ex.defaultRestSec
 			})
@@ -216,7 +269,7 @@
 					: ''} {resting && !restTimer.running ? 'opacity-50' : ''}"
 				onclick={() => (timerOpen = true)}
 				aria-live="off"
-				aria-label={resting ? `Rest timer, ${readout} left — tap for controls` : 'Start a timer'}
+				aria-label={resting ? `${clockLabel}, ${readout} left — tap for controls` : 'Start a timer'}
 				>{resting ? readout : '⏱︎'}</button
 			>
 			<span class="min-w-0 flex-1 text-center">
@@ -314,7 +367,7 @@
 								{:else}
 									<span class="block text-sm opacity-70">{labels[setIndex]}</span>
 									<span class="block text-[11px] opacity-60 whitespace-nowrap"
-										>goal {target(set)}</span
+										>{goalText(ex, set)}</span
 									>
 								{/if}
 							</span>
@@ -337,11 +390,24 @@
 							</span>
 
 							<span class="ml-auto inline-flex items-center gap-1 shrink-0">
-								<button
-									class="btn btn-sm btn-outline px-1"
-									onclick={() => stepReps(set, -1)}
-									aria-label="One fewer rep, set {labels[setIndex]}">−</button
-								>
+								<!-- Timed sets trade the two steppers for one Start: nothing else in the row is worth
+								     a tap while you are hanging off a bar, and the number fills itself in when the
+								     hold elapses. The box stays for correcting a hold you came off early. -->
+								{#if timed(ex)}
+									<button
+										class="btn btn-sm btn-primary px-2"
+										onclick={() => startHold(exIndex, set, setIndex, labels[setIndex])}
+										aria-label="Start the {target(set)} second hold, set {labels[
+											setIndex
+										]} — {HOLD_LEADIN_SEC} seconds to get ready first">▶</button
+									>
+								{:else}
+									<button
+										class="btn btn-sm btn-outline px-1"
+										onclick={() => stepReps(set, -1)}
+										aria-label="One fewer rep, set {labels[setIndex]}">−</button
+									>
+								{/if}
 								<!-- An assumed number — filled in by ticking done with an empty box — is set in italic
 								     rather than flagged with a marker beside it. The marker was a real element in
 								     a row that has exactly 7px of slack at 390px, so it pushed the stepper onto a
@@ -362,15 +428,21 @@
 										set
 									)} w-12 text-center px-1 text-base font-semibold tabular-nums
 										{entry?.assumed ? 'italic opacity-60' : ''}"
-									aria-label="Reps done, set {labels[setIndex]}{entry?.assumed
-										? ' — assumed, not entered'
-										: ''}{prev !== null ? ` — ${prev} last time` : ''}"
+									aria-label="{timed(ex) ? 'Seconds held' : 'Reps done'}, set {labels[
+										setIndex
+									]}{entry?.assumed ? ' — assumed, not entered' : ''}{prev !== null
+										? ` — ${prev} last time`
+										: ''}"
 								/>
-								<button
-									class="btn btn-sm btn-outline px-1"
-									onclick={() => stepReps(set, 1)}
-									aria-label="One more rep, set {labels[setIndex]}">+</button
-								>
+								{#if timed(ex)}
+									<span class="text-xs opacity-50 w-6">s</span>
+								{:else}
+									<button
+										class="btn btn-sm btn-outline px-1"
+										onclick={() => stepReps(set, 1)}
+										aria-label="One more rep, set {labels[setIndex]}">+</button
+									>
+								{/if}
 							</span>
 						</div>
 
@@ -432,6 +504,13 @@
 			{ label: 'Add set', onSelect: () => addSet(ex, 'working') },
 			{ label: 'Add warm-up set', onSelect: () => addSet(ex, 'warmup') },
 			{
+				label: timed(ex) ? 'Measure in reps' : 'Measure in seconds',
+				detail: timed(ex)
+					? 'The goals stay as they are and go back to being rep counts'
+					: 'Sets get a Start button; the goals are read as seconds, so retype them',
+				onSelect: () => (ex.mode = timed(ex) ? 'reps' : 'time')
+			},
+			{
 				label: 'Remove last set',
 				detail: 'Only while it is untouched',
 				disabled: !ex.sets.length || !!session.entries[ex.sets[ex.sets.length - 1].id]?.doneAt,
@@ -449,7 +528,7 @@
 
 <ActionSheet
 	open={timerOpen}
-	title={resting ? `Rest — ${readout} left` : 'Timer'}
+	title={resting ? `${clockLabel} — ${readout} left` : 'Timer'}
 	onClose={() => (timerOpen = false)}
 	actions={timerActions}
 />

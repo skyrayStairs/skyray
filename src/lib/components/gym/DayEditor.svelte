@@ -9,6 +9,7 @@
 	// Fields write through explicit handlers rather than bind:value: bind:value silently fails to write
 	// back on a property of an item from a nested {#each}, with no compiler complaint.
 	import {
+		DEFAULT_HOLD_SEC,
 		DEFAULT_REST_WARMUP_SEC,
 		clonePlan,
 		displayName,
@@ -83,6 +84,9 @@
 		return ex.sets.map((s) => (s.kind === 'warmup' ? `W${++w}` : `${++k}`))
 	}
 
+	/** A timed exercise plans in seconds; the target fields are the same ones — see types/gym.ts. */
+	const timed = (ex: GymExercise) => ex.mode === 'time'
+
 	/** Warm-ups read as lighter work: tinted band, softer fields, a labelled chip instead of a number. */
 	const isWarm = (s: GymSet) => s.kind === 'warmup'
 	const fieldTone = (s: GymSet) =>
@@ -98,8 +102,11 @@
 		// the rest always comes from the exercise's own default, which is the number the ⋯ menu tunes.
 		const sameKind = ex.sets.filter((s) => s.kind === kind)
 		const last = sameKind[sameKind.length - 1]
+		// With nothing of this kind to copy, a timed exercise's first set would otherwise open as an
+		// 8-second hold — the rep default read as seconds.
+		const seed = last ?? (timed(ex) ? { targetRepsMin: DEFAULT_HOLD_SEC } : {})
 		const next = makeSet({
-			...(last ?? {}),
+			...seed,
 			kind,
 			restSec: kind === 'warmup' ? DEFAULT_REST_WARMUP_SEC : ex.defaultRestSec
 		})
@@ -248,11 +255,13 @@
 
 						<!-- Warm-ups have no goal: the weight is the whole plan, and the reps are whatever gets
 						     the joint ready. `targetRepsMin` stays in the data as the workout's ghost number,
-						     it just stops being something to plan against. -->
+						     it just stops being something to plan against. A timed warm-up is the exception —
+						     a clock cannot count "whatever", so its length stays editable. -->
 						<!-- The mode switch IS the separator: a `+` after a single goal opens a range, and the
 						     `–` between a pair closes it. A third neutral glyph parked between the reps and
 						     weight boxes read as an operator joining them. -->
-						{#if !isWarm(set)}
+						{#if !isWarm(set) || timed(ex)}
+							{@const unit = timed(ex) ? 'seconds' : 'reps'}
 							<span class="inline-flex items-center gap-1">
 								<input
 									type="number"
@@ -261,7 +270,7 @@
 									value={set.targetRepsMin}
 									oninput={(e) => (set.targetRepsMin = intOrKeep(e, set.targetRepsMin))}
 									class="input input-bordered {fieldTone(set)} w-12 text-center px-1 tabular-nums"
-									aria-label="{rangeMode[set.id] ? 'Goal reps low' : 'Goal reps'}, set {labels[
+									aria-label="{rangeMode[set.id] ? `Goal ${unit} low` : `Goal ${unit}`}, set {labels[
 										setIndex
 									]}"
 								/>
@@ -270,8 +279,8 @@
 									onclick={() => toggleRange(set, !rangeMode[set.id])}
 									aria-pressed={!!rangeMode[set.id]}
 									aria-label={rangeMode[set.id]
-										? `Use a single rep goal for set ${labels[setIndex]}`
-										: `Use a rep range for set ${labels[setIndex]}`}
+										? `Use a single ${unit} goal for set ${labels[setIndex]}`
+										: `Use a ${unit} range for set ${labels[setIndex]}`}
 									>{rangeMode[set.id] ? '–' : '+'}</button
 								>
 								{#if rangeMode[set.id]}
@@ -286,10 +295,10 @@
 											set.targetRepsMax = Number.isFinite(v) && v > 0 ? Math.round(v) : null
 										}}
 										class="input input-bordered {fieldTone(set)} w-12 text-center px-1 tabular-nums"
-										aria-label="Goal reps high, set {labels[setIndex]}"
+										aria-label="Goal {unit} high, set {labels[setIndex]}"
 									/>
 								{/if}
-								<span class="text-xs opacity-50">reps</span>
+								<span class="text-xs opacity-50">{timed(ex) ? 's' : 'reps'}</span>
 							</span>
 						{/if}
 
@@ -390,6 +399,15 @@
 				label: 'Add warm-up set',
 				detail: `Rests ${DEFAULT_REST_WARMUP_SEC}s and stays out of the set count`,
 				onSelect: () => addSet(ex, 'warmup')
+			},
+			{
+				// The flip leaves the numbers alone rather than reseeding them: an accidental tap here
+				// must not be able to wipe a set of planned rep goals.
+				label: timed(ex) ? 'Measure in reps' : 'Measure in seconds',
+				detail: timed(ex)
+					? 'The goals go back to being rep counts, unchanged'
+					: 'A hold with its own Start button — the goals become seconds, so retype them',
+				onSelect: () => (ex.mode = timed(ex) ? 'reps' : 'time')
 			},
 			{
 				label: 'Default rest for this exercise…',
