@@ -71,17 +71,61 @@ function toPipe({ head, rows }) {
 export function htmlTablesToPipe(text) {
 	const tables = []
 	const out = text.replace(/<table>[\s\S]*?<\/table>/g, (block) => {
-		const head = [...block.matchAll(/<th>([\s\S]*?)<\/th>/g)].map((m) => cellText(m[1]))
+		const headRows = []
 		const rows = []
 		for (const tr of block.matchAll(/<tr>([\s\S]*?)<\/tr>/g)) {
 			const cells = [...tr[1].matchAll(/<td>([\s\S]*?)<\/td>/g)].map((m) => cellText(m[1]))
 			if (cells.length) rows.push(cells)
+			else headRows.push(headCells(tr[1]))
 		}
-		const t = { head, rows }
+		const t = trimEmptyTail({ head: mergeHead(headRows), rows })
 		tables.push(t)
 		return toPipe(t)
 	})
 	return { text: out, tables }
+}
+
+/**
+ * Drop trailing columns that are blank all the way down — the 2024 Bard and Druid headers each carry
+ * one stray <th> past the end of their data, which would otherwise render as an empty last column.
+ */
+function trimEmptyTail({ head, rows }) {
+	let width = Math.max(head.length, ...rows.map((r) => r.length))
+	while (width > 0) {
+		const i = width - 1
+		if ((head[i] ?? '').trim() !== '' || rows.some((r) => (r[i] ?? '').trim() !== '')) break
+		width--
+	}
+	return { head: head.slice(0, width), rows: rows.map((r) => r.slice(0, width)) }
+}
+
+/** One header row, with a colspan repeated across the columns it covers so indices stay true. */
+function headCells(tr) {
+	const out = []
+	for (const m of tr.matchAll(/<th(?:\s[^>]*)?>([\s\S]*?)<\/th>/g)) {
+		const span = Math.max(1, parseInt(/colspan="(\d+)"/.exec(m[0])?.[1] ?? '1', 10))
+		for (let i = 0; i < span; i++) out.push(cellText(m[1]))
+	}
+	return out
+}
+
+/**
+ * Flatten a multi-row <thead> down one column at a time, keeping the most specific label.
+ *
+ * Every 2024 caster table spells its spell slots as a `colspan="9"` banner over a second row of
+ * 1..9. Concatenating the rows instead of merging them left the head six columns longer than it
+ * should be, so every slot column was labelled with the head of a column six to its left — and the
+ * six that fell off the end went unlabelled. The lower row wins because it is the one naming a
+ * single column; a blank there falls back to the banner above it.
+ */
+function mergeHead(headRows) {
+	const width = Math.max(0, ...headRows.map((r) => r.length))
+	return Array.from({ length: width }, (_, i) => {
+		for (let r = headRows.length - 1; r >= 0; r--) {
+			if ((headRows[r][i] ?? '').trim() !== '') return headRows[r][i]
+		}
+		return ''
+	})
 }
 
 const PIPE_ROW = /^\s*\|.*\|\s*$/

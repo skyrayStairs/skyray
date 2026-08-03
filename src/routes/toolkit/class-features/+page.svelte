@@ -1,7 +1,18 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
 	import type { ClassData, ClassFeature, ClassVersion, CustomSubclass } from '$lib/types/dndClass'
-	import { CLASS_SLUGS, CLASS_NAMES, VERSIONS } from '$lib/types/dndClass'
+	import {
+		CLASS_SLUGS,
+		CLASS_NAMES,
+		VERSIONS,
+		ABILITIES,
+		allowance,
+		asiAt,
+		asiTotals,
+		chooseCount,
+		nextFolds,
+		setAsi
+	} from '$lib/types/dndClass'
 	import { renderInline, splitBlocks } from '$lib/utils/markdown'
 	import { scrollGroups } from '$lib/utils/scrollGroups'
 	import { downloadJson, readJsonFile } from '$lib/utils/fileIO'
@@ -19,12 +30,16 @@
 	// Level is remembered per class, not globally — you have one character per class, not one level.
 	let levels = $state<Record<string, number>>({})
 	// Which option you took for each selectable feature, keyed "<version>/<slug>/<feature>" so a
-	// 2014 Fighter's Fighting Style and a 2014 Ranger's don't share one answer.
-	let picks = $state<Record<string, string>>({})
+	// 2014 Fighter's Fighting Style and a 2014 Ranger's don't share one answer. A string for a
+	// pick-one feature, a list for a `choose` one (Battle Master maneuvers).
+	let picks = $state<Record<string, string | string[]>>({})
 	// Hand-typed subclasses, and which one is active per class. Kept in a separate key from the rest
 	// of the preferences because this is the only content the user authored — losing it isn't the
 	// same as losing a remembered level.
 	let customSubclasses = $state<CustomSubclass[]>([])
+	// Which boxes you have folded or unfolded by hand, against what the page would have shown you.
+	// Keyed like `picks`, so folding a Fighter's box says nothing about a Rogue's.
+	let folds = $state<Record<string, boolean>>({})
 	let activeSubclass = $state<Record<string, string>>({})
 	let editing = $state<CustomSubclass | null>(null)
 	let initialized = $state(false)
@@ -47,18 +62,42 @@
 
 	const pickKey = (feature: ClassFeature) => `${version}/${slug}/${feature.name}`
 
-	/** The chosen option, or null for "show them all" — which is the default, so nothing starts hidden. */
-	function chosen(feature: ClassFeature) {
-		const label = picks[pickKey(feature)]
-		return feature.options?.find((o) => o.label === label) ?? null
+	const foldKey = (id: string) => `${version}/${slug}/${id}`
+	/** The same string the `{#each}` is keyed on: a subclass may reuse a base feature's name. */
+	const featureId = (feature: ClassFeature) => `${feature.subclass ?? ''}/${feature.name}`
+
+	/** `fallback` is what the box would do untouched — recomputed on every render, so a level-up moves it. */
+	const isOpen = (id: string, fallback: boolean) => folds[foldKey(id)] ?? fallback
+
+	function onFold(id: string, fallback: boolean, e: Event) {
+		folds = nextFolds(folds, foldKey(id), (e.currentTarget as HTMLDetailsElement).open, fallback)
 	}
 
-	function setPick(feature: ClassFeature, label: string) {
-		const next = { ...picks }
-		// Empty label = "show all", which is the absence of a pick rather than a pick of its own.
-		if (label) next[pickKey(feature)] = label
-		else delete next[pickKey(feature)]
-		picks = next
+	/** The labels kept for a `choose` feature. A lone string is one from before it took a list. */
+	function picked(feature: ClassFeature): string[] {
+		const v = picks[pickKey(feature)]
+		return Array.isArray(v) ? v : v ? [v] : []
+	}
+
+	function togglePick(feature: ClassFeature, label: string) {
+		const mine = picked(feature)
+		const next = mine.includes(label) ? mine.filter((l) => l !== label) : [...mine, label]
+		picks = { ...picks, [pickKey(feature)]: next }
+	}
+
+	/** How many options this feature lets you keep right now. 0 means it grants them all outright. */
+	const capOf = (feature: ClassFeature) =>
+		data ? chooseCount({ choose: allowance(data, feature) }, level) : 0
+
+	// Which half of the picker you are looking at. Not persisted — the useful default follows from
+	// whether you still owe a choice, so there is nothing to remember between visits.
+	let optionTab = $state<Record<string, 'mine' | 'all'>>({})
+	const tabOf = (id: string, done: boolean) => optionTab[id] ?? (done ? 'mine' : 'all')
+
+	const isAsi = (feature: ClassFeature) => feature.name === 'Ability Score Improvement'
+
+	function setAsiPick(feature: ClassFeature, at: number, slot: 0 | 1, ability: string) {
+		picks = { ...picks, [pickKey(feature)]: setAsi(picked(feature), at, slot, ability) }
 	}
 
 	$effect(() => {
@@ -100,6 +139,12 @@
 			if (saved.picks && typeof saved.picks === 'object') {
 				for (const [k, v] of Object.entries(saved.picks)) {
 					if (typeof v === 'string') picks[k] = v
+					else if (Array.isArray(v) && v.every((l) => typeof l === 'string')) picks[k] = v
+				}
+			}
+			if (saved.folds && typeof saved.folds === 'object') {
+				for (const [k, v] of Object.entries(saved.folds)) {
+					if (typeof v === 'boolean') folds[k] = v
 				}
 			}
 			if (saved.activeSubclass && typeof saved.activeSubclass === 'object') {
@@ -125,7 +170,7 @@
 
 	$effect(() => {
 		if (!initialized) return
-		localStorage.setItem(LS_KEY, JSON.stringify({ version, slug, levels, picks, activeSubclass }))
+		localStorage.setItem(LS_KEY, JSON.stringify({ version, slug, levels, picks, folds, activeSubclass }))
 	})
 
 	$effect(() => {
@@ -230,21 +275,49 @@
 						subclass: activeOutline.name
 					}))
 				: []
-		return [...base, ...extra].sort((a, b) => a.levels[0] - b.levels[0] || a.name.localeCompare(b.name))
+		// The Champion's Additional Fighting Style is "choose a second option from the Fighting Style
+		// class feature" — the same list, so it gets the same list, and the second pick has a box of
+		// its own to live in. The 2024 Fighting Style is a feat with no options, so nothing is lent.
+		const styles = data.features.find((f) => f.name === 'Fighting Style')?.options
+		return [...base, ...extra]
+			.map((f) =>
+				f.name === 'Additional Fighting Style' && !f.options && styles ? { ...f, options: styles } : f
+			)
+			.sort((a, b) => a.levels[0] - b.levels[0] || a.name.localeCompare(b.name))
 	})
 	const groupHeads = $derived(
 		ordered.map((f, i) => (i === 0 || ordered[i - 1].levels[0] !== f.levels[0] ? f.levels[0] : null))
 	)
 
-	/** The progression row for your level, minus the Level and Features columns — the at-a-glance bit. */
-	const currentRow = $derived.by(() => {
+	/** A spell-slot column: headed by a bare level, "1".."9" in 2024 and "1st".."9th" in 2014. */
+	const SLOT_HEAD = /^\d+(st|nd|rd|th)?$/i
+
+	/** The cells of your level's progression row that carry a value, paired with their column head. */
+	const rowCells = $derived.by(() => {
 		if (!data) return []
 		const row = data.progression.rows[level - 1]
 		if (!row) return []
 		return data.progression.head
 			.map((h, i) => ({ head: h, value: row[i] }))
-			.filter((c, i) => i > 0 && !/^(class )?features$/i.test(c.head) && c.value && c.value !== '—' && c.value !== '-')
+			// A blank head would render as an unlabelled number you have to count columns to decode.
+			// None ship — the tests pin that — but this row is built from parsed source, so it guards.
+			.filter(
+				(c, i) =>
+					i > 0 &&
+					c.head.trim() !== '' &&
+					!/^(class )?features$/i.test(c.head) &&
+					c.value &&
+					c.value !== '—' &&
+					c.value !== '-'
+			)
 	})
+
+	/** The at-a-glance bit: what your sheet needs mid-turn, minus the slots. */
+	const currentRow = $derived(rowCells.filter((c) => !SLOT_HEAD.test(c.head)))
+
+	// Nine separate chips reading "1 4", "2 3" would bury the rest of the row — which is what the
+	// Sorcery Points chip was lost behind. One chip in slot order says the same thing.
+	const slotRow = $derived(rowCells.filter((c) => SLOT_HEAD.test(c.head)))
 </script>
 
 <div class="flex flex-col bg-cream text-teal min-h-full">
@@ -311,7 +384,7 @@
 			<p class="py-24 text-center text-sm opacity-40">Loading {className}…</p>
 		{:else}
 			<!-- What your sheet needs mid-turn: this level's row of the progression table. -->
-			{#if currentRow.length}
+			{#if currentRow.length || slotRow.length}
 				<div class="flex flex-wrap gap-1">
 					{#each currentRow as cell}
 						<span class="rounded-full bg-white border border-teal/20 px-2 py-0.5 text-xs">
@@ -319,6 +392,14 @@
 							<span class="font-semibold tabular-nums">{cell.value}</span>
 						</span>
 					{/each}
+					{#if slotRow.length}
+						<span class="rounded-full bg-white border border-teal/20 px-2 py-0.5 text-xs">
+							<span class="opacity-60">Slots</span>
+							<span class="font-semibold tabular-nums">
+								{slotRow.map((c) => c.value).join(' / ')}
+							</span>
+						</span>
+					{/if}
 				</div>
 			{/if}
 
@@ -371,7 +452,11 @@
 				</label>
 			</div>
 
-			<details class="rounded border border-teal/20 bg-white/50">
+			<details
+				class="rounded border border-teal/20 bg-white/50"
+				open={isOpen('progression', false)}
+				ontoggle={(e) => onFold('progression', false, e)}
+			>
 				<summary class="cursor-pointer px-2 py-1.5 text-xs font-semibold">
 					{className} progression — all 20 levels
 				</summary>
@@ -392,7 +477,11 @@
 			</details>
 
 			{#if data.basics.length}
-				<details class="rounded border border-teal/20 bg-white/50">
+				<details
+					class="rounded border border-teal/20 bg-white/50"
+					open={isOpen('basics', false)}
+					ontoggle={(e) => onFold('basics', false, e)}
+				>
 					<summary class="cursor-pointer px-2 py-1.5 text-xs font-semibold">
 						Hit points, proficiencies and starting equipment
 					</summary>
@@ -408,8 +497,11 @@
 			{/if}
 
 			<!-- Key on subclass+name: a subclass can repeat a base feature's name (Warlock's Pact Boon). -->
-			{#each ordered as feature, i (`${feature.subclass ?? ''}/${feature.name}`)}
+			{#each ordered as feature, i (featureId(feature))}
 				{@const head = groupHeads[i]}
+				{@const cap = capOf(feature)}
+				{@const mine = picked(feature)}
+				{@const gained = feature.levels[0] <= level}
 				{#if head !== null}
 					<div data-group-heading class="flex items-center gap-2 pt-2">
 						<span class="h-px flex-1 bg-teal/30"></span>
@@ -421,11 +513,18 @@
 					</div>
 				{/if}
 
-				<!-- Native <details>: the collapse costs no JS, and "have I got this yet" is the open state. -->
+				<!--
+				  Native <details>: the collapse costs no JS, and "have I got this yet" is the open state
+				  — until you fold one by hand, which outranks the level from then on. Folding is also an
+				  explicit "not now" for the red nudge: it silences the blink without settling the choice,
+				  and the badge on the summary still says what is owed.
+				-->
 				<details
 					class="rounded border border-teal/20 bg-white/50"
-					class:opacity-60={feature.levels[0] > level}
-					open={feature.levels[0] <= level}
+					class:opacity-60={!gained}
+					class:needs-pick={cap > 0 && mine.length < cap && isOpen(featureId(feature), gained)}
+					open={isOpen(featureId(feature), gained)}
+					ontoggle={(e) => onFold(featureId(feature), gained, e)}
 				>
 					<summary class="cursor-pointer px-2 py-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
 						<span class="font-semibold text-sm">{feature.name}</span>
@@ -439,6 +538,13 @@
 								also {feature.levels.slice(1).join(', ')}
 							</span>
 						{/if}
+						{#if cap > 0}
+							<!-- Carries the same red as the border, so a folded box still shows what it owes. -->
+							<span
+								class="rounded-full px-1.5 py-px text-[0.65rem] font-semibold tabular-nums
+									{mine.length < cap ? 'owed text-cream' : 'bg-teal/15'}"
+							>{mine.length} / {cap} chosen</span>
+						{/if}
 					</summary>
 					<div class="px-2 pb-2">
 						{#if feature.body.trim() === ''}
@@ -449,24 +555,91 @@
 						{/if}
 						{@render blocks(feature.body)}
 
-						{#if feature.options}
-							{@const pick = chosen(feature)}
-							<label class="mt-2 flex items-center gap-2">
-								<span class="sr-only">Choose your {feature.name}</span>
-								<select
-									class="select select-xs w-full bg-white border-teal/30"
-									value={pick?.label ?? ''}
-									onchange={(e) => setPick(feature, e.currentTarget.value)}
-								>
-									<option value="">Show all {feature.options.length} options</option>
-									{#each feature.options as o}
-										<option value={o.label}>{o.label}</option>
-									{/each}
-								</select>
-							</label>
+						{#if isAsi(feature)}
+							{@const totals = asiTotals(mine)}
+							<!-- The one feature with nothing to read: what matters is what you did with it. -->
+							<div class="mt-2 flex flex-col gap-1.5">
+								{#each feature.levels.filter((l) => l <= level) as at (at)}
+									{@const pair = asiAt(mine, at)}
+									<div class="flex items-center gap-1.5">
+										<span class="w-10 shrink-0 text-xs tabular-nums opacity-60">Lv {at}</span>
+										{#each [0, 1] as const as slot}
+											<select
+												class="select select-xs flex-1 min-w-0 bg-white border-teal/30"
+												value={pair[slot]}
+												aria-label="Level {at} improvement, score {slot + 1}"
+												onchange={(e) => setAsiPick(feature, at, slot, e.currentTarget.value)}
+											>
+												<option value="">—</option>
+												{#each ABILITIES as a}<option value={a}>{a}</option>{/each}
+											</select>
+										{/each}
+									</div>
+								{/each}
+								{#if feature.levels.every((l) => l > level)}
+									<p class="text-xs opacity-50">Nothing to record until level {feature.levels[0]}.</p>
+								{/if}
+								<!-- Same score in both slots is +2 to it, which is why this counts slots not rows. -->
+								{#if totals.length}
+									<div class="flex flex-wrap gap-1 pt-0.5">
+										{#each totals as t (t.ability)}
+											<span class="rounded-full bg-teal/15 px-2 py-0.5 text-xs">
+												<span class="opacity-60">{t.ability}</span>
+												<span class="font-semibold tabular-nums">+{t.bonus}</span>
+											</span>
+										{/each}
+									</div>
+								{/if}
+							</div>
+						{:else if feature.options && cap > 0}
+							{@const id = foldKey(featureId(feature))}
+							{@const tab = tabOf(id, mine.length >= cap)}
+							<!-- Two tabs rather than one list: at 32 invocations the ones you took are the
+							     needle, and scrolling past them to re-read your own build is the whole problem. -->
+							<!-- A two-state filter over the list below, not a tab widget — aria-pressed, because
+							     there is no separate panel for a tablist to point at. -->
+							<div class="mt-2 flex gap-1">
+								{#each [['mine', `Chosen ${mine.length} / ${cap}`], ['all', `All ${feature.options.length}`]] as const as [key, label]}
+									<button
+										aria-pressed={tab === key}
+										class="btn btn-xs flex-1 {tab === key ? 'btn-primary' : 'btn-outline'}"
+										onclick={() => (optionTab = { ...optionTab, [id]: key })}
+									>{label}</button>
+								{/each}
+							</div>
 
 							<div class="mt-2 flex flex-col gap-2">
-								{#each pick ? [pick] : feature.options as o (o.label)}
+								{#each tab === 'mine' ? feature.options.filter((o) => mine.includes(o.label)) : feature.options as o (o.label)}
+									{@const taken = mine.includes(o.label)}
+									<div
+										class="rounded border px-2 py-1.5 {taken
+											? 'border-teal/40 bg-white'
+											: 'border-teal/15 bg-white/60'}"
+										class:opacity-50={!taken && mine.length >= cap}
+									>
+										<label class="flex items-center gap-2 cursor-pointer">
+											<input
+												type="checkbox"
+												class="checkbox checkbox-xs"
+												checked={taken}
+												disabled={!taken && mine.length >= cap}
+												onchange={() => togglePick(feature, o.label)}
+											/>
+											<span class="text-xs font-bold uppercase tracking-wide opacity-60">{o.label}</span>
+										</label>
+										{@render blocks(o.body)}
+									</div>
+								{/each}
+								{#if tab === 'mine' && mine.length === 0}
+									<p class="text-xs opacity-50">
+										Nothing chosen yet — <strong>All</strong> has {feature.options.length} to pick from.
+									</p>
+								{/if}
+							</div>
+						{:else if feature.options}
+							<!-- No picker: these are granted together, not chosen between. -->
+							<div class="mt-2 flex flex-col gap-2">
+								{#each feature.options as o (o.label)}
 									<div class="rounded border border-teal/15 bg-white/60 px-2 py-1.5">
 										<p class="text-xs font-bold uppercase tracking-wide opacity-60">{o.label}</p>
 										{@render blocks(o.body)}
@@ -569,6 +742,39 @@
 	.btn {
 		animation: none;
 		transform: none;
+	}
+
+	/* A "pick N" feature you haven't finished picking. `alert` rather than teal so it reads as the one
+	   thing on the page asking for something, and it stops the moment the last choice lands — or the
+	   moment you fold the box. */
+	.needs-pick {
+		animation: needs-pick 1.6s ease-in-out infinite;
+	}
+
+	.owed {
+		background-color: var(--alert);
+	}
+
+	@keyframes needs-pick {
+		0%,
+		100% {
+			border-color: rgb(var(--alert-rgb) / 0.35);
+			box-shadow: 0 0 0 0 rgb(var(--alert-rgb) / 0);
+		}
+		50% {
+			border-color: rgb(var(--alert-rgb) / 1);
+			/* 2px, not 3: the boxes are stacked on an 8px gap, and two rings at 3 leave a 2px sliver
+			   that reads as the neighbours touching. */
+			box-shadow: 0 0 0 2px rgb(var(--alert-rgb) / 0.18);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.needs-pick {
+			animation: none;
+			border-color: rgb(var(--alert-rgb) / 0.9);
+			box-shadow: 0 0 0 2px rgb(var(--alert-rgb) / 0.15);
+		}
 	}
 
 	/* daisyUI fills a disabled button with a translucent dark grey, which on cream reads as a solid

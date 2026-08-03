@@ -1,6 +1,6 @@
 // Structural index of published subclasses — Player's Handbook (both rulesets), plus Xanathar's
-// Guide to Everything and Tasha's Cauldron of Everything for 2014. Name, feature names, and the
-// levels they arrive at.
+// Guide to Everything, Tasha's Cauldron of Everything and a handful from other books for 2014.
+// Name, feature names, and the levels they arrive at.
 //
 // None of the books' prose appears here. Rules and mechanics are not copyrightable — only the
 // sentences describing them are — so a `body` states the rule in plain words and nothing more. What
@@ -30,6 +30,8 @@ export type SubclassOutline = {
 		body?: string
 		/** For features that are themselves a choice: Battle Master manoeuvres, Totem Spirit animals. */
 		options?: { label: string; body: string }[]
+		/** How many of those options you keep, and the levels the allowance grows at. See `chooseCount`. */
+		choose?: { level: number; count: number }[]
 	}[]
 	/** Which book it comes from. Grouped by this in the picker so provenance is visible. */
 	source?: string
@@ -40,17 +42,27 @@ export type SubclassIndex = Record<string, SubclassOutline[]>
 
 const f = (name: string, ...levels: number[]) => ({ name, levels })
 
+/** `picks([3, 2], [7, 3])` — two options from 3rd level, three from 7th. */
+const picks = (...steps: [level: number, count: number][]) =>
+	steps.map(([level, count]) => ({ level, count }))
+
 /**
  * Paladin oaths and ranger archetypes both hand out subclass spells on the same 3/5/9/13/17 ladder,
- * so only the spells and the wording of the caveat differ.
+ * so only the spells and the wording of the caveat differ. Sorcerer origins use the same shape one
+ * step earlier, on 1/3/5/7/9.
  */
-const spellLadder = (who: string, note: string, rows: string[]) =>
+const spellLadder = (
+	who: string,
+	note: string,
+	rows: string[],
+	at = ['3rd', '5th', '9th', '13th', '17th']
+) =>
 	[
 		note,
 		'',
 		`| ${who} Level | Spells |`,
 		'| --- | --- |',
-		...['3rd', '5th', '9th', '13th', '17th'].map((lv, i) => `| ${lv} | ${rows[i]} |`)
+		...at.map((lv, i) => `| ${lv} | ${rows[i]} |`)
 	].join('\n')
 
 const OATH_SPELLS = (rows: string[]) =>
@@ -250,32 +262,217 @@ export const SUBCLASSES_2014: SubclassIndex = {
 		{
 			name: 'Champion',
 			features: [
-				f('Improved Critical', 3),
-				f('Remarkable Athlete', 7),
-				f('Additional Fighting Style', 10),
-				f('Superior Critical', 15),
-				f('Survivor', 18)
+				{
+					name: 'Improved Critical',
+					levels: [3],
+					body: 'Your **weapon attacks score a critical hit on a 19 or 20**.'
+				},
+				{
+					name: 'Remarkable Athlete',
+					levels: [7],
+					body: 'Add **half your proficiency bonus, rounded up**, to any **Strength, Dexterity or Constitution check** that does not already use it. Your **running long jump** covers an extra number of feet equal to **your Strength modifier**.'
+				},
+				{
+					name: 'Additional Fighting Style',
+					levels: [10],
+					body: 'A **second option from Fighting Style**.'
+				},
+				{
+					name: 'Superior Critical',
+					levels: [15],
+					body: 'Your **weapon attacks score a critical hit on an 18–20**.'
+				},
+				{
+					name: 'Survivor',
+					levels: [18],
+					body: 'At the start of each of your turns, regain **5 + your Constitution modifier** hit points if you are at **half your hit points or below**. Nothing at **0 hit points**.'
+				}
 			]
 		},
 		{
 			name: 'Battle Master',
 			features: [
-				f('Combat Superiority', 3),
-				f('Student of War', 3),
-				f('Know Your Enemy', 7),
-				f('Improved Combat Superiority', 10, 18),
-				f('Relentless', 15)
+				{
+					name: 'Combat Superiority',
+					levels: [3, 7, 10, 15],
+					choose: picks([3, 3], [7, 5], [10, 7], [15, 9]),
+					body: [
+						'- **Maneuvers.** Three of your choice, **two more at 7th, 10th and 15th level**. Each time you learn new ones you may **swap one you know**. Using a maneuver **expends one superiority die**, and you can use **only one maneuver per attack**.',
+						'- **Superiority dice.** Four **d8s**, **one more at 7th level** and **one more at 15th**. A die is spent when used; all of them return on a **short or long rest**.',
+						'- **Maneuver save DC** = 8 + your proficiency bonus + **your Strength or Dexterity modifier** (your choice).',
+						'',
+						'Every maneuver below spends one of those dice. The list spans the **Player’s Handbook** and **Xanathar’s Guide to Everything** — Ambush, Bait and Switch, Brace, Commanding Presence, Grappling Strike, Quick Toss and Tactical Assessment come from the latter.'
+					].join('\n'),
+					options: [
+						{
+							label: 'Ambush',
+							body: 'Add the die to a **Dexterity (Stealth)** check or an **initiative roll**, unless you are incapacitated.'
+						},
+						{
+							label: 'Bait and Switch',
+							body: 'On your turn, spend **at least 5 feet of movement** to **swap places with a willing creature within 5 feet** that is not incapacitated — that movement **provokes no opportunity attacks**. Roll the die: **you or that creature** (your choice) gains **that much AC** until the start of your next turn.'
+						},
+						{
+							label: 'Brace',
+							body: '**Reaction** when a creature you can see **moves into the reach** of the melee weapon you wield: **one attack** with that weapon, adding the die to its **damage** on a hit.'
+						},
+						{
+							label: "Commander's Strike",
+							body: 'On the Attack action, **forgo one of your attacks** and spend a **bonus action**: one friendly creature that can see or hear you **uses its reaction to make one weapon attack**, adding the die to that attack’s **damage**.'
+						},
+						{
+							label: 'Commanding Presence',
+							body: 'Add the die to a **Charisma (Intimidation, Performance or Persuasion)** check.'
+						},
+						{
+							label: 'Disarming Attack',
+							body: 'On a hit: add the die to the **damage**, and the target makes a **Strength save** or **drops one item of your choice** that it holds, at its feet.'
+						},
+						{
+							label: 'Distracting Strike',
+							body: 'On a hit: add the die to the **damage**, and the **next attack roll against that target by anyone but you** has **advantage**, if it comes before the start of your next turn.'
+						},
+						{
+							label: 'Evasive Footwork',
+							body: 'When you move, roll the die and **add it to your AC until you stop moving**.'
+						},
+						{
+							label: 'Feinting Attack',
+							body: '**Bonus action:** feint at one creature within 5 feet. You have **advantage on your next attack roll against it this turn**, and on a hit you add the die to the **damage**.'
+						},
+						{
+							label: 'Goading Attack',
+							body: 'On a hit: add the die to the **damage**, and the target makes a **Wisdom save** or has **disadvantage on attack rolls against anyone but you** until the end of your next turn.'
+						},
+						{
+							label: 'Grappling Strike',
+							body: 'Immediately after you hit with a **melee attack** on your turn, **bonus action** to try to **grapple** the target, adding the die to your **Strength (Athletics)** check.'
+						},
+						{
+							label: 'Lunging Attack',
+							body: 'On a melee weapon attack on your turn, **increase your reach by 5 feet** for that attack, and on a hit add the die to the **damage**.'
+						},
+						{
+							label: 'Maneuvering Attack',
+							body: 'On a hit: add the die to the **damage**, and one friendly creature that can see or hear you **uses its reaction to move up to half its speed** without provoking an opportunity attack **from the target of your attack**.'
+						},
+						{
+							label: 'Menacing Attack',
+							body: 'On a hit: add the die to the **damage**, and the target makes a **Wisdom save** or is **frightened of you** until the end of your next turn.'
+						},
+						{
+							label: 'Parry',
+							body: '**Reaction** when a creature damages you with a **melee attack**: reduce that damage by **the die + your Dexterity modifier**.'
+						},
+						{
+							label: 'Precision Attack',
+							body: 'Add the die to a **weapon attack roll** — **before or after you roll**, but before any of the attack’s effects apply.'
+						},
+						{
+							label: 'Pushing Attack',
+							body: 'On a hit: add the die to the **damage**, and a target that is **Large or smaller** makes a **Strength save** or is **pushed up to 15 feet away** from you.'
+						},
+						{
+							label: 'Quick Toss',
+							body: '**Bonus action:** a ranged attack with a **thrown** weapon, which you may **draw as part of the attack**, adding the die to its **damage** on a hit.'
+						},
+						{
+							label: 'Rally',
+							body: '**Bonus action:** one friendly creature that can see or hear you gains **temporary hit points equal to the die + your Charisma modifier**.'
+						},
+						{
+							label: 'Riposte',
+							body: '**Reaction** when a creature **misses you with a melee attack**: one melee weapon attack against it, adding the die to its **damage** on a hit.'
+						},
+						{
+							label: 'Sweeping Attack',
+							body: 'On a hit with a **melee weapon attack**, choose a second creature **within 5 feet of the target and within your reach**. If your attack roll would hit that creature too, it takes **damage equal to the die alone**, of the **same type as the original attack**.'
+						},
+						{
+							label: 'Tactical Assessment',
+							body: 'Add the die to an **Intelligence (Investigation or History)** or **Wisdom (Insight)** check.'
+						},
+						{
+							label: 'Trip Attack',
+							body: 'On a hit: add the die to the **damage**, and a target that is **Large or smaller** makes a **Strength save** or is **knocked prone**.'
+						}
+					]
+				},
+				{
+					name: 'Student of War',
+					levels: [3],
+					body: 'Proficiency with **one type of artisan’s tools** of your choice.'
+				},
+				{
+					name: 'Know Your Enemy',
+					levels: [7],
+					body: '**One minute** observing or interacting with a creature outside combat tells you whether it is your **equal, superior or inferior** in **two** characteristics of your choice: **Strength, Dexterity, Constitution, AC, current hit points, total class levels, fighter levels**.'
+				},
+				{
+					name: 'Improved Combat Superiority',
+					levels: [10, 18],
+					body: 'Your superiority dice become **d10s**, and **d12s at 18th level**.'
+				},
+				{
+					name: 'Relentless',
+					levels: [15],
+					body: 'Roll initiative with **no superiority dice left** and you **regain one**.'
+				}
 			]
 		},
 		{
 			name: 'Eldritch Knight',
 			features: [
-				f('Spellcasting', 3),
-				f('Weapon Bond', 3),
-				f('War Magic', 7),
-				f('Eldritch Strike', 10),
-				f('Arcane Charge', 15),
-				f('Improved War Magic', 18)
+				{
+					name: 'Spellcasting',
+					levels: [3],
+					body: [
+						'You cast **wizard spells** using **Intelligence**: **save DC** = 8 + your proficiency bonus + Intelligence modifier, **attack bonus** = proficiency bonus + Intelligence modifier. Slots return on a **long rest**.',
+						'',
+						'Your first three 1st-level spells include **two abjuration or evocation** ones, and every spell learned afterwards must be **abjuration or evocation** — except those gained at **8th, 14th and 20th level**, which may come from **any school**. On each fighter level you may **swap one spell** under the same restriction.',
+						'',
+						'| Fighter Level | Cantrips | Spells | Slots (1st/2nd/3rd/4th) |',
+						'| --- | --- | --- | --- |',
+						'| 3rd | 2 | 3 | 2 |',
+						'| 4th | 2 | 4 | 3 |',
+						'| 7th | 2 | 5 | 4 / 2 |',
+						'| 8th | 2 | 6 | 4 / 2 |',
+						'| 10th | 3 | 7 | 4 / 3 |',
+						'| 11th | 3 | 8 | 4 / 3 |',
+						'| 13th | 3 | 9 | 4 / 3 / 2 |',
+						'| 14th | 3 | 10 | 4 / 3 / 2 |',
+						'| 16th | 3 | 11 | 4 / 3 / 3 |',
+						'| 19th | 3 | 12 | 4 / 3 / 3 / 1 |',
+						'| 20th | 3 | 13 | 4 / 3 / 3 / 1 |',
+						'',
+						'Levels not listed repeat the row above.'
+					].join('\n')
+				},
+				{
+					name: 'Weapon Bond',
+					levels: [3],
+					body: 'A **1-hour ritual**, which a short rest covers, bonds a weapon that stays within reach throughout. You **cannot be disarmed** of a bonded weapon unless incapacitated, and while it is on the same plane you can **summon it to your hand as a bonus action**. **Two bonded weapons** at most, one summoned per bonus action; bonding a third breaks one of the others.'
+				},
+				{
+					name: 'War Magic',
+					levels: [7],
+					body: 'Cast a **cantrip with your action** and you can make **one weapon attack as a bonus action**.'
+				},
+				{
+					name: 'Eldritch Strike',
+					levels: [10],
+					body: 'Hit a creature with a weapon attack and it has **disadvantage on its next saving throw against a spell you cast**, before the end of your next turn.'
+				},
+				{
+					name: 'Arcane Charge',
+					levels: [15],
+					body: 'When you **Action Surge**, **teleport up to 30 feet** to an unoccupied space you can see, before or after the extra action.'
+				},
+				{
+					name: 'Improved War Magic',
+					levels: [18],
+					body: 'Cast **any spell with your action** and you can make **one weapon attack as a bonus action**.'
+				}
 			]
 		}
 	],
@@ -326,11 +523,13 @@ export const SUBCLASSES_2014: SubclassIndex = {
 				{
 					name: 'Oath Spells',
 					levels: [3],
-					body: OATH_SPELLS(['Ensnaring Strike, Speak with Animals',
+					body: OATH_SPELLS([
+						'Ensnaring Strike, Speak with Animals',
 						'Moonbeam, Misty Step',
 						'Plant Growth, Protection from Energy',
 						'Ice Storm, Stoneskin',
-						'Commune with Nature, Tree Stride'])
+						'Commune with Nature, Tree Stride'
+					])
 				},
 				{
 					name: 'Channel Divinity',
@@ -576,11 +775,88 @@ export const SUBCLASSES_2014: SubclassIndex = {
 		{
 			name: 'Wild Magic',
 			features: [
-				f('Wild Magic Surge', 1),
-				f('Tides of Chaos', 1),
-				f('Bend Luck', 6),
-				f('Controlled Chaos', 14),
-				f('Spell Bombardment', 18)
+				{
+					name: 'Wild Magic Surge',
+					levels: [1],
+					body: [
+						'**Once per turn**, immediately after you cast a **sorcerer spell of 1st level or higher**, the DM may have you **roll a d20**. On a **1**, roll on the **Wild Magic Surge table** for a random magical effect.',
+						'',
+						'If the effect is a spell, it is **too wild for your Metamagic**, and if it would normally need concentration it **does not** here — it simply runs its full duration.',
+						'',
+						'| d100 | Effect |',
+						'| --- | --- |',
+						'| 01-02 | Roll on this table again at the **start of each of your turns for 1 minute**, ignoring this result if it comes up again. |',
+						'| 03-04 | For **1 minute**, you see any **invisible creature** you have line of sight to. |',
+						'| 05-06 | A **modron** the DM controls appears in a free space **within 5 feet**, gone **1 minute** later. |',
+						'| 07-08 | You cast **Fireball as a 3rd-level spell**, centred on yourself. |',
+						'| 09-10 | You cast **Magic Missile as a 5th-level spell**. |',
+						'| 11-12 | Roll a **d10**: your **height** changes by that many inches. **Odd shrinks, even grows.** |',
+						'| 13-14 | You cast **Confusion** centred on yourself. |',
+						'| 15-16 | For **1 minute**, you **regain 5 hit points at the start of each of your turns**. |',
+						'| 17-18 | A long **beard of feathers** grows, staying until you **sneeze** and it bursts off your face. |',
+						'| 19-20 | You cast **Grease** centred on yourself. |',
+						'| 21-22 | The **next spell you cast within 1 minute that calls for a saving throw** is rolled against at **disadvantage**. |',
+						'| 23-24 | Your **skin turns vibrant blue**. **Remove Curse** ends it. |',
+						'| 25-26 | An **eye opens on your forehead** for **1 minute**: **advantage on sight-based Wisdom (Perception) checks**. |',
+						'| 27-28 | For **1 minute**, every spell of yours with a **1-action casting time takes 1 bonus action** instead. |',
+						'| 29-30 | **Teleport up to 60 feet** to a free space you can see. |',
+						'| 31-32 | You are **sent to the Astral Plane until the end of your next turn**, then return to your space or the nearest free one. |',
+						'| 33-34 | **Maximise the damage** of the next damaging spell you cast **within 1 minute**. |',
+						'| 35-36 | Roll a **d10**: your **age** changes by that many years. **Odd younger** (minimum 1 year old), **even older**. |',
+						'| 37-38 | **1d6 flumphs** the DM controls appear in free spaces **within 60 feet**, **frightened of you**, gone after **1 minute**. |',
+						'| 39-40 | You **regain 2d10 hit points**. |',
+						'| 41-42 | You become a **potted plant until the start of your next turn** — **incapacitated** and **vulnerable to all damage**. Reaching **0 hit points** breaks the pot and returns your form. |',
+						'| 43-44 | For **1 minute**, **bonus action to teleport up to 20 feet** on each of your turns. |',
+						'| 45-46 | You cast **Levitate** on yourself. |',
+						'| 47-48 | A **unicorn** the DM controls appears **within 5 feet**, gone **1 minute** later. |',
+						'| 49-50 | For **1 minute** you **cannot speak** — **pink bubbles** float out whenever you try. |',
+						'| 51-52 | A **spectral shield** guards you for **1 minute**: **+2 AC** and **immunity to Magic Missile**. |',
+						'| 53-54 | **Alcohol cannot intoxicate you** for **5d6 days**. |',
+						'| 55-56 | Your **hair falls out**, growing back within **24 hours**. |',
+						'| 57-58 | For **1 minute**, any **flammable object you touch bursts into flame** — unless another creature wears or carries it. |',
+						'| 59-60 | You **regain your lowest-level expended spell slot**. |',
+						'| 61-62 | For **1 minute**, you must **shout to speak**. |',
+						'| 63-64 | You cast **Fog Cloud** centred on yourself. |',
+						'| 65-66 | **Up to three creatures** of your choice **within 30 feet** take **4d10 lightning damage**. |',
+						'| 67-68 | You are **frightened by the nearest creature until the end of your next turn**. |',
+						'| 69-70 | Every creature **within 30 feet** turns **invisible for 1 minute**, each losing it when it **attacks or casts a spell**. |',
+						'| 71-72 | **Resistance to all damage** for **1 minute**. |',
+						'| 73-74 | A **random creature within 60 feet** is **poisoned for 1d4 hours**. |',
+						'| 75-76 | You shed **bright light in a 30-foot radius for 1 minute**. Anything ending its turn **within 5 feet** is **blinded until the end of its next turn**. |',
+						'| 77-78 | You cast **Polymorph** on yourself — **fail the save and you are a sheep** for the duration. |',
+						'| 79-80 | **Illusory butterflies and flower petals** drift **within 10 feet** for **1 minute**. |',
+						'| 81-82 | You **immediately take one extra action**. |',
+						'| 83-84 | Every creature **within 30 feet** takes **1d10 necrotic damage**, and you **regain hit points equal to the total dealt**. |',
+						'| 85-86 | You cast **Mirror Image**. |',
+						'| 87-88 | You cast **Fly** on a **random creature within 60 feet**. |',
+						'| 89-90 | You turn **invisible for 1 minute** and **cannot be heard**, ending it if you **attack or cast a spell**. |',
+						'| 91-92 | **Die within 1 minute** and you **return to life at once as though by Reincarnate**. |',
+						'| 93-94 | You grow **one size category larger for 1 minute**. |',
+						'| 95-96 | You and every creature **within 30 feet** gain **vulnerability to piercing damage** for **1 minute**. |',
+						'| 97-98 | Faint **ethereal music** surrounds you for **1 minute**. |',
+						'| 99-00 | You **regain all expended sorcery points**. |'
+					].join('\n')
+				},
+				{
+					name: 'Tides of Chaos',
+					levels: [1],
+					body: '**Advantage on one attack roll, ability check or saving throw**, then spent until you finish a **long rest**. Before it comes back, the DM may have you **roll on the Wild Magic Surge table** after you cast a sorcerer spell of 1st level or higher — doing so **returns the use to you**.'
+				},
+				{
+					name: 'Bend Luck',
+					levels: [6],
+					body: '**Reaction** and **2 sorcery points** when another creature you can see makes an **attack roll, ability check or saving throw**: roll **1d4** and apply it as a **bonus or penalty**, your choice. You may do this **after the roll but before its effects**.'
+				},
+				{
+					name: 'Controlled Chaos',
+					levels: [14],
+					body: 'Whenever you roll on the **Wild Magic Surge table**, **roll twice and use either result**.'
+				},
+				{
+					name: 'Spell Bombardment',
+					levels: [18],
+					body: 'When you roll a spell’s damage and any die comes up **its highest possible number**, pick one of those dice, **roll it again** and add it to the damage. **Once per turn.**'
+				}
 			]
 		}
 	],
@@ -1401,34 +1677,154 @@ export const SUBCLASSES_XGTE: SubclassIndex = {
 		{
 			name: 'Arcane Archer',
 			features: [
-				f('Arcane Archer Lore', 3),
-				f('Arcane Shot', 3),
-				f('Magic Arrow', 7),
-				f('Curving Shot', 7),
-				f('Ever-Ready Shot', 15)
+				{
+					name: 'Arcane Archer Lore',
+					levels: [3],
+					body: 'Proficiency in **Arcana or Nature**, and the **Prestidigitation or Druidcraft** cantrip.'
+				},
+				{
+					name: 'Arcane Shot',
+					levels: [3, 7, 10, 15, 18],
+					choose: picks([3, 2], [7, 3], [10, 4], [15, 5], [18, 6]),
+					body: [
+						'**Two options** to start, **one more at 7th, 10th, 15th and 18th level**, and **every option improves at 18th level**.',
+						'',
+						'**Once per turn**, when you fire an arrow from a **shortbow or longbow** as part of the Attack action, apply one option to that arrow. You decide **when the arrow hits**, unless the option involves no attack roll. **Two uses**, refilled on a **short or long rest**.',
+						'',
+						'**Arcane Shot save DC** = 8 + your proficiency bonus + **your Intelligence modifier**.'
+					].join('\n'),
+					options: [
+						{
+							label: 'Banishing Arrow (abjuration)',
+							body: '**Charisma save** or **banished to the Feywild**: **speed 0 and incapacitated** until the **end of its next turn**, when it reappears in the space it left or the nearest free one. **At 18th level** the arrow also deals **2d6 force**.'
+						},
+						{
+							label: 'Beguiling Arrow (enchantment)',
+							body: '**Extra 2d6 psychic** (**4d6 at 18th level**), and **Wisdom save** or **charmed by an ally of your choice within 30 feet** of it until the start of your next turn. Ends early if that ally attacks it, damages it, or forces it to save.'
+						},
+						{
+							label: 'Bursting Arrow (evocation)',
+							body: 'The target **and every creature within 10 feet of it** take **2d6 force** (**4d6 at 18th level**).'
+						},
+						{
+							label: 'Enfeebling Arrow (necromancy)',
+							body: '**Extra 2d6 necrotic** (**4d6 at 18th level**), and **Constitution save** or the **damage of its weapon attacks is halved** until the start of your next turn.'
+						},
+						{
+							label: 'Grasping Arrow (conjuration)',
+							body: '**Extra 2d6 poison** (**4d6 at 18th level**), **speed reduced by 10 feet**, and **2d6 slashing** (**4d6 at 18th level**) the **first time each turn** it moves 1 foot or more without teleporting. Lasts **1 minute** or until you use this option again; the target or a creature that can reach it can spend an **action** to tear the brambles off with a **Strength (Athletics)** check against your save DC.'
+						},
+						{
+							label: 'Piercing Arrow (transmutation)',
+							body: '**No attack roll.** The arrow flies down a **1-foot wide, 30-foot line**, passing through objects and **ignoring cover**. **Dexterity save** or take the arrow’s damage **plus 1d6 piercing** (**2d6 at 18th level**), half as much on a success.'
+						},
+						{
+							label: 'Seeking Arrow (divination)',
+							body: '**No attack roll.** Name **one creature you have seen in the past minute**; the arrow rounds corners and **ignores half and three-quarters cover**. If it is within range and a path exists: **Dexterity save** or take the arrow’s damage **plus 1d6 force** (**2d6 at 18th level**) and **you learn where it is**. On a success, half damage and no location.'
+						},
+						{
+							label: 'Shadow Arrow (illusion)',
+							body: '**Extra 2d6 psychic** (**4d6 at 18th level**), and **Wisdom save** or it **cannot see anything more than 5 feet away** until the start of your next turn.'
+						}
+					]
+				},
+				{
+					name: 'Magic Arrow',
+					levels: [7],
+					body: 'Nonmagical arrows you fire from a **shortbow or longbow** count as **magical** for overcoming resistance and immunity to nonmagical attacks and damage. The magic fades the moment the arrow hits or misses.'
+				},
+				{
+					name: 'Curving Shot',
+					levels: [7],
+					body: 'Miss with a **magic arrow** and you can spend a **bonus action** to **reroll the attack against a different target within 60 feet** of the original.'
+				},
+				{
+					name: 'Ever-Ready Shot',
+					levels: [15],
+					body: 'Roll initiative with **no Arcane Shot uses left** and you **regain one**.'
+				}
 			]
 		},
 		{
 			name: 'Cavalier',
 			features: [
-				f('Bonus Proficiency', 3),
-				f('Born to the Saddle', 3),
-				f('Unwavering Mark', 3),
-				f('Warding Maneuver', 7),
-				f('Hold the Line', 10),
-				f('Ferocious Charger', 15),
-				f('Vigilant Defender', 18)
+				{
+					name: 'Bonus Proficiency',
+					levels: [3],
+					body: 'Proficiency in **Animal Handling, History, Insight, Performance or Persuasion**, or **one language** instead.'
+				},
+				{
+					name: 'Born to the Saddle',
+					levels: [3],
+					body: '**Advantage on saving throws to avoid falling off your mount**, and a fall of **10 feet or less** lands you on your feet unless you are incapacitated. **Mounting or dismounting costs 5 feet** of movement rather than half your speed.'
+				},
+				{
+					name: 'Unwavering Mark',
+					levels: [3],
+					body: [
+						'Hit with a **melee weapon attack** and you can **mark** that creature until the end of your next turn. The mark ends early if you are incapacitated or die, or if someone else marks it.',
+						'',
+						'- While it is **within 5 feet of you**, it has **disadvantage on any attack roll that does not target you**',
+						'- If it **deals damage to anyone but you**, you can make a **special melee weapon attack** against it as a **bonus action on your next turn**, **with advantage**, dealing **extra damage equal to half your fighter level** on a hit',
+						'',
+						'However many creatures you mark, that special attack has uses equal to your **Strength modifier** (minimum 1), refilled on a long rest.'
+					].join('\n')
+				},
+				{
+					name: 'Warding Maneuver',
+					levels: [7],
+					body: '**Reaction** when you or a creature you can see within 5 feet is hit, while you wield a **melee weapon or a shield**: roll **1d8** and **add it to the target’s AC** against that attack. If the attack still hits, the target has **resistance to its damage**. Uses equal to your **Constitution modifier** (minimum 1), refilled on a long rest.'
+				},
+				{
+					name: 'Hold the Line',
+					levels: [10],
+					body: 'Creatures **provoke an opportunity attack from you when they move 5 feet or more while within your reach**, and a hit **reduces the target’s speed to 0** until the end of that turn.'
+				},
+				{
+					name: 'Ferocious Charger',
+					levels: [15],
+					body: 'Move **at least 10 feet in a straight line** immediately before attacking, and on a hit the target makes a **Strength save** (DC 8 + your proficiency bonus + your Strength modifier) or is **knocked prone**. Once on each of your turns.'
+				},
+				{
+					name: 'Vigilant Defender',
+					levels: [18],
+					body: 'A **special reaction on every creature’s turn except your own**, usable only to make an **opportunity attack**, and not on a turn you have already used your normal reaction.'
+				}
 			]
 		},
 		{
 			name: 'Samurai',
 			features: [
-				f('Bonus Proficiency', 3),
-				f('Fighting Spirit', 3),
-				f('Elegant Courtier', 7),
-				f('Tireless Spirit', 10),
-				f('Rapid Strike', 15),
-				f('Strength before Death', 18)
+				{
+					name: 'Bonus Proficiency',
+					levels: [3],
+					body: 'Proficiency in **History, Insight, Performance or Persuasion**, or **one language** instead.'
+				},
+				{
+					name: 'Fighting Spirit',
+					levels: [3, 10, 15],
+					body: '**Bonus action:** **advantage on all weapon attack rolls** until the end of the turn, plus **5 temporary hit points** — **10 at 10th level**, **15 at 15th**. **Three uses**, refilled on a long rest.'
+				},
+				{
+					name: 'Elegant Courtier',
+					levels: [7],
+					body: 'Add **your Wisdom modifier** to every **Charisma (Persuasion)** check, and gain proficiency in **Wisdom saving throws** — or **Intelligence or Charisma** (your choice) if you already have it.'
+				},
+				{
+					name: 'Tireless Spirit',
+					levels: [10],
+					body: 'Roll initiative with **no Fighting Spirit uses left** and you **regain one**.'
+				},
+				{
+					name: 'Rapid Strike',
+					levels: [15],
+					body: 'On the Attack action, **give up advantage** on one attack roll against a target to make **an extra weapon attack against it** as part of the same action. No more than once per turn.'
+				},
+				{
+					name: 'Strength Before Death',
+					levels: [18],
+					body: 'When damage reduces you to **0 hit points**, **reaction** to delay falling unconscious and **take an extra turn immediately**. Damage taken during it still causes **death saving throw failures**, and three still kill you. When the turn ends you fall unconscious if you are still at 0. Once per long rest.'
+				}
 			]
 		}
 	],
@@ -1755,32 +2151,132 @@ export const SUBCLASSES_XGTE: SubclassIndex = {
 		{
 			name: 'Divine Soul',
 			features: [
-				f('Divine Magic', 1),
-				f('Favored by the Gods', 1),
-				f('Empowered Healing', 6),
-				f('Otherworldly Wings', 14),
-				f('Unearthly Recovery', 18)
+				{
+					name: 'Divine Magic',
+					levels: [1],
+					body: [
+						'Whenever your Spellcasting lets you learn a **sorcerer cantrip or spell**, you may take it from the **cleric spell list** instead. Every other restriction still applies, and the spell **becomes a sorcerer spell for you**.',
+						'',
+						'Choose an **affinity** for the source of your power. It grants **one extra spell** that is a sorcerer spell for you and **does not count against your spells known** — if you ever replace it, the replacement must come from the **cleric list**. The affinity also fixes the look of your **Angelic Form** wings.'
+					].join('\n'),
+					options: [
+						{ label: 'Good', body: '**Cure Wounds.** Eagle wings.' },
+						{ label: 'Evil', body: '**Inflict Wounds.** Bat wings.' },
+						{ label: 'Law', body: '**Bless.** Eagle wings.' },
+						{ label: 'Chaos', body: '**Bane.** Bat wings.' },
+						{
+							label: 'Neutrality',
+							body: '**Protection from Evil and Good.** Dragonfly wings.'
+						}
+					]
+				},
+				{
+					name: 'Favored by the Gods',
+					levels: [1],
+					body: 'When you **fail a saving throw or miss with an attack roll**, roll **2d4** and add it to the total — possibly turning the failure into a success. Once per **short or long rest**.'
+				},
+				{
+					name: 'Empowered Healing',
+					levels: [6],
+					body: 'When **you or an ally within 5 feet** rolls dice for the **hit points a spell restores**, spend **1 sorcery point** to **reroll any number of those dice once**. You must not be incapacitated, and you can do this **only once per turn**.'
+				},
+				{
+					name: 'Angelic Form',
+					levels: [14],
+					body: '**Bonus action:** spectral wings, **flying speed 30 feet**. They last until you are **incapacitated**, you die, or you dismiss them as a **bonus action**. Their shape follows your **Divine Magic affinity**.'
+				},
+				{
+					name: 'Unearthly Recovery',
+					levels: [18],
+					body: '**Bonus action** while you have **fewer than half your hit points**: regain **hit points equal to half your hit point maximum**. Once per **long rest**.'
+				}
 			]
 		},
 		{
 			name: 'Shadow Magic',
 			features: [
-				f('Eyes of the Dark', 1),
-				f('Strength of the Grave', 1),
-				f('Hound of Ill Omen', 6),
-				f('Shadow Walk', 14),
-				f('Umbral Form', 18)
+				{
+					name: 'Eyes of the Dark',
+					levels: [1, 3],
+					body: [
+						'**Darkvision 120 feet.**',
+						'',
+						'At **3rd level** you learn **Darkness**, which **does not count against your spells known**. You may cast it with a spell slot or for **2 sorcery points** — and if you pay the sorcery points, **you can see through the darkness it creates**.'
+					].join('\n')
+				},
+				{
+					name: 'Strength of the Grave',
+					levels: [1],
+					body: 'When damage would reduce you to **0 hit points**, make a **Charisma saving throw against DC 5 + the damage taken**. On a success you **drop to 1 hit point** instead. **Not available against radiant damage or a critical hit.** Once it succeeds, it is spent until you finish a **long rest**.'
+				},
+				{
+					name: 'Hound of Ill Omen',
+					levels: [6],
+					body: [
+						'**Bonus action** and **3 sorcery points:** summon a hound to hunt one creature you can see **within 120 feet**. It appears in a free space **within 30 feet of the target**, uses the **dire wolf**’s statistics, and **rolls its own initiative**.',
+						'',
+						'- **Medium monstrosity**, not a Large beast',
+						'- **Temporary hit points equal to half your sorcerer level**',
+						'- Moves through creatures and objects as **difficult terrain**, taking **5 force damage** if it ends its turn inside one',
+						'- At the start of its turn it **automatically knows where its target is**, even if hidden',
+						'',
+						'It may **only move toward its target by the shortest route** and may **only attack that target**, including with opportunity attacks. While it is **within 5 feet of the target, that target has disadvantage on saving throws against your spells**.',
+						'',
+						'It vanishes at **0 hit points**, when its **target drops to 0**, or after **5 minutes**.'
+					].join('\n')
+				},
+				{
+					name: 'Shadow Walk',
+					levels: [14],
+					body: '**Bonus action** while you are in **dim light or darkness:** teleport **up to 120 feet** to a free space you can see that is **also in dim light or darkness**.'
+				},
+				{
+					name: 'Umbral Form',
+					levels: [18],
+					body: '**Bonus action** and **6 sorcery points:** for **1 minute** you gain **resistance to all damage except force and radiant**, and you move through creatures and objects as **difficult terrain**, taking **5 force damage** if you end your turn inside one. It ends early if you are **incapacitated**, you die, or you dismiss it as a **bonus action**.'
+				}
 			]
 		},
 		{
 			name: 'Storm Sorcery',
 			features: [
-				f('Wind Speaker', 1),
-				f('Tempestuous Magic', 1),
-				f('Heart of the Storm', 6),
-				f('Storm Guide', 6),
-				f("Storm's Fury", 14),
-				f('Wind Soul', 18)
+				{
+					name: 'Wind Speaker',
+					levels: [1],
+					body: 'You **speak, read and write Primordial** — and so understand and are understood in its dialects: **Aquan, Auran, Ignan and Terran**.'
+				},
+				{
+					name: 'Tempestuous Magic',
+					levels: [1],
+					body: '**Bonus action** immediately **before or after you cast a spell of 1st level or higher:** **fly up to 10 feet without provoking opportunity attacks**.'
+				},
+				{
+					name: 'Heart of the Storm',
+					levels: [6],
+					body: 'Resistance to **lightning and thunder damage**. Whenever you **start casting a spell of 1st level or higher that deals lightning or thunder damage**, creatures of your choice that you can see **within 10 feet** take **lightning or thunder damage (your pick each time) equal to half your sorcerer level**.'
+				},
+				{
+					name: 'Storm Guide',
+					levels: [6],
+					body: [
+						'- **In rain — action:** stop the rain falling in a **20-foot-radius sphere** centred on you; end it as a **bonus action**.',
+						'- **In wind — bonus action each round:** set the wind’s direction in a **100-foot-radius sphere** centred on you until the end of your next turn. **Its speed is unchanged.**'
+					].join('\n')
+				},
+				{
+					name: "Storm's Fury",
+					levels: [14],
+					body: '**Reaction** when a **melee attack hits you:** the attacker takes **lightning damage equal to your sorcerer level** and makes a **Strength saving throw** against your spell save DC, being **pushed up to 20 feet straight away from you** on a failure.'
+				},
+				{
+					name: 'Wind Soul',
+					levels: [18],
+					body: [
+						'**Immunity to lightning and thunder damage**, and a magical **flying speed of 60 feet**.',
+						'',
+						'**Action:** trade that down to **30 feet for 1 hour** to give a magical **flying speed of 30 feet for 1 hour** to **3 + your Charisma modifier** creatures within 30 feet of you. Once per **short or long rest**.'
+					].join('\n')
+				}
 			]
 		}
 	],
@@ -2065,23 +2561,107 @@ export const SUBCLASSES_TCOE: SubclassIndex = {
 		{
 			name: 'Psi Warrior',
 			features: [
-				f('Psionic Power', 3),
-				f('Telekinetic Adept', 7),
-				f('Guarded Mind', 10),
-				f('Bulwark of Force', 15),
-				f('Telekinetic Master', 18)
+				{
+					name: 'Psionic Power',
+					levels: [3, 5, 11, 17],
+					body: [
+						'**Psionic Energy dice** are **d6s**, and you have a number of them equal to **twice your proficiency bonus**. They grow to **d8 at 5th level**, **d10 at 11th** and **d12 at 17th**. All of them return on a **long rest**, and a **bonus action** brings **one** back, once per short or long rest. A power that expends a die is unusable once they are all spent.',
+						'',
+						'- **Protective Field.** **Reaction** when you or a creature you can see within 30 feet takes damage: expend a die and **reduce that damage by the roll + your Intelligence modifier** (minimum 1)',
+						'- **Psionic Strike.** **Once on each of your turns**, right after you hit and damage a target within 30 feet with a weapon: expend a die for **extra force damage equal to the roll + your Intelligence modifier**',
+						'- **Telekinetic Movement.** **Action:** move one **Large or smaller loose object**, or one **willing creature** other than yourself, that you can see within 30 feet **up to 30 feet** to an unoccupied space you can see — or a **Tiny object** to or from your hand. Once per short or long rest, or again by **expending a die**'
+					].join('\n')
+				},
+				{
+					name: 'Telekinetic Adept',
+					levels: [7],
+					body: [
+						'- **Psi-Powered Leap.** **Bonus action:** a **flying speed of twice your walking speed** until the end of the turn. Once per short or long rest, or again by **expending a die**',
+						'- **Telekinetic Thrust.** When **Psionic Strike** damages a target, it makes a **Strength save** (DC 8 + your proficiency bonus + your Intelligence modifier) or you **knock it prone or move it 10 feet** in any horizontal direction'
+					].join('\n')
+				},
+				{
+					name: 'Guarded Mind',
+					levels: [10],
+					body: '**Resistance to psychic damage.** Start your turn **charmed or frightened** and you can **expend a Psionic Energy die to end every effect** subjecting you to those conditions.'
+				},
+				{
+					name: 'Bulwark of Force',
+					levels: [15],
+					body: '**Bonus action:** creatures you can see within 30 feet, up to **your Intelligence modifier** in number (minimum 1) and possibly including you, gain **half cover for 1 minute** or until you are incapacitated. Once per long rest, or again by **expending a die**.'
+				},
+				{
+					name: 'Telekinetic Master',
+					levels: [18],
+					body: 'Cast **Telekinesis** with **no components**, using **Intelligence**. On each turn you concentrate on it, including the turn you cast it, you can make **one weapon attack as a bonus action**. Once per long rest, or again by **expending a die**.'
+				}
 			]
 		},
 		{
 			name: 'Rune Knight',
 			features: [
-				f('Bonus Proficiencies', 3),
-				f('Rune Carver', 3),
-				f("Giant's Might", 3),
-				f('Runic Shield', 7),
-				f('Great Stature', 7),
-				f('Master of Runes', 10),
-				f('Runic Juggernaut', 15)
+				{
+					name: 'Bonus Proficiencies',
+					levels: [3],
+					body: 'Proficiency with **smith’s tools**, and you speak, read and write **Giant**.'
+				},
+				{
+					name: 'Rune Carver',
+					levels: [3, 7, 10, 15],
+					choose: picks([3, 2], [7, 3], [10, 4], [15, 5]),
+					body: '**Two runes** known, **three at 7th level**, **four at 10th**, **five at 15th**, and you may **swap one** each fighter level. On each **long rest** you touch that many objects and inscribe **a different rune on each** — a weapon, armour, a shield, jewellery, anything you can wear or hold. A rune lasts **until your next long rest**, and **an object carries only one of yours** at a time. **Rune Magic save DC** = 8 + your proficiency bonus + **your Constitution modifier**. Each rune can be **invoked once per short or long rest**.',
+					options: [
+						{
+							label: 'Cloud Rune',
+							body: 'While worn or carried: **advantage on Dexterity (Sleight of Hand) and Charisma (Deception)** checks. **Invoke as a reaction** when you or a creature you can see within 30 feet is hit by an attack roll: **a different creature within 30 feet of you**, other than the attacker, **becomes the target instead**, using the same roll, whatever the attack’s range.'
+						},
+						{
+							label: 'Fire Rune',
+							body: 'While worn or carried: your **proficiency bonus is doubled** on any ability check using a **tool** you are proficient with. **Invoke** when you hit with a weapon: **extra 2d6 fire**, and a **Strength save** or **restrained for 1 minute**, taking **2d6 fire at the start of each of its turns** and repeating the save at the end of each to shed the shackles.'
+						},
+						{
+							label: 'Frost Rune',
+							body: 'While worn or carried: **advantage on Wisdom (Animal Handling) and Charisma (Intimidation)** checks. **Invoke as a bonus action** for **+2 to all ability checks and saving throws using Strength or Constitution**, for 10 minutes.'
+						},
+						{
+							label: 'Stone Rune',
+							body: 'While worn or carried: **advantage on Wisdom (Insight)** checks and **darkvision out to 120 feet**. **Invoke as a reaction** when a creature you can see **ends its turn within 30 feet**: **Wisdom save** or **charmed by you for 1 minute** with **speed 0 and incapacitated**, repeating the save at the end of each of its turns.'
+						},
+						{
+							label: 'Hill Rune (7th level)',
+							body: 'While worn or carried: **advantage on saving throws against being poisoned** and **resistance to poison damage**. **Invoke as a bonus action** for **resistance to bludgeoning, piercing and slashing damage**, for 1 minute.'
+						},
+						{
+							label: 'Storm Rune (7th level)',
+							body: 'While worn or carried: **advantage on Intelligence (Arcana)** checks, and **you cannot be surprised** while you are not incapacitated. **Invoke as a bonus action** for a **prophetic state** lasting 1 minute or until you are incapacitated: **reaction** to give **advantage or disadvantage** to any attack roll, saving throw or ability check made by you or a creature you can see within 60 feet.'
+						}
+					]
+				},
+				{
+					name: "Giant's Might",
+					levels: [3],
+					body: '**Bonus action**, 1 minute: you become **Large** if you were smaller and have the room, you have **advantage on Strength checks and Strength saving throws**, and **once on each of your turns** one attack with a weapon or an unarmed strike deals **an extra 1d6** on a hit. Uses equal to your **proficiency bonus**, refilled on a long rest.'
+				},
+				{
+					name: 'Runic Shield',
+					levels: [7],
+					body: '**Reaction** when another creature you can see within 60 feet is hit by an attack roll: the **attacker rerolls the d20** and must use the new roll. Uses equal to your **proficiency bonus**, refilled on a long rest.'
+				},
+				{
+					name: 'Great Stature',
+					levels: [10],
+					body: 'Roll **3d4** and **grow that many inches** taller, permanently. **Giant’s Might** now deals **1d8** extra damage.'
+				},
+				{
+					name: 'Master of Runes',
+					levels: [15],
+					body: 'Each rune you know can be **invoked twice** rather than once, refilled on a **short or long rest**.'
+				},
+				{
+					name: 'Runic Juggernaut',
+					levels: [18],
+					body: '**Giant’s Might** deals **1d10** extra damage, its size increase can take you to **Huge**, and while you are that size **your reach grows by 5 feet**.'
+				}
 			]
 		}
 	],
@@ -2363,22 +2943,103 @@ export const SUBCLASSES_TCOE: SubclassIndex = {
 		{
 			name: 'Aberrant Mind',
 			features: [
-				f('Psionic Spells', 1),
-				f('Telepathic Speech', 1),
-				f('Psionic Sorcery', 6),
-				f('Psychic Defenses', 6),
-				f('Revelation in Flesh', 14),
-				f('Warping Implosion', 18)
+				{
+					name: 'Psionic Spells',
+					levels: [1],
+					body: spellLadder(
+						'Sorcerer',
+						'Each counts as a sorcerer spell for you, but does not count against the number you know. On any sorcerer level you may **swap one of them for another divination or enchantment spell** from the **sorcerer, warlock or wizard** list of the same level.',
+						[
+							'Arms of Hadar, Dissonant Whispers, Mind Sliver',
+							'Calm Emotions, Detect Thoughts',
+							'Hunger of Hadar, Sending',
+							'Evard’s Black Tentacles, Summon Aberration',
+							'Rary’s Telepathic Bond, Telekinesis'
+						],
+						['1st', '3rd', '5th', '7th', '9th']
+					)
+				},
+				{
+					name: 'Telepathic Speech',
+					levels: [1],
+					body: '**Bonus action:** link minds with one creature you can see **within 30 feet**. The two of you can **speak telepathically** while within **a number of miles equal to your Charisma modifier** (minimum 1), each of you using a language the other knows. It lasts **minutes equal to your sorcerer level**, ending early if you are **incapacitated**, you die, or you link with **someone else**.'
+				},
+				{
+					name: 'Psionic Sorcery',
+					levels: [6],
+					body: 'When you cast a spell of **1st level or higher from Psionic Spells**, you may pay **sorcery points equal to its level** instead of a spell slot. Cast that way it needs **no verbal, somatic or material components** — unless the spell **consumes** the material.'
+				},
+				{
+					name: 'Psychic Defenses',
+					levels: [6],
+					body: '**Resistance to psychic damage**, and **advantage on saving throws against being charmed or frightened**.'
+				},
+				{
+					name: 'Revelation in Flesh',
+					levels: [14],
+					body: [
+						'**Bonus action** and **1 or more sorcery points:** your body transforms for **10 minutes**. **Each point buys one benefit below**, and each lasts until the transformation ends.',
+						'',
+						'- **See any invisible creature within 60 feet**, so long as it is not behind total cover',
+						'- **Flying speed equal to your walking speed**, and you can **hover**',
+						'- **Swimming speed twice your walking speed**, and you **breathe underwater**',
+						'- You and your gear turn pliable: **move through any gap as narrow as 1 inch without squeezing**, and spend **5 feet of movement to escape nonmagical restraints or a grapple**'
+					].join('\n')
+				},
+				{
+					name: 'Warping Implosion',
+					levels: [18],
+					body: '**Action:** teleport to a free space you can see **within 120 feet**. Every creature **within 30 feet of the space you left** makes a **Strength saving throw** against your spell save DC, taking **3d10 force damage** and being **pulled to the nearest free space to where you stood** on a failure, or **half damage and no pull** on a success. Once per **long rest**, or again for **5 sorcery points**.'
+				}
 			]
 		},
 		{
 			name: 'Clockwork Soul',
 			features: [
-				f('Clockwork Magic', 1),
-				f('Restore Balance', 1),
-				f('Bastion of Law', 6),
-				f('Trance of Order', 14),
-				f('Clockwork Cavalcade', 18)
+				{
+					name: 'Clockwork Magic',
+					levels: [1],
+					body: spellLadder(
+						'Sorcerer',
+						'Each counts as a sorcerer spell for you, but does not count against the number you know. On any sorcerer level you may **swap one of them for another abjuration or transmutation spell** from the **sorcerer, warlock or wizard** list of the same level.',
+						[
+							'Alarm, Protection from Evil and Good',
+							'Aid, Lesser Restoration',
+							'Dispel Magic, Protection from Energy',
+							'Freedom of Movement, Summon Construct',
+							'Greater Restoration, Wall of Force'
+						],
+						['1st', '3rd', '5th', '7th', '9th']
+					)
+				},
+				{
+					name: 'Restore Balance',
+					levels: [1],
+					body: '**Reaction** when a creature you can see **within 60 feet** is about to roll a d20 **with advantage or disadvantage:** the roll is made **as a plain d20 instead**, neither applying. Uses equal to your **proficiency bonus**, all back on a **long rest**.'
+				},
+				{
+					name: 'Bastion of Law',
+					levels: [6],
+					body: '**Action** and **1 to 5 sorcery points:** ward yourself or a creature you can see **within 30 feet** with **that many d8s**. When the warded creature takes damage it may **spend any number of those dice and reduce the damage by the total rolled**. The ward lasts until your next **long rest** or until you use this again.'
+				},
+				{
+					name: 'Trance of Order',
+					levels: [14],
+					body: '**Bonus action:** for **1 minute**, **attack rolls against you cannot have advantage**, and on your own **attack rolls, ability checks and saving throws** you **treat a d20 of 9 or lower as a 10**. Once per **long rest**, or again for **5 sorcery points**.'
+				},
+				{
+					name: 'Clockwork Cavalcade',
+					levels: [18],
+					body: [
+						'**Action:** spirits of order fill a **30-foot cube originating from you**, act, and vanish.',
+						'',
+						'- **Restore up to 100 hit points**, split however you like among creatures of your choice in the cube',
+						'- **Repair every damaged object entirely inside** it',
+						'- **End every spell of 6th level or lower** on creatures and objects of your choice there',
+						'',
+						'Once per **long rest**, or again for **7 sorcery points**.'
+					].join('\n')
+				}
 			]
 		}
 	],
@@ -2435,6 +3096,78 @@ export const SUBCLASSES_TCOE: SubclassIndex = {
  * source, so this grows without needing a new export every time a one-off shows up.
  */
 export const SUBCLASSES_MISC: SubclassIndex = {
+	fighter: [
+		{
+			name: 'Banneret',
+			source: "Sword Coast Adventurer's Guide",
+			features: [
+				{
+					name: 'Rallying Cry',
+					levels: [3],
+					body: 'When you use **Second Wind**, up to **three allied creatures within 60 feet** that can **see or hear you** each regain **hit points equal to your fighter level**.'
+				},
+				{
+					name: 'Royal Envoy',
+					levels: [7],
+					body: 'Proficiency in **Persuasion**, or in **Animal Handling, Insight, Intimidation or Performance** if you already have it. Either way, your **proficiency bonus is doubled on any ability check that uses Persuasion**.'
+				},
+				{
+					name: 'Inspiring Surge',
+					levels: [10, 18],
+					body: 'When you use **Action Surge**, one **allied creature within 60 feet** that can see or hear you makes **one melee or ranged weapon attack with its reaction**. **Two allies at 18th level.**'
+				},
+				{
+					name: 'Bulwark',
+					levels: [15],
+					body: 'When you use **Indomitable** to reroll an **Intelligence, Wisdom or Charisma saving throw** and you are not incapacitated, one **ally within 60 feet** that failed **the same** saving throw and can see or hear you **rerolls as well**, and must use the new roll.'
+				}
+			]
+		},
+		{
+			name: 'Echo Knight',
+			source: "Explorer's Guide to Wildemount",
+			features: [
+				{
+					name: 'Manifest Echo',
+					levels: [3],
+					body: [
+						'**Bonus action:** an echo of you appears in an unoccupied space you can see **within 15 feet**. It has **AC 14 + your proficiency bonus**, **1 hit point**, **immunity to all conditions**, and **your saving throw bonuses**. It is your size and occupies its space. It lasts until destroyed, until you dismiss it (**bonus action**), until you manifest another, or until you are incapacitated.',
+						'',
+						'On your turn you can **mentally move it up to 30 feet** in any direction, no action required. It is **destroyed if it ends your turn more than 30 feet from you**.',
+						'',
+						'- **Bonus action:** **swap places with it** for **15 feet of your movement**, at any distance',
+						'- Attacks made with the **Attack action** may **originate from its space**, chosen per attack',
+						'- **Reaction:** when a creature you can see within 5 feet of the echo **moves at least 5 feet away from it**, make an **opportunity attack as though you stood in the echo’s space**'
+					].join('\n')
+				},
+				{
+					name: 'Unleash Incarnation',
+					levels: [3],
+					body: 'Whenever you take the Attack action, **one extra melee attack from the echo’s position**. Uses equal to your **Constitution modifier** (minimum 1), refilled on a long rest.'
+				},
+				{
+					name: 'Echo Avatar',
+					levels: [7],
+					body: '**Action:** see and hear through the echo for up to **10 minutes**, **blinded and deafened** yourself meanwhile, and end it whenever you like. While it is used this way it can be **up to 1,000 feet away** without being destroyed.'
+				},
+				{
+					name: 'Shadow Martyr',
+					levels: [10],
+					body: '**Reaction** before an attack roll is made against a creature you can see: **teleport the echo to a free space within 5 feet** of that creature, and the attack **is made against the echo instead**. Once per short or long rest.'
+				},
+				{
+					name: 'Reclaim Potential',
+					levels: [15],
+					body: 'When an echo of yours is **destroyed by damage**, gain **2d6 + your Constitution modifier temporary hit points**, provided you have none already. Uses equal to your **Constitution modifier** (minimum 1), refilled on a long rest.'
+				},
+				{
+					name: 'Legion of One',
+					levels: [18],
+					body: '**Manifest Echo** makes **two echoes that coexist** — a third destroys the earlier pair — and anything you can do from one echo’s position you can do from the other’s. Roll initiative with **no Unleash Incarnation uses left** and you **regain one**.'
+				}
+			]
+		}
+	],
 	ranger: [
 		{
 			name: 'Drakewarden',
@@ -2612,6 +3345,76 @@ export const SUBCLASSES_MISC: SubclassIndex = {
 				}
 			]
 		}
+	],
+	sorcerer: [
+		{
+			name: 'Lunar Sorcery',
+			source: 'Dragonlance: Shadow of the Dragon Queen',
+			features: [
+				{
+					name: 'Lunar Embodiment',
+					levels: [1],
+					body: [
+						'Each spell below counts as a sorcerer spell for you but **does not count against the number you know**.',
+						'',
+						'| Sorcerer Level | Full Moon | New Moon | Crescent Moon |',
+						'| --- | --- | --- | --- |',
+						'| 1st | Shield | Ray of Sickness | Color Spray |',
+						'| 3rd | Lesser Restoration | Blindness/Deafness | Alter Self |',
+						'| 5th | Dispel Magic | Vampiric Touch | Phantom Steed |',
+						'| 7th | Death Ward | Confusion | Hallucinatory Terrain |',
+						'| 9th | Rary’s Telepathic Bond | Hold Monster | Mislead |',
+						'',
+						'On each **long rest**, pick the phase your magic runs on: **Full, New or Crescent Moon**. While in it you may cast **one 1st-level spell of that phase without a spell slot**, once, until your next long rest.'
+					].join('\n')
+				},
+				{
+					name: 'Moon Fire',
+					levels: [1],
+					body: 'You learn **Sacred Flame**, and it **does not count against your cantrips known**. When you cast it you may target one creature as normal, or **two creatures within 5 feet of each other**.'
+				},
+				{
+					name: 'Lunar Boons',
+					levels: [6],
+					body: [
+						'When you use **Metamagic** on a spell whose school matches your **current phase**, **reduce the sorcery points spent by 1** (minimum 0). Uses equal to your **proficiency bonus**, all back on a **long rest**.',
+						'',
+						'- **Full Moon.** Abjuration and divination',
+						'- **New Moon.** Enchantment and necromancy',
+						'- **Crescent Moon.** Illusion and transmutation'
+					].join('\n')
+				},
+				{
+					name: 'Waxing and Waning',
+					levels: [6],
+					body: '**Bonus action** and **1 sorcery point:** **change your current phase** to another. You may now cast **one 1st-level spell from each phase** without a slot — each while you are in that phase, each once per **long rest**.'
+				},
+				{
+					name: 'Lunar Empowerment',
+					levels: [14],
+					body: [
+						'Your current phase also gives you its standing benefit:',
+						'',
+						'- **Full Moon.** **Bonus action** to shed **bright light in a 10-foot radius and dim light 10 feet beyond**, or to douse it. You and creatures of your choice have **advantage on Intelligence (Investigation) and Wisdom (Perception) checks** inside that bright light.',
+						'- **New Moon.** **Advantage on Dexterity (Stealth) checks**, and while you are **entirely in darkness, attack rolls against you have disadvantage**.',
+						'- **Crescent Moon.** **Resistance to necrotic and radiant damage**.'
+					].join('\n')
+				},
+				{
+					name: 'Lunar Phenomenon',
+					levels: [18],
+					body: [
+						'**Bonus action:** unleash your current phase’s power — or fold it into the **bonus action you spend on Waxing and Waning**, firing off the power of the phase you are **entering**.',
+						'',
+						'- **Full Moon.** Each creature of your choice **within 30 feet** makes a **Constitution saving throw** against your spell save DC or is **blinded until the end of its next turn**. One creature of your choice there also **regains 3d8 hit points**.',
+						'- **New Moon.** Each creature of your choice **within 30 feet** makes a **Dexterity saving throw** or takes **3d10 necrotic damage** and has its **speed reduced to 0 until the end of its next turn**. You also turn **invisible until the end of your next turn**, or until you attack or cast a spell.',
+						'- **Crescent Moon.** **Teleport** to a free space you can see **within 60 feet**, optionally bringing one willing creature within 5 feet of you along to a free space of your choice within 5 feet of where you land. You and that creature gain **resistance to all damage until the start of your next turn**.',
+						'',
+						'Each of these is **once per long rest** on its own, or again for **5 sorcery points**.'
+					].join('\n')
+				}
+			]
+		}
 	]
 }
 
@@ -2628,7 +3431,8 @@ function tag(index: SubclassIndex, source: string): SubclassIndex {
 
 /**
  * The 2014 ruleset accumulates across books; 2024 is the Player's Handbook alone so far. Expansion
- * subclasses are the same tier as the PHB outlines above — names and levels, no rules text.
+ * subclasses sit at whatever tier they have been filled in to: some are names and levels alone,
+ * others carry a restated `body` for every feature, the same as the PHB outlines above.
  */
 export function subclassIndex(version: ClassVersion): SubclassIndex {
 	if (version === '2024') return tag(SUBCLASSES_2024, SOURCES.phb2024)

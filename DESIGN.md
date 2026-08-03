@@ -6,6 +6,7 @@ colors:
   teal: "#02343F"
   primary: "oklch(0.4912 0.3096 275.75)"
   error: "oklch(0.7176 0.221 22.18)"
+  alert: "#B3261E"
   surface-card: "rgba(255, 255, 255, 0.6)"
   surface-field: "#FFFFFF"
   surface-muted: "rgba(2, 52, 63, 0.07)"
@@ -141,6 +142,9 @@ as drift, and that report is expected rather than a problem to chase.
 | `teal` | `#02343F` | All text, all borders, all hairlines. There is no second text colour. |
 | `primary` | daisyUI default violet | Primary action, current selection, progress. Never decoration. |
 | `error` | daisyUI default red | Destructive actions and validation only. |
+| `alert` | `#B3261E` | The one warm hue, and only for a choice the page is still owed — the blinking feature box in the class reference and its count badge. Never decoration, never a surface. |
+
+`alert` exists because daisyUI's `error` is `rgb(255 88 97)`, which carries cream text at 2.6:1 and red-on-cream text at the same — under AA for anything small. `#B3261E` clears 5.5:1 against cream, so a 0.65rem bold badge on it is legible. Use `error` for validation and destructive actions as before; use `alert` only for the unfinished-choice state.
 
 Secondary text is **teal at reduced opacity**, never grey — `opacity-70` for supporting text,
 `opacity-50` for units and hints, `opacity-40` for ordinals. Nesting opacities multiplies them; set
@@ -308,8 +312,8 @@ start of the handler that can set it.
 **Don't**
 
 - Don't restore 44px controls. It was built that way and rejected.
-- Don't introduce a third hue. Warm-ups, disabled states, and secondary surfaces are all teal at
-  some alpha.
+- Don't introduce a hue beyond `alert`. Warm-ups, disabled states, and secondary surfaces are all
+  teal at some alpha, and `alert` is spent on the one thing that is asking you for something.
 - Don't put the display face in a label, a button, or data.
 - Don't add a shadow to anything that isn't a sheet.
 - Don't use emoji glyphs at their default presentation — append U+FE0E (`⏱︎`) so they render as

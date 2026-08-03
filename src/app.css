@@ -5,6 +5,11 @@
 :root {
     --cream: #F0EDCC;
     --teal: #02343F;
+    /* The one warm hue, for a choice the sheet still owes you. Deliberately darker than daisyUI's
+       `error` (rgb 255 88 97), which only clears 2.6:1 under cream text — this clears 5.5:1 and so
+       can carry a small bold badge. Channels are kept separate for rgb(… / <alpha>). */
+    --alert: #B3261E;
+    --alert-rgb: 179 38 30;
 }
 
 @layer components {
