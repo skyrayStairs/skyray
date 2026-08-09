@@ -138,6 +138,9 @@ export interface VideoLoop {
 	startSec: number // A
 	endSec: number // B (must be > startSec)
 	rate: number // playback speed for this loop (YouTube snaps to the YT_RATE_RANGE grid)
+	// Speed trainer (opt-in, presence = on): ramp the rate across repetitions instead of holding
+	// `rate`. See SpeedTrainer — while it's set, `rate` is ignored for this loop.
+	speed?: SpeedTrainer
 	// Timed-loop sequence (opt-in via VideoConfig.timedLoops): how this loop is sized before the sequence
 	// advances. Which one applies is chosen exercise-wide by VideoConfig.loopSizing:
 	//   'reps'  → play A→B `repeatCount` full times (counted at each B boundary), then advance.
@@ -171,6 +174,60 @@ export type LoopSizing = 'reps' | 'timer'
 // Default per-loop timer length ('timer' sizing) and rep count ('reps' sizing) when unset on a loop.
 export const DEFAULT_LOOP_SEC = 30
 export const DEFAULT_LOOP_REPS = 4
+
+// ---- Speed trainer ---------------------------------------------------------
+// Per-loop, opt-in: play the loop slow and climb. The rate starts at `startRate` and steps by
+// `stepRate` every `everyReps` A→B passes until it reaches `endRate`, where it stays. Descending
+// ramps (endRate < startRate) work too — `stepRate` is a magnitude, the direction comes from the
+// endpoints. The ramp is transient: it drives the player, it never rewrites VideoLoop.rate.
+export interface SpeedTrainer {
+	startRate: number
+	endRate: number
+	stepRate: number // magnitude of one bump
+	everyReps: number // passes to hold each rate before bumping (>= 1)
+}
+
+// Sensible first ramp when the trainer is switched on; the UI seeds startRate from the loop's rate.
+export const DEFAULT_SPEED_TRAINER: SpeedTrainer = {
+	startRate: 0.7,
+	endRate: 1,
+	stepRate: 0.05,
+	everyReps: 2
+}
+
+// How many distinct rates the ramp visits, both endpoints included. A ramp whose span isn't a whole
+// multiple of stepRate still ends AT endRate (the last tier is clamped), hence the +1 tier.
+export function speedTiers(sp: SpeedTrainer): number {
+	const span = Math.abs(sp.endRate - sp.startRate)
+	const step = Math.max(0.01, Math.abs(sp.stepRate))
+	return Math.ceil(span / step - 1e-6) + 1
+}
+
+// Total A→B passes a speed-trained loop plays: every tier held for everyReps passes. For 'reps'
+// sizing this REPLACES VideoLoop.repeatCount — the ramp already states how long the loop runs.
+export function speedRampReps(sp: SpeedTrainer): number {
+	return speedTiers(sp) * Math.max(1, Math.floor(sp.everyReps))
+}
+
+// How many A→B passes a loop plays before a timed sequence advances ('reps' sizing). A speed-trained
+// loop's ramp already states its own length, so it overrides repeatCount — the page and VideoLooper
+// must agree on this number or the readout and the advance disagree.
+export function loopReps(loop: VideoLoop): number {
+	return loop.speed ? speedRampReps(loop.speed) : Math.max(1, loop.repeatCount ?? DEFAULT_LOOP_REPS)
+}
+
+// Playback rate after `passes` completed A→B passes, clamped to the ramp's own endpoints.
+export function rateAtPass(sp: SpeedTrainer, passes: number): number {
+	const dir = sp.endRate < sp.startRate ? -1 : 1
+	const tier = Math.min(
+		speedTiers(sp) - 1,
+		Math.floor(Math.max(0, passes) / Math.max(1, Math.floor(sp.everyReps)))
+	)
+	const raw = sp.startRate + dir * Math.abs(sp.stepRate) * tier
+	const lo = Math.min(sp.startRate, sp.endRate)
+	const hi = Math.max(sp.startRate, sp.endRate)
+	return Math.round(Math.min(hi, Math.max(lo, raw)) * 100) / 100
+}
 
 // YouTube's IFrame API accepts any rate on a 0.05 grid within 0.25–2, flooring off-grid values
 // toward 0 (1.03 → 1, 1.234 → 1.2). Note getAvailablePlaybackRates() still reports only the old

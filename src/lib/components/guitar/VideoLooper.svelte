@@ -6,10 +6,15 @@
 		FILE_RATE_RANGE,
 		YT_RATE_RANGE,
 		PENDING_LOOP_END,
+		DEFAULT_SPEED_TRAINER,
+		loopReps,
 		makeVideoLoop,
+		rateAtPass,
+		speedRampReps,
 		type VideoConfig,
 		type VideoLoop,
-		type LoopSizing
+		type LoopSizing,
+		type SpeedTrainer
 	} from '$lib/types/guitar'
 	import { formatMmss, formatMmssMs } from '$lib/utils/time'
 	import { getVideoBlob } from '$lib/storage/videoBlobs'
@@ -86,6 +91,32 @@
 	// changed mid-exercise in a timed sequence (req 2).
 	const liveLoopId = $derived(sequencing ? (runLoopId ?? null) : activeLoopId)
 	const runLoop = $derived(video.loops.find((l) => l.id === runLoopId) ?? null)
+	const liveLoop = $derived(video.loops.find((l) => l.id === liveLoopId) ?? null)
+
+	// ---- speed trainer -------------------------------------------------------
+	// Passes the live loop has completed since it (re)started. Counted here rather than on the page
+	// so the ramp also works for manually activated loops (no timed sequence), and reset wherever a
+	// loop is (re)armed. The resulting rate is applied to the player only — never committed, or every
+	// bump would rewrite the routine.
+	// ponytail: counts every wrap, including ones the page ignores while the routine is paused (pausing
+	// the routine doesn't pause the player), so a paused-but-playing loop ramps ahead of the page's own
+	// rep count. Share one counter via a prop if that drift ever shows up in practice.
+	let passCount = $state(0)
+	const trainerRate = $derived(liveLoop?.speed ? rateAtPass(liveLoop.speed, passCount) : null)
+
+	function armTrainer(loop: VideoLoop | null) {
+		passCount = 0
+		// setActiveLoop() has just reset the player to loop.rate, so a trained loop needs its ramp rate
+		// put back. Passed explicitly: the derived liveLoop still lags a commit at these call sites.
+		if (loop?.speed) controller?.setRate(rateAtPass(loop.speed, 0))
+	}
+	// How many more passes until the next bump, or null once the ramp is at its end rate.
+	const passesToBump = $derived.by(() => {
+		const sp = liveLoop?.speed
+		if (!sp || trainerRate == null || Math.abs(trainerRate - sp.endRate) < 1e-6) return null
+		const every = Math.max(1, Math.floor(sp.everyReps))
+		return every - (passCount % every)
+	})
 
 	// ---- graceful finish (req 7): when the routine timer runs out, don't cut the loop off mid-lick.
 	// If an A-B loop is actively playing, wait for the next B→A wrap; otherwise finish immediately.
@@ -139,6 +170,8 @@
 		controller.onLoopEnd = () => {
 			// Every A→B wrap. Report it so the page can count reps ('reps' sizing); the graceful-finish
 			// wait (cap expiry / routine timer) piggybacks on the same boundary.
+			passCount += 1
+			if (liveLoop?.speed) controller?.setRate(rateAtPass(liveLoop.speed, passCount))
 			if (mode === 'run') onLoopBoundary?.()
 			if (awaitingBoundary) {
 				awaitingBoundary = false
@@ -157,7 +190,9 @@
 			applyRunLoop()
 		} else {
 			// Apply the persisted active loop (or whole-video play-through when none), no autoplay.
-			controller.setActiveLoop(video.loops.find((l) => l.id === activeLoopId) ?? null, false)
+			const active = video.loops.find((l) => l.id === activeLoopId) ?? null
+			controller.setActiveLoop(active, false)
+			armTrainer(active)
 		}
 	}
 
@@ -230,7 +265,10 @@
 			const updated = loops.find((l) => l.id === id)
 			if (updated) {
 				controller?.refreshLoop(updated)
-				if (patch.rate !== undefined) controller?.setRate(updated.rate)
+				if (patch.rate !== undefined && !updated.speed) controller?.setRate(updated.rate)
+				// Editing the ramp (or switching it off) re-rates the live loop without restarting it.
+				if ('speed' in patch)
+					controller?.setRate(updated.speed ? rateAtPass(updated.speed, passCount) : updated.rate)
 			}
 		}
 	}
@@ -250,17 +288,32 @@
 		const span = Math.max(0, loop.endSec - loop.startSec)
 		return span / Math.max(0.05, loop.rate)
 	}
+	// Wall-clock time all of a loop's passes take. A trained loop's passes each run at their own ramp rate,
+	// so sum them instead of multiplying one pass.
+	function loopRepsSec(loop: VideoLoop): number {
+		if (!loop.speed) return loopReps(loop) * loopPassSec(loop)
+		const span = Math.max(0, loop.endSec - loop.startSec)
+		let total = 0
+		for (let p = 0; p < loopReps(loop); p++)
+			total += span / Math.max(0.05, rateAtPass(loop.speed, p))
+		return total
+	}
+	function rampPhrase(sp: SpeedTrainer): string {
+		const sign = sp.endRate < sp.startRate ? '−' : '+'
+		return `${sp.startRate.toFixed(2)}× → ${sp.endRate.toFixed(2)}×, ${sign}${sp.stepRate.toFixed(2)} every ${sp.everyReps} rep${sp.everyReps === 1 ? '' : 's'}`
+	}
+
 	// Plain-English summary of what this loop does in a run-mode sequence: how it's sized, where it goes
 	// next, and (if set) the exercise cap that can cut it short. Drives the readability the user asked for.
 	function loopSummary(loop: VideoLoop, i: number): string {
 		const isLast = i === video.loops.length - 1
 		const next = isLast ? 'next exercise' : 'next loop'
+		const ramp = loop.speed ? `, ramping ${rampPhrase(loop.speed)}` : ''
 		let head: string
 		if (loopSizing === 'reps') {
-			const reps = Math.max(1, loop.repeatCount ?? DEFAULT_LOOP_REPS)
-			head = `Plays A→B ${reps}× (~${formatMmss(Math.round(reps * loopPassSec(loop)))}), then ${next}`
+			head = `Plays A→B ${loopReps(loop)}× (~${formatMmss(Math.round(loopRepsSec(loop)))})${ramp}, then ${next}`
 		} else {
-			head = `Loops A→B for ${formatMmss(loop.durationSec ?? DEFAULT_LOOP_SEC)}, then ${next}`
+			head = `Loops A→B for ${formatMmss(loop.durationSec ?? DEFAULT_LOOP_SEC)}${ramp}, then ${next}`
 		}
 		return capSec != null
 			? `${head} — or until the ${formatMmss(capSec)} exercise timer ends`
@@ -294,7 +347,10 @@
 	function applyRunLoop() {
 		if (mode !== 'run' || !controller || runLoopId == null) return
 		const loop = video.loops.find((l) => l.id === runLoopId)
-		if (loop) controller.setActiveLoop(loop, true) // re-seek to A + play; no commit → config untouched
+		if (loop) {
+			controller.setActiveLoop(loop, true) // re-seek to A + play; no commit → config untouched
+			armTrainer(loop) // a page-driven (re)start restarts the ramp too
+		}
 	}
 	$effect(() => {
 		// React whenever the page bumps the nonce (loop switch or new repeat). Guard so unrelated
@@ -311,6 +367,7 @@
 		commit({ activeLoopId: loop ? loop.id : null })
 		controller?.setActiveLoop(loop)
 		if (!loop) controller?.setRate(1) // deactivating all loops → back to normal speed (req 2)
+		armTrainer(loop)
 		resetStopwatch()
 	}
 	function toggleActive(loop: VideoLoop) {
@@ -321,6 +378,7 @@
 	function restartLoop(loop: VideoLoop) {
 		if (activeLoopId !== loop.id) commit({ activeLoopId: loop.id })
 		controller?.setActiveLoop(loop, true)
+		armTrainer(loop) // ⏮ restarts the ramp from its start rate, not mid-climb
 		resetStopwatch()
 	}
 
@@ -339,6 +397,43 @@
 		// Round to 2dp before clamping so ±0.01/±0.05 nudges don't accumulate float error.
 		const r = Math.min(rateRange.max, Math.max(rateRange.min, Math.round(rate * 100) / 100))
 		updateLoop(loop.id, { rate: r }) // updateLoop applies rate live when this loop is active
+	}
+
+	// ---- speed trainer (edit) ----
+	// Snap a rate onto the source's own grid, so every tier of the ramp is a speed the player can
+	// actually play — an off-grid tier on YouTube would display one speed and play a slower one.
+	function snapToGrid(v: number): number {
+		const { min, max, step } = rateRange
+		return Math.round(Math.round(Math.min(max, Math.max(min, v)) / step) * step * 100) / 100
+	}
+	function setTrainer(loop: VideoLoop, on: boolean) {
+		passCount = 0 // a ramp switched on mid-practice starts at its start rate, not mid-climb
+		if (!on) return updateLoop(loop.id, { speed: undefined })
+		// Seed a ramp that actually climbs: target full speed (or the loop's own rate if it's already
+		// above it), starting from wherever the loop was slowed to. A loop still at 1× has nowhere to
+		// climb from, so it falls back to the default slow start.
+		updateLoop(loop.id, {
+			speed: {
+				...DEFAULT_SPEED_TRAINER,
+				startRate: snapToGrid(loop.rate < 1 ? loop.rate : DEFAULT_SPEED_TRAINER.startRate),
+				endRate: snapToGrid(Math.max(loop.rate, 1)),
+				stepRate: Math.max(rateRange.step, DEFAULT_SPEED_TRAINER.stepRate)
+			}
+		})
+	}
+	function commitTrainer(loop: VideoLoop, field: keyof SpeedTrainer, e: Event) {
+		const sp = loop.speed
+		if (!sp) return
+		const el = e.target as HTMLInputElement
+		let v = parseFloat(el.value)
+		if (Number.isNaN(v)) v = sp[field]
+		if (field === 'everyReps') v = Math.max(1, Math.round(v))
+		else if (field === 'stepRate')
+			v = Math.round(Math.max(rateRange.step, v) / rateRange.step) * rateRange.step
+		else v = snapToGrid(v)
+		v = Math.round(v * 100) / 100
+		el.value = String(v) // reflect the snap/clamp even when the model value is unchanged
+		updateLoop(loop.id, { speed: { ...sp, [field]: v } })
 	}
 
 	async function setBound(loop: VideoLoop, which: 'A' | 'B') {
@@ -543,9 +638,30 @@
 			{/if}
 		</div>
 
-		<!-- Timed sequence: live speed control for the loop the page is currently playing. Adjusting it
-			 changes playback speed immediately, mid-exercise (req 2), and sticks for the rest of the run. -->
-		{#if sequencing && runLoop}
+		<!-- Speed readout for the loop that's actually playing. A speed-trained loop owns its rate (the
+			 ramp overwrites it every few passes), so it shows where the climb is instead of a slider. -->
+		{#if liveLoop?.speed && trainerRate != null}
+			<div class="flex flex-col gap-1">
+				<span class="text-[0.65rem] uppercase tracking-wide opacity-60"
+					>Speed trainer — {liveLoop.label}</span
+				>
+				<div class="flex items-baseline gap-2 font-mono">
+					<span class="text-2xl">{trainerRate.toFixed(2)}×</span>
+					<span class="text-sm opacity-60">→ {liveLoop.speed.endRate.toFixed(2)}×</span>
+					<span class="text-sm opacity-60 font-sans">
+						{#if passesToBump == null}
+							· at top speed
+						{:else}
+							· +{liveLoop.speed.stepRate.toFixed(2)} in {passesToBump} rep{passesToBump === 1
+								? ''
+								: 's'}
+						{/if}
+					</span>
+				</div>
+			</div>
+			<!-- Timed sequence: live speed control for the loop the page is currently playing. Adjusting it
+				 changes playback speed immediately, mid-exercise (req 2), and sticks for the rest of the run. -->
+		{:else if sequencing && runLoop}
 			<div class="flex flex-col gap-1">
 				<span class="text-[0.65rem] uppercase tracking-wide opacity-60"
 					>Speed — {runLoop.label}</span
@@ -707,7 +823,9 @@
 					>
 						<div class="font-medium truncate">{loop.label}</div>
 						<div class="text-xs opacity-60">
-							{formatMmssMs(loop.startSec)}–{formatMmssMs(loop.endSec)} · {loop.rate}×
+							{formatMmssMs(loop.startSec)}–{formatMmssMs(loop.endSec)} · {loop.speed
+								? `${loop.speed.startRate.toFixed(2)}→${loop.speed.endRate.toFixed(2)}×`
+								: `${loop.rate}×`}
 						</div>
 					</button>
 					<button
@@ -736,16 +854,102 @@
 							{@render boundBoxes(loop, 'A', 'A (start)')}
 							{@render boundBoxes(loop, 'B', 'B (end)')}
 						</div>
-						<!-- Per-loop speed -->
-						<div class="flex flex-col gap-1">
-							<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Speed</span>
-							{@render speedControl(loop)}
+						<!-- Per-loop speed. A speed-trained loop's rate comes from the ramp below instead, so the
+							 fixed-speed control is hidden rather than left there doing nothing. -->
+						{#if !loop.speed}
+							<div class="flex flex-col gap-1">
+								<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Speed</span>
+								{@render speedControl(loop)}
+							</div>
+						{/if}
+
+						<!-- Speed trainer: climb from a slow rate to a target as the reps go by. -->
+						<div class="flex flex-col gap-1.5">
+							<label class="flex items-center gap-2 text-sm">
+								<input
+									type="checkbox"
+									class="checkbox checkbox-sm"
+									checked={!!loop.speed}
+									onchange={(e) => setTrainer(loop, (e.target as HTMLInputElement).checked)}
+								/>
+								Speed trainer — climb the tempo as you repeat
+							</label>
+							{#if loop.speed}
+								{@const sp = loop.speed}
+								<div class="flex items-end gap-1 flex-wrap pl-6">
+									<span class="text-[0.65rem] uppercase tracking-wide opacity-60 pb-1.5">From</span>
+									<input
+										type="number"
+										inputmode="decimal"
+										min={rateRange.min}
+										max={rateRange.max}
+										step={rateRange.step}
+										value={sp.startRate}
+										onfocus={selectAllOnFocus}
+										onchange={(e) => commitTrainer(loop, 'startRate', e)}
+										class="input input-xs input-bordered bg-white border-teal/30 w-16 text-center"
+									/>
+									<span class="text-[0.65rem] uppercase tracking-wide opacity-60 pb-1.5">× to</span>
+									<input
+										type="number"
+										inputmode="decimal"
+										min={rateRange.min}
+										max={rateRange.max}
+										step={rateRange.step}
+										value={sp.endRate}
+										onfocus={selectAllOnFocus}
+										onchange={(e) => commitTrainer(loop, 'endRate', e)}
+										class="input input-xs input-bordered bg-white border-teal/30 w-16 text-center"
+									/>
+									<span class="text-[0.65rem] opacity-50 pb-1.5">×</span>
+								</div>
+								<div class="flex items-end gap-1 flex-wrap pl-6">
+									<span class="text-[0.65rem] uppercase tracking-wide opacity-60 pb-1.5">By</span>
+									<input
+										type="number"
+										inputmode="decimal"
+										min={rateRange.step}
+										max={rateRange.max}
+										step={rateRange.step}
+										value={sp.stepRate}
+										onfocus={selectAllOnFocus}
+										onchange={(e) => commitTrainer(loop, 'stepRate', e)}
+										class="input input-xs input-bordered bg-white border-teal/30 w-16 text-center"
+									/>
+									<span class="text-[0.65rem] uppercase tracking-wide opacity-60 pb-1.5"
+										>× every</span
+									>
+									<input
+										type="number"
+										inputmode="numeric"
+										min="1"
+										step="1"
+										value={sp.everyReps}
+										onfocus={selectAllOnFocus}
+										onchange={(e) => commitTrainer(loop, 'everyReps', e)}
+										class="input input-xs input-bordered bg-white border-teal/30 w-14 text-center"
+									/>
+									<span class="text-[0.65rem] opacity-50 pb-1.5">reps (A→B)</span>
+								</div>
+								<p class="text-[0.7rem] opacity-60 leading-snug pl-6">
+									{rampPhrase(sp)} — {speedRampReps(sp)} reps to the top{timedLoops &&
+									loopSizing === 'reps'
+										? '.'
+										: ', then it holds there.'}
+								</p>
+							{/if}
 						</div>
 
 						<!-- Loop sizing (only in a timed sequence): reps OR a timer, chosen exercise-wide above. -->
 						{#if timedLoops}
 							<div class="flex flex-col gap-1.5">
-								{#if loopSizing === 'reps'}
+								{#if loopSizing === 'reps' && loop.speed}
+									<!-- The ramp states the loop's length (one tier per `every` reps), so a separate
+										 rep count would contradict it — show the derived total instead. -->
+									<p class="text-[0.65rem] uppercase tracking-wide opacity-60">
+										Plays {loopReps(loop)} times (A→B) — set by the speed trainer
+									</p>
+								{:else if loopSizing === 'reps'}
 									<label class="flex items-end gap-0.5">
 										<span class="text-[0.65rem] uppercase tracking-wide opacity-60 pb-1.5 mr-1"
 											>Play</span

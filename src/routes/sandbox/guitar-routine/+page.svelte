@@ -2,8 +2,8 @@
 	import { onMount, tick } from 'svelte'
 	import {
 		DEFAULT_LOOP_SEC,
-		DEFAULT_LOOP_REPS,
 		exerciseKind,
+		loopReps,
 		makeExercise,
 		makeRoutine,
 		moveExerciseToRoutine,
@@ -369,7 +369,7 @@
 	// Is the current video sequence sized by reps (vs a loop timer)? Drives the run-mode readout.
 	const runsReps = $derived(isVideoSequence(runExercise) && loopSizing(runExercise) === 'reps')
 	// Reps completed / target for the current 'reps'-sized loop (drives its progress bar + "Rep k/N").
-	const runLoopReps = $derived(Math.max(1, runLoop?.repeatCount ?? DEFAULT_LOOP_REPS))
+	const runLoopReps = $derived(runLoop ? loopReps(runLoop) : 1)
 	const runProgress = $derived.by(() => {
 		if (!runExercise || !runsCountdown(runExercise)) return 0
 		if (isVideoSequence(runExercise) && loopSizing(runExercise) === 'reps')
@@ -587,7 +587,6 @@
 	function loopDurOf(loop: { durationSec?: number }): number {
 		return loop.durationSec ?? DEFAULT_LOOP_SEC
 	}
-
 	// Whether a page-timer countdown drives advancement for this exercise: multistep steps, a 'timer'-sized
 	// video loop, or a plain exercise timer. A 'reps'-sized video sequence advances on A→B boundary events
 	// (onLoopBoundary), NOT the timer — so it has no primary clock (the cap, if any, still runs via rAF).
@@ -852,8 +851,7 @@
 			return // timer not yet expired → let the loop keep playing
 		}
 		// 'reps' sizing: count this pass; advance when the loop has played all its repeats.
-		const loop = ex.video!.loops[loopIndex]
-		const reps = Math.max(1, loop.repeatCount ?? DEFAULT_LOOP_REPS)
+		const reps = loopReps(ex.video!.loops[loopIndex])
 		loopRepeat += 1
 		if (loopRepeat < reps) return // more passes of this loop
 		advanceLoopSequence()
@@ -1167,7 +1165,7 @@
 				Exercise {currentIndex + 1} / {exercises.length}
 			</div>
 
-			<h2 class="text-2xl sm:text-3xl font-bold" style="font-family: KNUTRUTHTTF">
+			<h2 class="text-2xl sm:text-3xl font-bold" style="font-family: KNUTRUTHTTF, sans-serif;">
 				{runExercise?.name}
 			</h2>
 
