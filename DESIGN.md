@@ -120,7 +120,8 @@ live under the same roof and get different treatment: the **photo surfaces** are
 image lead; the **tools** (`/sandbox/gym`, `/sandbox/guitar-routine`, `/toolkit/spell-sets`) are
 dense instrument panels operated one-handed while doing something else.
 
-The identity is cream `#F0EDCC` and teal `#02343F` with a vertical Korean wordmark. PRODUCT.md
+The identity is cream `#F0EDCC` and teal `#02343F` with a Korean wordmark (기록, set horizontally in
+the header — it read vertically until 2026-08-09). PRODUCT.md
 records it as the current implementation rather than a binding commitment — it is evidence of where
 the site landed, and a future redesign may replace it.
 
@@ -164,8 +165,11 @@ Brand colours are tokenized in two places on purpose (`src/app.css :root` for CS
 
 ## Typography
 
-One system sans for everything in the tools. The display face (`KNUTRUTHTTF`, CDN) is reserved for
-site chrome — the wordmark and nav — and never appears in a control, a label, or data.
+One system sans for everything in the tools. The display face is **`KNUTRUTHTTF`** (Korean brand
+face, `@font-face` from the projectnoonnu CDN in `src/app.css`), declared as the `display` role in
+this file's frontmatter and reserved for site chrome — the wordmark, the nav, and page/exercise
+headings — never a control, a label, or data. Write it as the full stack (`KNUTRUTHTTF, sans-serif`)
+wherever it's applied, inline styles included, so the fallback is explicit.
 
 Fixed rem steps, not fluid: these are instrument panels read at consistent size, and a heading that
 shrinks inside a drawer looks worse, not better. The wordmark is the one exception (`clamp()` on

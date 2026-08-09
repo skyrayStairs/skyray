@@ -16,8 +16,8 @@ import "../app.css"
 
 <div class="flex container flex-row" id="header" class:nav-hidden={gnbState.hidden}>
     <div class="flex container flex-row grid-rows-2 justify-between" id="gnb">
-        <div class="flex basis-24 md:mt-0 lg:mt-4" id="left_top_text">
-            <a class="mx-auto mt-auto" href="/" aria-label="Home">기록</a>
+        <div class="flex basis-24" id="left_top_text">
+            <a class="mx-auto" href="/" aria-label="Home">기록</a>
         </div>
         <div class="flex" id="nav_bar">
             <button
@@ -127,16 +127,14 @@ import "../app.css"
         font-family: 'KNUTRUTHTTF', sans-serif;
         color: var(--teal);
         word-wrap: break-word;
+        /* One rule centres the whole bar. The wordmark and the hamburger used to be placed
+           individually (align-self + margin-top), which drifted apart as the header scaled. */
+        align-items: center;
     }
 
     #left_top_text {
         color: var(--teal);
-        align-self: center;
-        -webkit-writing-mode: vertical-lr;
-        writing-mode: vertical-lr;
-        -webkit-text-orientation: upright;
-        text-orientation: upright;
-        /* keep the 2 chars in one vertical column; break-word let iOS wrap them side-by-side */
+        /* keep the 2 chars on one line; #gnb's break-word let iOS stack them */
         white-space: nowrap;
         /* stop iOS Safari from auto-inflating the glyphs ("too big" on iPhone) */
         -webkit-text-size-adjust: 100%;
@@ -151,9 +149,7 @@ import "../app.css"
     }
 
     #nav_bar {
-        margin-top: 1.5rem;
         margin-right: 2.5%;
-        align-self: start;
     }
 
     #footer {
