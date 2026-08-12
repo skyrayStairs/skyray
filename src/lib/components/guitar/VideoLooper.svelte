@@ -110,12 +110,14 @@
 		// put back. Passed explicitly: the derived liveLoop still lags a commit at these call sites.
 		if (loop?.speed) controller?.setRate(rateAtPass(loop.speed, 0))
 	}
-	// How many more passes until the next bump, or null once the ramp is at its end rate.
-	const passesToBump = $derived.by(() => {
+	// Where the ramp sits inside the tier it's holding: the pass being played right now (1-based) out
+	// of the everyReps it holds for. Null when no ramp is live. `atTop` means the next wrap won't bump
+	// — the ramp has arrived at endRate and stays there.
+	const tierPos = $derived.by(() => {
 		const sp = liveLoop?.speed
-		if (!sp || trainerRate == null || Math.abs(trainerRate - sp.endRate) < 1e-6) return null
+		if (!sp || trainerRate == null) return null
 		const every = Math.max(1, Math.floor(sp.everyReps))
-		return every - (passCount % every)
+		return { rep: (passCount % every) + 1, every, atTop: Math.abs(trainerRate - sp.endRate) < 1e-6 }
 	})
 
 	// ---- graceful finish (req 7): when the routine timer runs out, don't cut the loop off mid-lick.
@@ -648,15 +650,16 @@
 				<div class="flex items-baseline gap-2 font-mono">
 					<span class="text-2xl">{trainerRate.toFixed(2)}×</span>
 					<span class="text-sm opacity-60">→ {liveLoop.speed.endRate.toFixed(2)}×</span>
-					<span class="text-sm opacity-60 font-sans">
-						{#if passesToBump == null}
-							· at top speed
-						{:else}
-							· +{liveLoop.speed.stepRate.toFixed(2)} in {passesToBump} rep{passesToBump === 1
-								? ''
-								: 's'}
-						{/if}
-					</span>
+					{#if tierPos}
+						<span class="text-sm opacity-60 font-sans">
+							· rep {tierPos.rep} of {tierPos.every}
+							{#if tierPos.atTop}
+								· at top speed
+							{:else}
+								· +{liveLoop.speed.stepRate.toFixed(2)} after
+							{/if}
+						</span>
+					{/if}
 				</div>
 			</div>
 			<!-- Timed sequence: live speed control for the loop the page is currently playing. Adjusting it
@@ -931,6 +934,13 @@
 									/>
 									<span class="text-[0.65rem] opacity-50 pb-1.5">reps (A→B)</span>
 								</div>
+								<!-- The step floor is the source's own rate grid (commitTrainer snaps to it), so say which
+									 grid and why — a typed 0.02 silently becoming 0.05 on YouTube looks like a bug. -->
+								<p class="text-[0.7rem] opacity-60 leading-snug pl-6">
+									Smallest step: <span class="font-mono">{rateRange.step.toFixed(2)}×</span>{isYouTube
+										? ' — YouTube only plays rates on a 0.05 grid, so smaller steps snap up to it.'
+										: ' for a local file.'}
+								</p>
 								<p class="text-[0.7rem] opacity-60 leading-snug pl-6">
 									{rampPhrase(sp)} — {speedRampReps(sp)} reps to the top{timedLoops &&
 									loopSizing === 'reps'
