@@ -7,11 +7,13 @@
 		makeExercise,
 		makeRoutine,
 		moveExerciseToRoutine,
+		sectionsTotalSec,
 		stepMetronome,
 		type Exercise,
 		type ExerciseStep,
 		type LoopSizing,
-		type Routine
+		type Routine,
+		type TempoRamp
 	} from '$lib/types/guitar'
 	import ExerciseCard from '$lib/components/guitar/ExerciseCard.svelte'
 	import VideoLooper from '$lib/components/guitar/VideoLooper.svelte'
@@ -184,8 +186,15 @@
 	// Edit the running exercise live: persist, and reconfigure the metronome on the fly if it's playing.
 	function liveUpdateExercise(patch: Partial<Exercise>) {
 		if (!runExercise) return
+		// Read the pre-patch ramp BEFORE updating: runExercise is a $derived that recomputes on read,
+		// so afterwards it already reports the new one (same race liveUpdateStep documents).
+		const hadRamp = !!runExercise.ramp
 		updateExercise(runExercise.id, patch)
 		if (running && metro && !runExercise.video) {
+			// Switching a ramp ON mid-run starts its climb from here — not from however many measures
+			// have already gone by, which would jump straight to the target. Editing an existing
+			// ramp's numbers deliberately does NOT rewind it.
+			if (patch.ramp && !hadRamp) metro.resetRamp()
 			metro.configure(cfgFor({ ...runExercise, ...patch }))
 		}
 	}
@@ -288,6 +297,10 @@
 	// not resting. Lets a single `resting` countdown serve both between-reps and between-steps rests.
 	let restTarget = $state<'rep' | 'step' | null>(null)
 
+	// Metronome sections: which timed section of the current exercise is playing. The click never
+	// stops at a section boundary — only the label and the countdown change.
+	let sectionIndex = $state(0)
+
 	// ---- Video timed-loop sequence (kind === 'video' with timedLoops) ----
 	// The loop timer drives `remainingSec`; these track position in the loop list.
 	let loopIndex = $state(0)
@@ -309,7 +322,8 @@
 	let remainingSec = $state(0)
 	let finished = $state(false)
 	let pulseBeat = $state(-1) // beat index currently sounding (visual indicator)
-	let runSettingsOpen = $state(false) // live metronome editor panel in run mode
+	let runSettingsOpen = $state(true) // live metronome editor panel in run mode (open by default)
+	let liveBpm = $state(0) // tempo of the last tick — the ramped value while a TempoRamp is climbing
 	let expandedStepId = $state<string | null>(null) // which run-mode step row is expanded (req 2)
 	// Timer hit 0 on a quiz/video step; we're waiting for it to reach a natural boundary before
 	// advancing (req 7). While true the countdown is frozen at 0 and the child keeps playing.
@@ -361,6 +375,7 @@
 		if (!runExercise) return 0
 		if (isMultistep(runExercise))
 			return resting ? (runStep?.restSec ?? 0) : (runStep?.durationSec ?? 0)
+		if (hasSections(runExercise)) return runExercise.sections![sectionIndex]?.durationSec ?? 0
 		// Only 'timer'-sized loops have a countdown segment; 'reps' progress is loopRepeat/reps (see below).
 		if (isVideoSequence(runExercise))
 			return loopSizing(runExercise) === 'timer' && runLoop ? loopDurOf(runLoop) : 0
@@ -383,18 +398,22 @@
 			subdivision: ex.subdivision,
 			beatsPerMeasure: ex.beatsPerMeasure,
 			accentBeats: ex.accentBeats,
+			ramp: ex.ramp,
 			onTick: (beatIndex) => {
 				pulseBeat = beatIndex
+				liveBpm = metro?.bpm ?? ex.bpm
 			}
 		}
 	}
 
 	// Metronome config for one multistep step (resolves defaults for legacy steps).
 	function stepCfg(step: ExerciseStep): MetronomeConfig {
+		const params = stepMetronome(step)
 		return {
-			...stepMetronome(step),
+			...params,
 			onTick: (beatIndex) => {
 				pulseBeat = beatIndex
+				liveBpm = metro?.bpm ?? params.bpm
 			}
 		}
 	}
@@ -411,6 +430,14 @@
 		mode = 'run'
 		gnbState.hidden = true // exercise view starts with the nav hidden; user can toggle it back
 		start() // req 4: the timer starts on entering (Run click is the audio-unlocking gesture)
+	}
+
+	// Tempo readout. With a ramp on, the stored bpm is only the START — show where the click actually
+	// is (liveBpm, fed by onTick) and where it's heading.
+	function bpmLabel(p: { bpm: number; ramp?: TempoRamp } | null): string {
+		if (!p) return ''
+		const cur = p.ramp && liveBpm ? liveBpm : p.bpm
+		return p.ramp ? `${cur} → ${p.ramp.endBpm} BPM` : `${cur} BPM`
 	}
 
 	function ensureAudio() {
@@ -463,6 +490,7 @@
 					// Multistep advances step→step; 'timer'-sized video loop→loop; others exercise→exercise.
 					if (isMultistep(cur)) onStepComplete()
 					else if (isVideoSequence(cur)) onLoopComplete()
+					else if (hasSections(cur)) onSectionComplete()
 					else onExerciseComplete() // inline advance (running stays true) or defer/finish
 					// Keep the loop alive only while still counting down. (Read the raw array, not runExercise:
 					// currentIndex was just mutated synchronously.)
@@ -558,6 +586,7 @@
 		updateExercise(ex.id, { steps: ex.steps!.map((s) => (s.id === step.id ? merged : s)) })
 		if (!running || resting) return
 		if (merged.metronomeEnabled) {
+			if (merged.ramp && !step.ramp) metro?.resetRamp() // newly switched on → climb from the start
 			metro?.configure(stepCfg(merged))
 			metro?.start()
 		} else {
@@ -569,6 +598,12 @@
 	// A multistep exercise: its own timer is disabled; the ordered steps' timers drive advancement.
 	function isMultistep(ex: Exercise | null | undefined): boolean {
 		return !!ex && exerciseKind(ex) === 'multistep' && (ex.steps?.length ?? 0) > 0
+	}
+
+	// A metronome exercise split into timed sections (see MetronomeSection). Its sections replace the
+	// exercise timer: the countdown walks them under one unbroken click.
+	function hasSections(ex: Exercise | null | undefined): boolean {
+		return !!ex && exerciseKind(ex) === 'metronome' && (ex.sections?.length ?? 0) > 0
 	}
 
 	// A video/audio exercise whose loops auto-sequence in run mode (opt-in).
@@ -593,20 +628,23 @@
 	function hasPrimaryClock(ex: Exercise | null | undefined): boolean {
 		if (isMultistep(ex)) return true
 		if (isVideoSequence(ex)) return loopSizing(ex) === 'timer'
+		if (hasSections(ex)) return true // sections are the clock, whatever the exercise timer says
 		return timerOn(ex)
 	}
 
 	// Whether the page rAF loop should run at all: any primary clock, or a running cap (reps sequence + cap).
 	function runsCountdown(ex: Exercise | null | undefined): boolean {
-		return isMultistep(ex) || isVideoSequence(ex) || timerOn(ex)
+		return isMultistep(ex) || isVideoSequence(ex) || hasSections(ex) || timerOn(ex)
 	}
 
 	// Prime the countdown for a freshly-entered exercise. Single funnel used by enterRun / advanceInline /
 	// goToExercise so multistep initializes identically no matter how the exercise was reached.
 	function armExercise(ex: Exercise) {
 		restTarget = null
+		sectionIndex = 0
 		holdingForCap = false
 		awaitingLoopBoundary = false
+		metro?.resetRamp() // a new exercise restarts the tempo climb (pause/resume and live edits don't)
 		if (isMultistep(ex)) {
 			stepIndex = 0
 			stepRepeat = 0
@@ -619,6 +657,9 @@
 			// 'timer' sizing → the loop timer is the primary clock; 'reps' → advance on A→B boundaries, no clock.
 			remainingSec = loopSizing(ex) === 'timer' ? loopDurOf(ex.video!.loops[0]) : 0
 			commandLoop() // tell VideoLooper to start loop 0 from A
+		} else if (hasSections(ex)) {
+			resting = false
+			remainingSec = ex.sections![0].durationSec
 		} else {
 			resting = false
 			remainingSec = ex.durationSec
@@ -686,6 +727,8 @@
 	// Label for the "Next:" preview — step count for a multistep exercise, otherwise its timer.
 	function nextLabel(ex: Exercise): string {
 		if (isMultistep(ex)) return `${ex.steps!.length} step${ex.steps!.length === 1 ? '' : 's'}`
+		if (hasSections(ex))
+			return `${ex.sections!.length} sections · ${formatMmss(sectionsTotalSec(ex.sections!))}`
 		return timerOn(ex) ? formatMmss(ex.durationSec) : 'no timer'
 	}
 
@@ -753,6 +796,7 @@
 				stepIndex += 1
 				stepRepeat = 0
 				remainingSec = steps[stepIndex].durationSec
+				metro?.resetRamp() // new step → its ramp starts over (reps of one step keep climbing)
 			}
 			restTarget = null
 			armSegment()
@@ -793,11 +837,27 @@
 			remainingSec = steps[stepIndex].durationSec
 			armSegment()
 			if (audioCtx) beep(audioCtx)
+			metro?.resetRamp() // new step → its ramp starts over
 			applyStepMetronome() // reconfigure to the next step's tempo (or stop if it opted out)
 			return
 		}
 		// Last step, last repeat → on to the next exercise (no trailing rest).
 		advanceInline()
+	}
+
+	// A metronome section's countdown reached 0: move to the next section, or advance the exercise on
+	// the last one. The click is deliberately left alone — no configure(), no resetRamp() — so the
+	// tempo (and any ramp climbing through it) runs straight across the boundary.
+	function onSectionComplete() {
+		const secs = exercises[currentIndex].sections!
+		if (sectionIndex + 1 >= secs.length) {
+			advanceInline()
+			return
+		}
+		sectionIndex += 1
+		remainingSec = secs[sectionIndex].durationSec
+		armSegment()
+		if (audioCtx) beep(audioCtx)
 	}
 
 	// Timed-loop video, 'timer' sizing: the current loop's countdown reached 0. Don't cut the pass off
@@ -930,6 +990,7 @@
 		stepRepeat = 0
 		remainingSec = steps[idx].durationSec
 		armSegment()
+		metro?.resetRamp()
 		applyStepMetronome()
 	}
 
@@ -1405,7 +1466,7 @@
 				{#if runStep?.metronomeEnabled && runStepMetro && !resting && !finished}
 					<div class="flex flex-col items-center gap-2">
 						<div class="text-sm opacity-60">
-							{runStepMetro.bpm} BPM · {runStepMetro.subdivision === 'quarter'
+							{bpmLabel(runStepMetro)} · {runStepMetro.subdivision === 'quarter'
 								? '1/4'
 								: runStepMetro.subdivision === 'eighth'
 									? '1/8'
@@ -1461,7 +1522,7 @@
 			{:else}
 				{#if finished}
 					<div class="text-5xl sm:text-7xl font-mono">Done</div>
-				{:else if !timerOn(runExercise)}
+				{:else if !timerOn(runExercise) && !hasSections(runExercise)}
 					<div class="text-4xl sm:text-6xl font-mono opacity-60">No timer</div>
 				{:else}
 					<div class="font-mono tabular-nums leading-none">
@@ -1472,8 +1533,8 @@
 					</div>
 				{/if}
 
-				<!-- Progress bar (timer steps only) -->
-				{#if timerOn(runExercise)}
+				<!-- Progress bar (timer steps + sectioned exercises) -->
+				{#if timerOn(runExercise) || hasSections(runExercise)}
 					<div class="w-full max-w-md h-2 bg-teal/15 rounded-full overflow-hidden">
 						<div
 							class="h-full bg-teal transition-[width] duration-100"
@@ -1482,11 +1543,26 @@
 					</div>
 				{/if}
 
+				<!-- Which section is playing (metronome sections) -->
+				{#if hasSections(runExercise) && !finished}
+					{@const secs = runExercise!.sections!}
+					<div class="flex flex-col items-center gap-0.5">
+						<div class="text-lg font-medium">
+							{secs[sectionIndex]?.label || `Section ${sectionIndex + 1}`}
+						</div>
+						<div class="text-xs opacity-50">
+							Section {sectionIndex + 1} / {secs.length}{secs[sectionIndex + 1]
+								? ` · next: ${secs[sectionIndex + 1].label}`
+								: ''}
+						</div>
+					</div>
+				{/if}
+
 				<!-- Tempo + beat indicator -->
 				{#if runExercise}
 					<div class="flex flex-col items-center gap-2">
 						<div class="text-sm opacity-60">
-							{runExercise.bpm} BPM · {runExercise.subdivision === 'quarter'
+							{bpmLabel(runExercise)} · {runExercise.subdivision === 'quarter'
 								? '1/4'
 								: runExercise.subdivision === 'eighth'
 									? '1/8'

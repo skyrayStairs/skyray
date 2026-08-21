@@ -1,11 +1,16 @@
 import { test, expect } from '@playwright/test'
 import { snapRate } from '../src/lib/video/youtubeController'
 import {
+	BPM_MAX,
+	BPM_MIN,
 	YT_RATE_RANGE,
+	bpmAtMeasure,
 	makeExercise,
 	makeRoutine,
 	moveExerciseToRoutine,
 	rateAtPass,
+	sectionsTotalSec,
+	makeSection,
 	speedRampReps
 } from '../src/lib/types/guitar'
 import type { Routine, SpeedTrainer } from '../src/lib/types/guitar'
@@ -106,4 +111,43 @@ test('a no-op move leaves the exercise where it is', () => {
 	const [a, b] = twoRoutines()
 	expect(moveExerciseToRoutine([a, b], a.id, a.exercises[0].id, a.id)).toEqual([a, b]) // same routine
 	expect(moveExerciseToRoutine([a, b], a.id, 'gone', b.id)).toEqual([a, b]) // unknown exercise
+})
+
+// ---- tempo ramp -------------------------------------------------------------
+// Same contract as the speed trainer, in measures: the click must land exactly ON endBpm and hold
+// there. Overshooting plays faster than the user asked for; never arriving never trains the target.
+test('bpmAtMeasure holds each tier for everyMeasures, then lands on endBpm', () => {
+	const r = { endBpm: 120, stepBpm: 5, everyMeasures: 4 }
+	expect(bpmAtMeasure(100, r, 0)).toBe(100)
+	expect(bpmAtMeasure(100, r, 3)).toBe(100) // same tier
+	expect(bpmAtMeasure(100, r, 4)).toBe(105) // bump
+	expect(bpmAtMeasure(100, r, 16)).toBe(120) // last tier
+	expect(bpmAtMeasure(100, r, 999)).toBe(120) // holds, never overshoots
+})
+
+test('bpmAtMeasure clamps a ramp whose span is not a whole multiple of stepBpm', () => {
+	const r = { endBpm: 112, stepBpm: 5, everyMeasures: 1 }
+	expect(bpmAtMeasure(100, r, 2)).toBe(110)
+	expect(bpmAtMeasure(100, r, 3)).toBe(112) // clamped to the target, not 115
+})
+
+test('bpmAtMeasure ramps downward from the endpoints alone', () => {
+	const r = { endBpm: 80, stepBpm: 10, everyMeasures: 2 }
+	expect(bpmAtMeasure(120, r, 0)).toBe(120)
+	expect(bpmAtMeasure(120, r, 2)).toBe(110)
+	expect(bpmAtMeasure(120, r, 50)).toBe(80)
+})
+
+test('bpmAtMeasure stays inside the BPM box limits and survives a junk everyMeasures', () => {
+	expect(bpmAtMeasure(390, { endBpm: 900, stepBpm: 20, everyMeasures: 1 }, 99)).toBe(BPM_MAX)
+	expect(bpmAtMeasure(30, { endBpm: 1, stepBpm: 20, everyMeasures: 1 }, 99)).toBe(BPM_MIN)
+	expect(bpmAtMeasure(100, { endBpm: 200, stepBpm: 5, everyMeasures: 0 }, 3)).toBe(115) // 0 → 1
+})
+
+// ---- metronome sections -----------------------------------------------------
+test('sectionsTotalSec sums the section clocks', () => {
+	const secs = [makeSection(0, 30), makeSection(1, 45), makeSection(2, 30)]
+	expect(sectionsTotalSec(secs)).toBe(105)
+	expect(secs[1].label).toBe('Section 2')
+	expect(sectionsTotalSec([])).toBe(0)
 })

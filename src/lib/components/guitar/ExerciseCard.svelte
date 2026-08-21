@@ -1,16 +1,21 @@
 <script lang="ts">
 	import {
+		DEFAULT_SECTION_SEC,
 		exerciseKind,
 		makeFretboard,
+		makeSection,
 		makeStep,
 		makeVideoLoop,
 		PENDING_LOOP_END,
+		sectionsTotalSec,
+		type MetronomeSection,
 		type Exercise,
 		type ExerciseKind,
 		type ExerciseStep,
 		type FretboardConfig,
 		type VideoConfig
 	} from '$lib/types/guitar'
+	import { formatMmss } from '$lib/utils/time'
 	import { uid } from '$lib/utils/id'
 	import { parseYouTubeId } from '$lib/video/parseId'
 	import { putVideoBlob, deleteVideoBlob } from '$lib/storage/videoBlobs'
@@ -100,6 +105,52 @@
 
 	function updateSteps(next: ExerciseStep[]) {
 		onUpdate({ steps: next })
+	}
+
+	// ---- countdown sections (metronome kind) ----
+	// Sections replace the exercise timer: the click runs unbroken while the countdown walks them.
+	// Uniform mode (the default) keeps every section on one shared length — the box writes all of them.
+	const sections = $derived(exercise.sections ?? [])
+	const perSectionTimes = $derived(exercise.perSectionTimes === true)
+	const uniformSec = $derived(sections[0]?.durationSec ?? DEFAULT_SECTION_SEC)
+
+	function enableSections() {
+		onUpdate({ sections: [makeSection(0), makeSection(1)] })
+	}
+	function clearSections() {
+		onUpdate({ sections: undefined, perSectionTimes: undefined })
+	}
+	function addSection() {
+		onUpdate({ sections: [...sections, makeSection(sections.length, uniformSec)] })
+	}
+	function removeSection(id: string) {
+		const next = sections.filter((s) => s.id !== id)
+		// Last one out turns the whole feature off, so the exercise timer comes back.
+		if (!next.length) return clearSections()
+		onUpdate({ sections: next })
+	}
+	function patchSection(id: string, patch: Partial<MetronomeSection>) {
+		onUpdate({ sections: sections.map((s) => (s.id === id ? { ...s, ...patch } : s)) })
+	}
+	function clampSec(raw: string, fallback: number) {
+		const n = parseInt(raw, 10)
+		return Number.isNaN(n) ? fallback : Math.min(3600, Math.max(1, n))
+	}
+	// Leaving per-section mode puts every section back on the one length the shared box shows, so the
+	// box never claims "30 s each" over sections that are really 30/45/30.
+	function setPerSectionTimes(on: boolean) {
+		onUpdate(
+			on
+				? { perSectionTimes: true }
+				: {
+						perSectionTimes: false,
+						sections: sections.map((s) => ({ ...s, durationSec: uniformSec }))
+					}
+		)
+	}
+	function setUniformSec(raw: string) {
+		const n = clampSec(raw, uniformSec)
+		onUpdate({ sections: sections.map((s) => ({ ...s, durationSec: n })) })
 	}
 
 	// ---- timer (m / s boxes, mirroring the loop A/B editor minus the ms box) ----
@@ -327,7 +378,7 @@
 		</div>
 	{/snippet}
 
-	{#if kind !== 'multistep'}
+	{#if kind !== 'multistep' && !(kind === 'metronome' && sections.length)}
 		{@render timerField()}
 	{/if}
 
@@ -370,6 +421,87 @@
 		<MultistepEditor steps={exercise.steps ?? []} onChange={updateSteps} />
 	{:else}
 		<MetronomeSettings value={exercise} {onUpdate} />
+
+		<!-- Countdown sections: one continuous click, the countdown walks section → section. -->
+		{#if !sections.length}
+			<button class="btn btn-xs btn-outline self-start" onclick={enableSections}
+				>+ Split into timed sections</button
+			>
+		{:else}
+			<div class="flex flex-col gap-1.5 rounded border border-teal/20 p-2">
+				<div class="flex items-center justify-between gap-2">
+					<span class="text-[0.65rem] uppercase tracking-wide opacity-60"
+						>Sections · {formatMmss(sectionsTotalSec(sections))} total</span
+					>
+					<button class="btn btn-xs btn-ghost text-error" onclick={clearSections}>Remove all</button>
+				</div>
+
+				<div class="flex items-center gap-2 flex-wrap">
+					<label class="flex items-center gap-1.5 cursor-pointer">
+						<input
+							type="checkbox"
+							class="checkbox checkbox-xs"
+							checked={perSectionTimes}
+							onchange={(e) => setPerSectionTimes((e.target as HTMLInputElement).checked)}
+						/>
+						<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Per-section times</span>
+					</label>
+					{#if !perSectionTimes}
+						<label class="flex items-end gap-0.5">
+							<input
+								type="text"
+								inputmode="numeric"
+								value={uniformSec}
+								onfocus={selectAllOnFocus}
+								onchange={(e) => setUniformSec((e.target as HTMLInputElement).value)}
+								class="input input-xs input-bordered bg-white border-teal/30 w-14 text-center"
+							/>
+							<span class="text-[0.65rem] opacity-50 pb-1.5">s each</span>
+						</label>
+					{/if}
+				</div>
+
+				{#each sections as sec, i (sec.id)}
+					<div class="flex items-center gap-1.5">
+						<span class="text-[0.65rem] opacity-50 w-4 shrink-0">{i + 1}</span>
+						<input
+							type="text"
+							value={sec.label}
+							placeholder="Pattern"
+							onchange={(e) => patchSection(sec.id, { label: (e.target as HTMLInputElement).value })}
+							class="input input-xs input-bordered bg-white border-teal/30 flex-1 min-w-0"
+						/>
+						{#if perSectionTimes}
+							<label class="flex items-end gap-0.5 shrink-0">
+								<input
+									type="text"
+									inputmode="numeric"
+									value={sec.durationSec}
+									onfocus={selectAllOnFocus}
+									onchange={(e) =>
+										patchSection(sec.id, {
+											durationSec: clampSec((e.target as HTMLInputElement).value, sec.durationSec)
+										})}
+									class="input input-xs input-bordered bg-white border-teal/30 w-14 text-center"
+								/>
+								<span class="text-[0.65rem] opacity-50 pb-1.5">s</span>
+							</label>
+						{:else}
+							<span class="text-[0.65rem] opacity-50 shrink-0">{sec.durationSec}s</span>
+						{/if}
+						<button
+							class="btn btn-xs btn-ghost text-error shrink-0"
+							onclick={() => removeSection(sec.id)}
+							aria-label="Remove section">✕</button
+						>
+					</div>
+				{/each}
+
+				<button class="btn btn-xs btn-outline self-start" onclick={addSection}
+					>+ Add section</button
+				>
+			</div>
+		{/if}
 	{/if}
 
 	{#if videoErr}

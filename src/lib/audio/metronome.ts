@@ -8,7 +8,7 @@
 // The AudioContext is owned by the caller (created/resumed inside a user gesture) so the
 // page controls audio unlock and cleanup.
 
-import { TICKS_PER_BEAT, type Subdivision } from '$lib/types/guitar'
+import { bpmAtMeasure, TICKS_PER_BEAT, type Subdivision, type TempoRamp } from '$lib/types/guitar'
 
 export interface MetronomeConfig {
 	bpm: number
@@ -19,6 +19,8 @@ export interface MetronomeConfig {
 	onTick?: (beatIndex: number, accent: boolean) => void
 	/** Skip the click sound but keep the timing + onTick (e.g. scale playback plays note tones only). */
 	silent?: boolean
+	/** Opt-in gradual tempo change. When set, `bpm` above is the STARTING tempo. See TempoRamp. */
+	ramp?: TempoRamp
 }
 
 const LOOKAHEAD_MS = 25 // how often the scheduler wakes
@@ -30,16 +32,34 @@ export class Metronome {
 	private timerId: ReturnType<typeof setInterval> | null = null
 	private nextTickTime = 0 // ctx time of the next tick to schedule
 	private tickInMeasure = 0 // index of next tick within the current measure
+	private measuresDone = 0 // completed measures, drives cfg.ramp — see resetRamp()
 
 	constructor(ctx: AudioContext, cfg: MetronomeConfig) {
 		this.ctx = ctx
 		this.cfg = cfg
 	}
 
-	/** Swap settings. Realigns to the start of a measure so accents stay correct. */
+	/**
+	 * Swap settings. Realigns to the start of a measure so accents stay correct. Deliberately does
+	 * NOT touch the ramp: this runs on every live BPM nudge and accent toggle, and rewinding the
+	 * tempo climb on an unrelated edit would be a surprise. Callers restart it via resetRamp().
+	 */
 	configure(cfg: MetronomeConfig): void {
 		this.cfg = cfg
 		this.tickInMeasure = 0
+	}
+
+	/** Restart the tempo ramp from its starting bpm. Call when a NEW exercise/step begins — not on
+	 * pause/resume (start() is reached on both) and not on a live edit (see configure()). */
+	resetRamp(): void {
+		this.measuresDone = 0
+	}
+
+	/** Tempo of the next tick: the ramped value while a TempoRamp is on, else the configured bpm. */
+	get bpm(): number {
+		return this.cfg.ramp
+			? bpmAtMeasure(this.cfg.bpm, this.cfg.ramp, this.measuresDone)
+			: this.cfg.bpm
 	}
 
 	get running(): boolean {
@@ -63,7 +83,7 @@ export class Metronome {
 
 	private secondsPerTick(): number {
 		const ticksPerBeat = TICKS_PER_BEAT[this.cfg.subdivision]
-		return 60 / this.cfg.bpm / ticksPerBeat
+		return 60 / this.bpm / ticksPerBeat
 	}
 
 	private scheduler(): void {
@@ -76,7 +96,11 @@ export class Metronome {
 			const accent = isBeatOnset && this.cfg.accentBeats.includes(beatIndex)
 			this.scheduleTick(this.nextTickTime, accent, beatIndex)
 			this.nextTickTime += this.secondsPerTick()
-			this.tickInMeasure = (this.tickInMeasure + 1) % totalTicks
+			this.tickInMeasure += 1
+			if (this.tickInMeasure >= totalTicks) {
+				this.tickInMeasure = 0
+				this.measuresDone += 1 // a ramp bumps the tempo on measure boundaries only
+			}
 		}
 	}
 

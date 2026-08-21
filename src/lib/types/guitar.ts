@@ -18,6 +18,7 @@ export interface MetronomeParams {
 	subdivision: Subdivision
 	beatsPerMeasure: number
 	accentBeats: number[]
+	ramp?: TempoRamp // opt-in gradual tempo change; `bpm` is then the STARTING tempo
 }
 
 export const DEFAULT_METRONOME: MetronomeParams = {
@@ -25,6 +26,55 @@ export const DEFAULT_METRONOME: MetronomeParams = {
 	subdivision: 'quarter',
 	beatsPerMeasure: 4,
 	accentBeats: [0]
+}
+
+// ---- Tempo ramp ------------------------------------------------------------
+// Opt-in per metronome: start at MetronomeParams.bpm and climb (or fall) by `stepBpm` every
+// `everyMeasures` measures until `endBpm`, then hold there. Same shape as SpeedTrainer, counted in
+// measures instead of A-B passes. Transient like SpeedTrainer: it drives the click, it never
+// rewrites the stored bpm.
+export interface TempoRamp {
+	endBpm: number
+	stepBpm: number // magnitude of one bump; the direction comes from the endpoints
+	everyMeasures: number // measures to hold each tempo before bumping (>= 1)
+}
+
+export const BPM_MIN = 20
+export const BPM_MAX = 400
+
+export const DEFAULT_TEMPO_RAMP: TempoRamp = { endBpm: 140, stepBpm: 5, everyMeasures: 4 }
+
+// Tempo after `measures` completed measures, clamped to the ramp's own endpoints so it lands exactly
+// ON endBpm and holds there — a ramp that overshoots plays faster than the user asked for.
+export function bpmAtMeasure(startBpm: number, ramp: TempoRamp, measures: number): number {
+	const dir = ramp.endBpm < startBpm ? -1 : 1
+	const tier = Math.floor(Math.max(0, measures) / Math.max(1, Math.floor(ramp.everyMeasures)))
+	const raw = startBpm + dir * Math.abs(ramp.stepBpm) * tier
+	const lo = Math.min(startBpm, ramp.endBpm)
+	const hi = Math.max(startBpm, ramp.endBpm)
+	return Math.min(BPM_MAX, Math.max(BPM_MIN, Math.round(Math.min(hi, Math.max(lo, raw)))))
+}
+
+// ---- Countdown sections ----------------------------------------------------
+// A metronome exercise can be split into timed sections: the click runs UNBROKEN while the countdown
+// walks section → section ("play this pattern for 30s, then the next"). Only the label and the clock
+// change at a boundary; the tempo is exercise-wide (TempoRamp is what moves it). Sections replace the
+// exercise timer while they exist. Multistep is the near-neighbor — it restarts the click per step
+// and adds reps/rests/per-step tempo; sections are the flat, one-click, uniform-time case.
+export interface MetronomeSection {
+	id: string
+	label: string
+	durationSec: number
+}
+
+export const DEFAULT_SECTION_SEC = 30
+
+export function makeSection(index: number, durationSec = DEFAULT_SECTION_SEC): MetronomeSection {
+	return { id: uid(), label: `Section ${index + 1}`, durationSec }
+}
+
+export function sectionsTotalSec(sections: MetronomeSection[]): number {
+	return sections.reduce((t, s) => t + Math.max(0, s.durationSec), 0)
 }
 
 // One step of a multistep exercise: its own countdown, a free-text description, an optional repeat
@@ -44,6 +94,7 @@ export interface ExerciseStep {
 	subdivision?: Subdivision
 	beatsPerMeasure?: number
 	accentBeats?: number[]
+	ramp?: TempoRamp
 }
 
 // Resolve a step's metronome params, filling any unset field from DEFAULT_METRONOME.
@@ -52,7 +103,8 @@ export function stepMetronome(step: ExerciseStep): MetronomeParams {
 		bpm: step.bpm ?? DEFAULT_METRONOME.bpm,
 		subdivision: step.subdivision ?? DEFAULT_METRONOME.subdivision,
 		beatsPerMeasure: step.beatsPerMeasure ?? DEFAULT_METRONOME.beatsPerMeasure,
-		accentBeats: step.accentBeats ?? DEFAULT_METRONOME.accentBeats
+		accentBeats: step.accentBeats ?? DEFAULT_METRONOME.accentBeats,
+		ramp: step.ramp
 	}
 }
 
@@ -66,6 +118,11 @@ export interface Exercise {
 	subdivision: Subdivision // how often the metronome ticks
 	beatsPerMeasure: number // measure length (time-signature numerator)
 	accentBeats: number[] // 0-based beat indices that are "on beat" (louder tick)
+	ramp?: TempoRamp // opt-in gradual tempo change across the exercise (bpm above = the start tempo)
+	// Metronome kind: timed sections walked under one continuous click (see MetronomeSection). While
+	// non-empty they replace the exercise timer. `perSectionTimes` off (default) = one shared length.
+	sections?: MetronomeSection[]
+	perSectionTimes?: boolean
 	video?: VideoConfig // when present, this is a video-loop exercise (countdown applies, no metronome)
 	fretboard?: FretboardConfig // when present, this is a fretboard exercise (countdown applies, no metronome)
 	steps?: ExerciseStep[] // multistep exercise: the exercise timer is disabled; step timers drive advancement
