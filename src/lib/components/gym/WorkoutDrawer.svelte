@@ -9,10 +9,14 @@
 	import {
 		DEFAULT_HOLD_SEC,
 		DEFAULT_REST_WARMUP_SEC,
+		applyAssisted,
 		displayName,
 		makeExercise,
 		makeSet,
+		measuresSeconds,
 		plansDiffer,
+		settingsSummary,
+		signedLoad,
 		restForSet,
 		sortSets,
 		workingSets,
@@ -25,7 +29,8 @@
 	import { restTimer } from '$lib/stores/gymTimer.svelte'
 	import { formatMmss } from '$lib/utils/time'
 	import ActionSheet from '../ActionSheet.svelte'
-	import Sheet from '../Sheet.svelte'
+	import ExerciseSettingsSheet from './ExerciseSettingsSheet.svelte'
+	import Sheet, { SHEET_EXIT_MS } from '../Sheet.svelte'
 	import RestChip from './RestChip.svelte'
 
 	let {
@@ -55,6 +60,7 @@
 	} = $props()
 
 	let menuFor = $state<GymExercise | null>(null)
+	let settingsFor = $state<GymExercise | null>(null)
 	let timerOpen = $state(false)
 	let finishOpen = $state(false)
 
@@ -112,11 +118,19 @@
 			: `${set.targetRepsMin}`
 
 	/** In a timed exercise the goal is a duration, and the same fields hold it — see types/gym.ts. */
-	const timed = (ex: GymExercise) => ex.mode === 'time'
+	const timed = (ex: GymExercise) => measuresSeconds(ex.mode)
+	const rounds = (ex: GymExercise) => ex.mode === 'interval'
 	const goalText = (ex: GymExercise, set: GymSet) =>
-		timed(ex) ? `hold ${target(set)}s` : `goal ${target(set)}`
+		rounds(ex) ? `round ${target(set)}s` : timed(ex) ? `hold ${target(set)}s` : `goal ${target(set)}`
 
 	const numberVal = (e: Event) => (e.currentTarget as HTMLInputElement).valueAsNumber
+
+	/** Sign comes from the exercise, not the keypad — see `signedLoad`. */
+	function setWeight(ex: GymExercise, set: GymSet, e: Event) {
+		const v = numberVal(e)
+		if (!Number.isFinite(v)) return
+		if (ex.assisted || v >= 0) set.weight = signedLoad(v, ex.assisted)
+	}
 
 	/** Five seconds to get to the bar. Bell-counted, because you can't watch the phone from a hang. */
 	const HOLD_LEADIN_SEC = 5
@@ -159,6 +173,78 @@
 				startRest(exIndex, setIndex, label)
 			})
 		)
+	}
+
+	/**
+	 * Where a set is *right now*. The interval chain runs for minutes across a dozen handovers, and
+	 * the ⋯ menu can drop the exercise, add a set or reorder the day in the middle of it — so every
+	 * hop re-resolves by id rather than trusting an index captured before the first round.
+	 */
+	function locate(exId: string, setId: string) {
+		const exIndex = session.plan.findIndex((e) => e.id === exId)
+		const ex = session.plan[exIndex]
+		const setIndex = ex ? ex.sets.findIndex((s) => s.id === setId) : -1
+		if (!ex || setIndex < 0) return null
+		return {
+			ex,
+			exIndex,
+			setIndex,
+			set: ex.sets[setIndex],
+			name: displayName(ex.name),
+			label: labelsFor(ex)[setIndex]
+		}
+	}
+
+	/**
+	 * One round of an interval, and everything after it. A round is a set — its length is the set's
+	 * goal and the gap after it is the set's rest — so the whole exercise is already planned by the
+	 * fields every other mode uses, and the clock just walks them: round, rest, round, rest, until
+	 * the sets run out. Nothing to tap between rounds, which is the point.
+	 *
+	 * Each round is ticked by *elapsing*, with the seconds the clock counted rather than the target,
+	 * so a nudged round logs what it actually ran. Skipping drops the chain (see `RestTimer.stop`)
+	 * and stops the whole sequence — a half-run interval leaves its remaining rounds open to tap.
+	 *
+	 * A zero-length rest hands straight over instead of going through the clock: `start(0, …)` routes
+	 * to `stop()`, which would drop the chain and end the interval one round in.
+	 *
+	 * ponytail: rides the same hidden-tab throttling ceiling documented in gymTimer.svelte.ts, and
+	 * this is where it bites hardest — a dozen handovers with the phone in a pocket, each able to
+	 * arrive late. A Web Worker clock is the fix if phones turn out to do it mid-interval.
+	 */
+	function runRound(exId: string, setId: string) {
+		const at = locate(exId, setId)
+		if (!at) return
+		restTimer.start(at.set.targetRepsMin, `${at.name} · round ${at.label}`, (ranSec) => {
+			const now = locate(exId, setId)
+			if (!now) return
+			session.entries[setId] = {
+				reps: Math.round(ranSec),
+				weight: now.set.weight,
+				doneAt: new Date().toISOString(),
+				assumed: false
+			}
+			const next = now.ex.sets[now.setIndex + 1]
+			const rest = restForSet(runDay, now.exIndex, now.setIndex)
+			if (!next) {
+				restTimer.start(rest, `${now.name} · after round ${now.label}`)
+				return
+			}
+			const nextLabel = labelsFor(now.ex)[now.setIndex + 1]
+			if (rest > 0) {
+				restTimer.start(rest, `${now.name} · rest before round ${nextLabel}`, () =>
+					runRound(exId, next.id)
+				)
+			} else {
+				runRound(exId, next.id)
+			}
+		})
+	}
+
+	/** Same five seconds to get set as a hold, then the chain takes over from this round on. */
+	function startRounds(ex: GymExercise, set: GymSet) {
+		const name = displayName(ex.name)
+		restTimer.start(HOLD_LEADIN_SEC, `${name} · get ready`, () => runRound(ex.id, set.id))
 	}
 
 	function toggleDone(exIndex: number, set: GymSet, setIndex: number, label: string) {
@@ -243,7 +329,15 @@
 	}
 
 	function addExercise() {
-		onPickExercise((name) => (session.plan = [...session.plan, makeExercise(name)]))
+		onPickExercise((name) => {
+			session.plan = [...session.plan, makeExercise(name)]
+			// Read back rather than reusing the object that went in — `session` is `$state`, so the
+			// array holds a proxy and the local would be the raw target the dialog's writes never
+			// reach. Same handover delay as the editor: the library sheet is still flying out when
+			// this callback runs, and both sheets share a z-band. See DayEditor.addExercise.
+			const added = session.plan[session.plan.length - 1]
+			setTimeout(() => (settingsFor = added), SHEET_EXIT_MS)
+		})
 	}
 
 	/**
@@ -375,25 +469,35 @@
 							<span class="inline-flex items-baseline gap-1 shrink-0">
 								<input
 									type="number"
-									min="0"
+									min={ex.assisted ? undefined : 0}
 									step="0.5"
 									inputmode="decimal"
 									value={set.weight}
-									oninput={(e) => {
-										const v = numberVal(e)
-										if (Number.isFinite(v) && v >= 0) set.weight = v
-									}}
+									oninput={(e) => setWeight(ex, set, e)}
 									class="input input-bordered {fieldTone(set)} w-14 text-center px-1 tabular-nums"
-									aria-label="Weight in kg, set {labels[setIndex]}"
+									aria-label="{ex.assisted
+										? 'Assistance in kg, written as a minus'
+										: 'Weight in kg'}, set {labels[setIndex]}"
 								/>
-								<span class="text-xs opacity-50">kg</span>
+								<span class="text-xs opacity-50">{ex.assisted ? 'assist' : 'kg'}</span>
 							</span>
 
 							<span class="ml-auto inline-flex items-center gap-1 shrink-0">
 								<!-- Timed sets trade the two steppers for one Start: nothing else in the row is worth
 								     a tap while you are hanging off a bar, and the number fills itself in when the
 								     hold elapses. The box stays for correcting a hold you came off early. -->
-								{#if timed(ex)}
+								{#if rounds(ex)}
+									<!-- Every round carries its own ▶ rather than the exercise carrying one: the chain
+									     runs from the round you tap, so an interval broken off half way is resumed by
+									     starting the round you stopped on instead of running the whole thing again. -->
+									<button
+										class="btn btn-sm btn-primary px-2"
+										onclick={() => startRounds(ex, set)}
+										aria-label="Run the interval from round {labels[setIndex]}, {target(
+											set
+										)} seconds each — {HOLD_LEADIN_SEC} seconds to get ready first">▶</button
+									>
+								{:else if timed(ex)}
 									<button
 										class="btn btn-sm btn-primary px-2"
 										onclick={() => startHold(exIndex, set, setIndex, labels[setIndex])}
@@ -428,7 +532,11 @@
 										set
 									)} w-12 text-center px-1 text-base font-semibold tabular-nums
 										{entry?.assumed ? 'italic opacity-60' : ''}"
-									aria-label="{timed(ex) ? 'Seconds held' : 'Reps done'}, set {labels[
+									aria-label="{rounds(ex)
+										? 'Seconds run'
+										: timed(ex)
+											? 'Seconds held'
+											: 'Reps done'}, set {labels[
 										setIndex
 									]}{entry?.assumed ? ' — assumed, not entered' : ''}{prev !== null
 										? ` — ${prev} last time`
@@ -504,11 +612,9 @@
 			{ label: 'Add set', onSelect: () => addSet(ex, 'working') },
 			{ label: 'Add warm-up set', onSelect: () => addSet(ex, 'warmup') },
 			{
-				label: timed(ex) ? 'Measure in reps' : 'Measure in seconds',
-				detail: timed(ex)
-					? 'The goals stay as they are and go back to being rep counts'
-					: 'Sets get a Start button; the goals are read as seconds, so retype them',
-				onSelect: () => (ex.mode = timed(ex) ? 'reps' : 'time')
+				label: 'Exercise settings…',
+				detail: settingsSummary(ex),
+				onSelect: () => (settingsFor = ex)
 			},
 			{
 				label: 'Remove last set',
@@ -523,6 +629,16 @@
 				onSelect: () => removeExercise(ex)
 			}
 		]}
+	/>
+{/if}
+
+{#if settingsFor}
+	{@const ex = settingsFor}
+	<ExerciseSettingsSheet
+		exercise={ex}
+		onMode={(mode) => (ex.mode = mode)}
+		onAssisted={(on) => applyAssisted(ex, on)}
+		onClose={() => (settingsFor = null)}
 	/>
 {/if}
 

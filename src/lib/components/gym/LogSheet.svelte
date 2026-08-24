@@ -2,7 +2,7 @@
 	// History. Read after the fact, never during a set, so it is a sheet rather than a screen — and it
 	// keeps its own Export button, because the log is the half of the backup that the routine export
 	// doesn't carry.
-	import type { SessionLog } from '$lib/types/gym'
+	import { measuresSeconds, type ExerciseMode, type SessionLog } from '$lib/types/gym'
 	import Sheet from '../Sheet.svelte'
 
 	let {
@@ -12,16 +12,23 @@
 		onClose
 	}: { open?: boolean; logs: SessionLog[]; onExport: () => void; onClose: () => void } = $props()
 
-	/** Timed sets are excluded: seconds × kg is not volume, and a 60s hang would add 1200 to it. */
+	/**
+	 * Timed sets are excluded: seconds × kg is not volume, and a 60s hang would add 1200 to it.
+	 * Assisted sets go too — their load is negative (see types/gym.ts), so counting them would
+	 * *subtract* from the day's total, which is the opposite of the work they took.
+	 */
 	const volume = (l: SessionLog) =>
 		l.sets
-			.filter((s) => s.kind !== 'warmup' && s.mode !== 'time')
+			.filter((s) => s.kind !== 'warmup' && !measuresSeconds(s.mode) && s.weight > 0)
 			.reduce((n, s) => n + s.reps * s.weight, 0)
 	const workingSetCount = (l: SessionLog) => l.sets.filter((s) => s.kind !== 'warmup').length
 	const when = (iso: string) =>
 		iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—'
 	const targetLabel = (min: number, max: number | null) =>
 		max && max !== min ? `${min}–${max}` : `${min}`
+	const unit = (m: ExerciseMode) => (measuresSeconds(m) ? 's' : '')
+	/** A negative load is assistance, and reads as the help it was rather than as a minus number. */
+	const load = (kg: number) => (kg < 0 ? `${Math.abs(kg)} kg assist` : `${kg} kg`)
 </script>
 
 <Sheet {open} title="Session log" {onClose}>
@@ -55,16 +62,14 @@
 						<li>
 							{#if s.kind === 'warmup'}<span class="opacity-50">warm-up</span>{/if}
 							{s.exerciseName} — <span class:opacity-50={s.assumed}
-								>{s.reps}{s.mode === 'time' ? 's' : ''}</span
+								>{s.reps}{unit(s.mode)}</span
 							>
 							{#if s.assumed}<span class="opacity-50" title="Assumed, not entered">≈</span>{/if}
-							{s.mode === 'time' ? 'at' : '×'}
-							{s.weight} kg
+							{measuresSeconds(s.mode) ? 'at' : '×'}
+							{load(s.weight)}
 							{#if s.kind !== 'warmup'}
 								<span class="opacity-60">
-									(target {targetLabel(s.targetRepsMin, s.targetRepsMax)}{s.mode === 'time'
-										? 's'
-										: ''})
+									(target {targetLabel(s.targetRepsMin, s.targetRepsMax)}{unit(s.mode)})
 								</span>
 							{/if}
 						</li>

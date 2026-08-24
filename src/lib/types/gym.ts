@@ -18,10 +18,75 @@ export const DEFAULT_SET_COUNT = 3
 export type SetKind = 'warmup' | 'working'
 
 /**
- * What a set of this exercise is measured in: reps under load (bench press) or seconds under load
- * (dead hang, plank). Weight applies to both — a hang can be weighted, and usually is eventually.
+ * What a set of this exercise is measured in: reps under load (bench press), seconds under load
+ * (dead hang, plank), or one round of an interval (Tabata, EMOM). Weight applies to all three — a
+ * hang can be weighted, and usually is eventually.
+ *
+ * `interval` measures in seconds exactly like `time`; what differs is that the sets are a *sequence*
+ * the clock runs by itself — round, rest, round, rest — rather than a hold you start one at a time.
  */
-export type ExerciseMode = 'reps' | 'time'
+export type ExerciseMode = 'reps' | 'time' | 'interval'
+
+const MODES: ExerciseMode[] = ['reps', 'time', 'interval']
+
+/** Everything that isn't `reps` plans and logs in seconds, and shares the whole seconds UI. */
+export function measuresSeconds(mode: ExerciseMode): boolean {
+	return mode !== 'reps'
+}
+
+function normalizeMode(raw: unknown): ExerciseMode {
+	return MODES.includes(raw as ExerciseMode) ? (raw as ExerciseMode) : 'reps'
+}
+
+/**
+ * The three modes as the settings dialog shows them, shared by the planner and the runner so the two
+ * can't drift. Phrased as what an exercise *is*, not as a switch to throw: the dialog marks the
+ * current one, so these lines have to read as a description of it.
+ */
+export const MODE_CHOICES: { mode: ExerciseMode; label: string; detail: string }[] = [
+	{
+		mode: 'reps',
+		label: 'Reps',
+		detail: 'Sets of a rep goal — the way most lifting is counted'
+	},
+	{
+		mode: 'time',
+		label: 'Seconds held',
+		detail: 'A hold with its own Start button: a hang, a plank. Goals are seconds'
+	},
+	{
+		mode: 'interval',
+		label: 'Interval rounds',
+		detail: 'Rounds the clock runs by itself — round, rest, round. Goals are seconds'
+	}
+]
+
+/** What the settings dialog is currently set to, for the ⋯ row that opens it. */
+export function settingsSummary(ex: GymExercise): string {
+	const mode = MODE_CHOICES.find((c) => c.mode === ex.mode)?.label ?? 'Reps'
+	return ex.assisted ? `${mode} · assisted` : mode
+}
+
+/**
+ * Turn assistance on or off. Lives here rather than in either sheet because the sign IS the encoding
+ * (see `GymExercise.assisted`): the flag and every set's weight have to move together, or turning it
+ * on leaves 40 kg of help sitting in the plan as 40 kg of load. Sets already logged in a running
+ * workout keep the sign they were logged with — those are facts about work already done.
+ */
+export function applyAssisted(ex: GymExercise, on: boolean): void {
+	ex.assisted = on
+	for (const s of ex.sets) s.weight = signedLoad(s.weight, on)
+}
+
+/**
+ * The sign an entered load takes. Assistance is negative, and a phone keypad on an
+ * `inputmode="decimal"` box may not offer a minus at all, so what gets typed is read as a magnitude
+ * either way. Zero is left unsigned: `-Math.abs(0)` is `-0`, which is a load nobody entered.
+ */
+export function signedLoad(kg: number, assisted: boolean): number {
+	const mag = Math.abs(kg)
+	return assisted && mag > 0 ? -mag : mag
+}
 
 /**
  * One planned set. `targetRepsMax: null` means a single target rather than a range.
@@ -55,6 +120,16 @@ export type GymExercise = {
 	name: string
 	/** Absent in files written before timed holds existed; normalization reads those as 'reps'. */
 	mode: ExerciseMode
+	/**
+	 * The machine takes weight *off* you (assisted pull-up/dip), so the load is stored negative and
+	 * progress runs upward toward zero: −40 kg is further from a bodyweight rep than −20 kg. Kept
+	 * orthogonal to `mode` because an assisted pull-up is still measured in reps.
+	 *
+	 * This flag is the only thing that lets a weight go below zero, which makes `weight < 0` a
+	 * reliable marker downstream — the log reads it to label a set and to keep assistance out of
+	 * the volume total without carrying a snapshot field of its own.
+	 */
+	assisted: boolean
 	sets: GymSet[]
 	defaultRestSec: number
 	restAfterSec: number
@@ -157,6 +232,7 @@ export function makeExercise(name = '', setCount = DEFAULT_SET_COUNT): GymExerci
 		id: uid(),
 		name,
 		mode: 'reps',
+		assisted: false,
 		sets: Array.from({ length: Math.max(0, setCount) }, () => makeSet()),
 		defaultRestSec: DEFAULT_REST_SET_SEC,
 		restAfterSec: DEFAULT_REST_EXERCISE_SEC,
@@ -233,6 +309,7 @@ export function plansDiffer(template: GymExercise[], plan: GymExercise[]): boole
 			ex.id !== other.id ||
 			displayName(ex.name) !== displayName(other.name) ||
 			ex.mode !== other.mode ||
+			ex.assisted !== other.assisted ||
 			(ex.sets?.length ?? 0) !== (other.sets?.length ?? 0)
 		)
 	})
@@ -328,7 +405,7 @@ export function sessionToLog(
 				setId: set.id,
 				exerciseName: displayName(ex.name),
 				kind: set.kind,
-				mode: ex.mode === 'time' ? 'time' : 'reps',
+				mode: normalizeMode(ex.mode),
 				setIndex,
 				targetRepsMin: set.targetRepsMin,
 				targetRepsMax: set.targetRepsMax,
@@ -385,7 +462,8 @@ function normalizeSet(raw: unknown): GymSet {
 		kind,
 		targetRepsMin: min,
 		targetRepsMax: max,
-		weight: Math.max(0, num(s.weight)),
+		// Not clamped at zero: an assisted exercise stores its assistance as a negative load.
+		weight: num(s.weight),
 		restSec: Math.max(
 			0,
 			Math.round(num(s.restSec, kind === 'warmup' ? DEFAULT_REST_WARMUP_SEC : DEFAULT_REST_SET_SEC))
@@ -399,7 +477,8 @@ function normalizeExercise(raw: unknown): GymExercise {
 	return {
 		id: str(ex.id) || uid(),
 		name: str(ex.name),
-		mode: ex.mode === 'time' ? 'time' : 'reps',
+		mode: normalizeMode(ex.mode),
+		assisted: ex.assisted === true,
 		// Sorted here so "last set of the exercise" is unambiguous on every load path.
 		sets: sortSets(Array.isArray(ex.sets) ? ex.sets.map(normalizeSet) : []),
 		defaultRestSec: Math.max(0, Math.round(num(ex.defaultRestSec, DEFAULT_REST_SET_SEC))),
@@ -438,7 +517,7 @@ function normalizeLoggedSet(raw: unknown): LoggedSet {
 		setId: str(v.setId),
 		exerciseName: displayName(str(v.exerciseName)),
 		kind: v.kind === 'warmup' ? 'warmup' : 'working',
-		mode: v.mode === 'time' ? 'time' : 'reps',
+		mode: normalizeMode(v.mode),
 		setIndex: Math.max(0, Math.round(num(v.setIndex))),
 		targetRepsMin: min,
 		targetRepsMax:
@@ -446,7 +525,7 @@ function normalizeLoggedSet(raw: unknown): LoggedSet {
 				? null
 				: Math.max(min, Math.round(num(v.targetRepsMax, min))),
 		reps: Math.max(0, Math.round(num(v.reps))),
-		weight: Math.max(0, num(v.weight)),
+		weight: num(v.weight),
 		assumed: v.assumed === true
 	}
 }
@@ -506,7 +585,7 @@ export function normalizeActiveSession(raw: unknown): ActiveSession | null {
 		if (!k) continue
 		entries[k] = {
 			reps: Math.max(0, Math.round(num(e.reps))),
-			weight: Math.max(0, num(e.weight)),
+			weight: num(e.weight),
 			doneAt: str(e.doneAt),
 			assumed: e.assumed === true
 		}

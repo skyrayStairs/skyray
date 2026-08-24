@@ -11,11 +11,15 @@
 	import {
 		DEFAULT_HOLD_SEC,
 		DEFAULT_REST_WARMUP_SEC,
+		applyAssisted,
 		clonePlan,
 		displayName,
 		makeExercise,
 		makeSet,
+		measuresSeconds,
 		restForSet,
+		settingsSummary,
+		signedLoad,
 		sortSets,
 		workingSets,
 		type GymDay,
@@ -24,7 +28,8 @@
 	} from '$lib/types/gym'
 	import ActionSheet from '../ActionSheet.svelte'
 	import DurationInput from './DurationInput.svelte'
-	import Sheet from '../Sheet.svelte'
+	import ExerciseSettingsSheet from './ExerciseSettingsSheet.svelte'
+	import Sheet, { SHEET_EXIT_MS } from '../Sheet.svelte'
 	import RestChip from './RestChip.svelte'
 
 	let {
@@ -64,6 +69,7 @@
 	)
 
 	let menuFor = $state<GymExercise | null>(null)
+	let settingsFor = $state<GymExercise | null>(null)
 	let restFor = $state<GymExercise | null>(null)
 	let restDraftSec = $state(0)
 
@@ -85,7 +91,42 @@
 	}
 
 	/** A timed exercise plans in seconds; the target fields are the same ones — see types/gym.ts. */
-	const timed = (ex: GymExercise) => ex.mode === 'time'
+	const timed = (ex: GymExercise) => measuresSeconds(ex.mode)
+	const rounds = (ex: GymExercise) => ex.mode === 'interval'
+
+	/** Sign comes from the exercise, not the keypad — see `signedLoad`. */
+	function setWeight(ex: GymExercise, set: GymSet, e: Event) {
+		const v = numberVal(e)
+		if (!Number.isFinite(v)) return
+		if (ex.assisted || v >= 0) set.weight = signedLoad(v, ex.assisted)
+	}
+
+	/** The rounds ± pair. Interval exercises run 6–10 rounds, which is too many taps of "+ Add set". */
+	function setRoundCount(ex: GymExercise, n: number) {
+		const work = workingSets(ex)
+		if (n > work.length) addSet(ex, 'working')
+		else if (n < work.length && work.length > 1) removeSet(ex, work[work.length - 1].id)
+	}
+
+	/**
+	 * An interval is planned as one pair of numbers — 40 on, 20 off — so both write to every round at
+	 * once. The per-round fields underneath stay editable for the ladders that aren't uniform.
+	 *
+	 * The rest goes through `defaultRestSec` as well as the sets it rewrites, because that is what
+	 * `addSet` hands a new round: without it every round added after this one comes back at the
+	 * two-minute default meant for lifting, and the whole interval has to be fixed a chip at a time.
+	 */
+	function setEveryRound(ex: GymExercise, field: 'work' | 'rest', e: Event) {
+		const v = numberVal(e)
+		if (!Number.isFinite(v) || v < 0) return
+		const sec = Math.round(v)
+		if (field === 'rest') ex.defaultRestSec = sec
+		for (const s of ex.sets) {
+			if (s.kind === 'warmup') continue
+			if (field === 'work') s.targetRepsMin = sec
+			else s.restSec = sec
+		}
+	}
 
 	/** Warm-ups read as lighter work: tinted band, softer fields, a labelled chip instead of a number. */
 	const isWarm = (s: GymSet) => s.kind === 'warmup'
@@ -135,6 +176,17 @@
 			const ex = makeExercise(name)
 			for (const s of ex.sets) rangeMode[s.id] = false
 			draft.exercises = [...draft.exercises, ex]
+			// Read the exercise back out of the array, never hand on the object that went in: `draft` is
+			// `$state`, so what lives in it is a proxy and the local is the raw target behind it. The
+			// dialog writing to the raw one changes the value and notifies nothing, which shows up as a
+			// settings sheet whose taps do nothing at all.
+			const added = draft.exercises[draft.exercises.length - 1]
+			// Ask for the type now rather than leaving 'reps' to be discovered in the ⋯ menu later —
+			// but only after the library sheet has finished flying out. It closes in the same tick this
+			// callback runs in, and both sheets share a z-band, so opening into the gap crosses two
+			// panels on screen. Only this path prompts: the name button reuses `onPickExercise` to
+			// RE-name an exercise that already has a type.
+			setTimeout(() => (settingsFor = added), SHEET_EXIT_MS)
 		})
 	}
 
@@ -274,6 +326,12 @@
 										setIndex
 									]}"
 								/>
+								<!-- The unit names the box it sits after, so it rides the LAST goal box: beside the
+								     single goal normally, and past the max once `+` opens a range. Parked after the
+								     range button it read as a unit on the button. -->
+								{#if !rangeMode[set.id]}
+									<span class="text-xs opacity-50">{timed(ex) ? 's' : 'reps'}</span>
+								{/if}
 								<button
 									class="btn btn-sm btn-ghost px-1 opacity-50 font-normal"
 									onclick={() => toggleRange(set, !rangeMode[set.id])}
@@ -297,26 +355,25 @@
 										class="input input-bordered {fieldTone(set)} w-12 text-center px-1 tabular-nums"
 										aria-label="Goal {unit} high, set {labels[setIndex]}"
 									/>
+									<span class="text-xs opacity-50">{timed(ex) ? 's' : 'reps'}</span>
 								{/if}
-								<span class="text-xs opacity-50">{timed(ex) ? 's' : 'reps'}</span>
 							</span>
 						{/if}
 
 						<span class="inline-flex items-baseline gap-1">
 							<input
 								type="number"
-								min="0"
+								min={ex.assisted ? undefined : 0}
 								step="0.5"
 								inputmode="decimal"
 								value={set.weight}
-								oninput={(e) => {
-									const v = numberVal(e)
-									if (Number.isFinite(v) && v >= 0) set.weight = v
-								}}
+								oninput={(e) => setWeight(ex, set, e)}
 								class="input input-bordered {fieldTone(set)} w-14 text-center px-1 tabular-nums"
-								aria-label="Weight in kg, set {labels[setIndex]}"
+								aria-label="{ex.assisted
+									? 'Assistance in kg, written as a minus'
+									: 'Weight in kg'}, set {labels[setIndex]}"
 							/>
-							<span class="text-xs opacity-50">kg</span>
+							<span class="text-xs opacity-50">{ex.assisted ? 'assist' : 'kg'}</span>
 						</span>
 
 						<button
@@ -358,12 +415,56 @@
 					</RestChip>
 				{/each}
 
-				<button
-					class="btn btn-sm btn-outline mt-2 self-start"
-					onclick={() => addSet(ex, 'working')}
-				>
-					+ Add set
-				</button>
+				{#if rounds(ex)}
+					{@const work = workingSets(ex)}
+					{@const n = work.length}
+					<!-- Rounds are sets, so this is "+ Add set" with a readout — an interval is 6–10 of them
+					     and tapping Add that many times on a phone is not a plan, it is a chore. The two boxes
+					     beside it are the interval itself: 40 on, 20 off, written to every round at once. Each
+					     row stays editable underneath, so an uneven ladder is still typeable. -->
+					<div class="mt-2 flex items-center gap-1 flex-wrap">
+						<button
+							class="btn btn-sm btn-outline px-2"
+							onclick={() => setRoundCount(ex, n - 1)}
+							disabled={n <= 1}
+							aria-label="One fewer round">−</button
+						>
+						<span class="text-sm tabular-nums px-1 opacity-70">{n} round{n === 1 ? '' : 's'}</span>
+						<button
+							class="btn btn-sm btn-outline px-2"
+							onclick={() => setRoundCount(ex, n + 1)}
+							aria-label="One more round">+</button
+						>
+						<span class="opacity-30 px-1">·</span>
+						<input
+							type="number"
+							min="0"
+							inputmode="numeric"
+							value={work[0]?.targetRepsMin ?? DEFAULT_HOLD_SEC}
+							oninput={(e) => setEveryRound(ex, 'work', e)}
+							class="input input-bordered bg-white border-teal/30 w-12 text-center px-1 tabular-nums"
+							aria-label="Seconds of work in every round"
+						/>
+						<span class="text-xs opacity-50">on</span>
+						<input
+							type="number"
+							min="0"
+							inputmode="numeric"
+							value={work[0]?.restSec ?? ex.defaultRestSec}
+							oninput={(e) => setEveryRound(ex, 'rest', e)}
+							class="input input-bordered bg-white border-teal/30 w-12 text-center px-1 tabular-nums"
+							aria-label="Seconds of rest between every round"
+						/>
+						<span class="text-xs opacity-50">off</span>
+					</div>
+				{:else}
+					<button
+						class="btn btn-sm btn-outline mt-2 self-start"
+						onclick={() => addSet(ex, 'working')}
+					>
+						+ Add set
+					</button>
+				{/if}
 			</div>
 		</section>
 	{/each}
@@ -401,13 +502,9 @@
 				onSelect: () => addSet(ex, 'warmup')
 			},
 			{
-				// The flip leaves the numbers alone rather than reseeding them: an accidental tap here
-				// must not be able to wipe a set of planned rep goals.
-				label: timed(ex) ? 'Measure in reps' : 'Measure in seconds',
-				detail: timed(ex)
-					? 'The goals go back to being rep counts, unchanged'
-					: 'A hold with its own Start button — the goals become seconds, so retype them',
-				onSelect: () => (ex.mode = timed(ex) ? 'reps' : 'time')
+				label: 'Exercise settings…',
+				detail: settingsSummary(ex),
+				onSelect: () => (settingsFor = ex)
 			},
 			{
 				label: 'Default rest for this exercise…',
@@ -434,6 +531,16 @@
 				onSelect: () => (draft.exercises = draft.exercises.filter((e) => e.id !== ex.id))
 			}
 		]}
+	/>
+{/if}
+
+{#if settingsFor}
+	{@const ex = settingsFor}
+	<ExerciseSettingsSheet
+		exercise={ex}
+		onMode={(mode) => (ex.mode = mode)}
+		onAssisted={(on) => applyAssisted(ex, on)}
+		onClose={() => (settingsFor = null)}
 	/>
 {/if}
 

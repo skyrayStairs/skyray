@@ -6,13 +6,18 @@ import {
 	makeExercise,
 	makeGymFile,
 	makeRoutine,
+	applyAssisted,
 	makeSet,
+	measuresSeconds,
 	mergeRoutines,
+	normalizeActiveSession,
+	normalizeLog,
 	plansDiffer,
 	previousReps,
 	readGymFile,
 	restForSet,
 	sessionToLog,
+	settingsSummary,
 	sortSets,
 	toMinSec,
 	type GymDay,
@@ -416,4 +421,95 @@ test('importing a routine twice replaces it rather than duplicating', () => {
 	const merged = mergeRoutines([a], [{ ...a, name: 'A (edited)' }])
 	expect(merged).toHaveLength(1)
 	expect(merged[0].name).toBe('A (edited)')
+})
+
+// ---- assisted load ----------------------------------------------------------
+// The machine takes weight off you, so it is stored negative and progress runs upward toward zero.
+// Every load path clamped weights at zero before this existed, and a clamp anywhere silently turns
+// 40 kg of assistance into a bodyweight rep.
+
+test('a negative load survives every load path', () => {
+	const pull = day(ex('Assisted Pull-up', [makeSet({ weight: -40 })]))
+	const bundle = makeGymFile([{ ...makeRoutine('Pull'), days: [pull] }], [])
+	expect(readGymFile(bundle).routines[0].days[0].exercises[0].sets[0].weight).toBe(-40)
+
+	// The session is rewritten to localStorage on every tick and comes back through this normalizer.
+	const session = normalizeActiveSession({
+		routineId: 'r1',
+		dayId: 'd1',
+		entries: { s1: { reps: 6, weight: -40, doneAt: 'now', assumed: false } }
+	})
+	expect(session?.entries.s1.weight).toBe(-40)
+
+	expect(normalizeLog({ sets: [{ setId: 's1', weight: -40, reps: 6 }] }).sets[0].weight).toBe(-40)
+})
+
+test('turning assistance on is a change to the plan', () => {
+	const template = [ex('Assisted Dip', [makeSet({ weight: 0 })], 120)]
+	const plan = JSON.parse(JSON.stringify(template))
+	plan[0].assisted = true
+	expect(plansDiffer(template, plan)).toBe(true)
+})
+
+test('an export written before assisted lifts existed imports as unassisted', () => {
+	const bundle = JSON.parse(JSON.stringify(makeGymFile([makeRoutine('R')], [])))
+	bundle.routines[0].days[0].exercises = [{ name: 'Bench Press', sets: [] }]
+	expect(readGymFile(bundle).routines[0].days[0].exercises[0].assisted).toBe(false)
+})
+
+// ---- interval rounds --------------------------------------------------------
+// An interval exercise is its sets: one set per round, its goal the round length in seconds, its
+// `restSec` the gap before the next round. So the rest rules ARE the interval, unchanged.
+
+test('an interval alternates round and rest and never rests after the last round', () => {
+	const rounds = [
+		makeSet({ targetRepsMin: 40, restSec: 20 }),
+		makeSet({ targetRepsMin: 40, restSec: 20 }),
+		makeSet({ targetRepsMin: 40, restSec: 20 })
+	]
+	const d = day({ ...ex('Tabata', rounds, 120), mode: 'interval' as const })
+	// 20 between rounds; nothing after the third, because the day ends there.
+	expect(restSequence(d)).toEqual([20, 20, 0])
+})
+
+test('interval rounds log as seconds under their own mode', () => {
+	const set = makeSet({ targetRepsMin: 40, weight: 0 })
+	const d = day({ ...ex('Battle Ropes', [set], 120), mode: 'interval' as const })
+	const session = makeActiveSession('r1', d.id, d.exercises)
+	session.entries[session.plan[0].sets[0].id] = {
+		reps: 41,
+		weight: 0,
+		doneAt: 'now',
+		assumed: false
+	}
+	const log = sessionToLog(session, makeRoutine('R'), d)!
+	expect(log.sets[0].mode).toBe('interval')
+	expect(log.sets[0].reps).toBe(41)
+	expect(measuresSeconds(log.sets[0].mode)).toBe(true)
+})
+
+test('an unknown mode in a hand-edited file falls back to reps', () => {
+	const bundle = JSON.parse(JSON.stringify(makeGymFile([makeRoutine('R')], [])))
+	bundle.routines[0].days[0].exercises = [{ name: 'Bench Press', mode: 'tabata', sets: [] }]
+	expect(readGymFile(bundle).routines[0].days[0].exercises[0].mode).toBe('reps')
+})
+
+test('turning assistance on flips every set, and off flips them back', () => {
+	const lift = ex('Assisted Dip', [makeSet({ weight: 40 }), makeSet({ weight: 0 })], 120)
+	applyAssisted(lift, true)
+	expect(lift.assisted).toBe(true)
+	expect(lift.sets.map((s) => s.weight)).toEqual([-40, 0])
+	// Idempotent: the dialog can be reopened and the box re-ticked without doubling the sign back.
+	applyAssisted(lift, true)
+	expect(lift.sets.map((s) => s.weight)).toEqual([-40, 0])
+	applyAssisted(lift, false)
+	expect(lift.assisted).toBe(false)
+	expect(lift.sets.map((s) => s.weight)).toEqual([40, 0])
+})
+
+test('the settings summary names the mode, and says so when the load assists', () => {
+	const lift = ex('Battle Ropes', [makeSet()], 120)
+	expect(settingsSummary(lift)).toBe('Reps')
+	expect(settingsSummary({ ...lift, mode: 'interval' })).toBe('Interval rounds')
+	expect(settingsSummary({ ...lift, mode: 'time', assisted: true })).toBe('Seconds held · assisted')
 })

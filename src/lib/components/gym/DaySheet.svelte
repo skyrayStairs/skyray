@@ -48,10 +48,13 @@
 		const work = workingSets(ex)
 		if (!work.length) return 'no working sets'
 		// A timed exercise plans in seconds in the same fields, so the unit is the only thing that moves.
-		const unit = ex.mode === 'time' ? 's' : ''
+		const unit = ex.mode === 'reps' ? '' : 's'
 		const targets = work.map((s) => range(s.targetRepsMin, s.targetRepsMax) + unit)
 		const uniform = targets.every((t) => t === targets[0])
-		return uniform ? `${work.length} × ${targets[0]}` : targets.join(' · ')
+		// An interval's sets are its rounds, so the count is worth naming: "8 rounds × 40s" says what
+		// the session is, where a bare "8 × 40s" reads like eight sets of something.
+		const noun = ex.mode === 'interval' ? ` round${work.length === 1 ? '' : 's'}` : ''
+		return uniform ? `${work.length}${noun} × ${targets[0]}` : targets.join(' · ')
 	}
 </script>
 

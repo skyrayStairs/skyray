@@ -1,3 +1,12 @@
+<script module lang="ts">
+	/**
+	 * How long the panel takes to fly out. Exported because a caller that hands one sheet straight
+	 * over to another — a picker opening a settings dialog on what you just picked — has to wait this
+	 * out first: both live in the same z-band, so opening into the gap crosses two panels on screen.
+	 */
+	export const SHEET_EXIT_MS = 300
+</script>
+
 <script lang="ts">
 	// Bottom-sheet shell shared across features — gym, guitar and the D&D toolkit. Same idiom as
 	// AddSpellSheet.svelte and the nav drawer: a backdrop that closes on click, a panel that flies up,
@@ -76,7 +85,7 @@
 			{fullScreen
 			? 'inset-0 z-50'
 			: `bottom-0 left-0 right-0 rounded-t-2xl z-[70] ${tall ? 'h-[85dvh]' : 'max-h-[85dvh]'}`}"
-		transition:fly={{ y: reduce ? 0 : 500, duration: reduce ? 0 : 300, opacity: 1 }}
+		transition:fly={{ y: reduce ? 0 : 500, duration: reduce ? 0 : SHEET_EXIT_MS, opacity: 1 }}
 		role="dialog"
 		aria-modal="true"
 		aria-label={title}
