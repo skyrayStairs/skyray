@@ -9,8 +9,10 @@
 		DEFAULT_SPEED_TRAINER,
 		loopReps,
 		makeVideoLoop,
+		nextPass,
 		rateAtPass,
 		speedRampReps,
+		tierStart,
 		type VideoConfig,
 		type VideoLoop,
 		type LoopSizing,
@@ -172,8 +174,11 @@
 		controller.onLoopEnd = () => {
 			// Every A→B wrap. Report it so the page can count reps ('reps' sizing); the graceful-finish
 			// wait (cap expiry / routine timer) piggybacks on the same boundary.
-			passCount += 1
-			if (liveLoop?.speed) controller?.setRate(rateAtPass(liveLoop.speed, passCount))
+			// Hold inside the top tier instead of counting past it (see nextPass): an unbounded counter
+			// is what made a later raise of `To` jump the ramp straight to the new top speed.
+			const sp = liveLoop?.speed
+			passCount = sp ? nextPass(sp, passCount) : passCount + 1
+			if (sp) controller?.setRate(rateAtPass(sp, passCount))
 			if (mode === 'run') onLoopBoundary?.()
 			if (awaitingBoundary) {
 				awaitingBoundary = false
@@ -269,8 +274,12 @@
 				controller?.refreshLoop(updated)
 				if (patch.rate !== undefined && !updated.speed) controller?.setRate(updated.rate)
 				// Editing the ramp (or switching it off) re-rates the live loop without restarting it.
-				if ('speed' in patch)
+				if ('speed' in patch) {
+					// A shrunk ramp can strand the counter above its new top tier, which would leave a later
+					// raise jumping again — clamp so the edited ramp resumes from the rate playing right now.
+					if (updated.speed) passCount = Math.min(passCount, speedRampReps(updated.speed) - 1)
 					controller?.setRate(updated.speed ? rateAtPass(updated.speed, passCount) : updated.rate)
+				}
 			}
 		}
 	}
@@ -423,19 +432,42 @@
 			}
 		})
 	}
+	// One clamp shared by typing and the −/+ buttons, so both land on rates the player can play.
+	function clampTrainerField(field: keyof SpeedTrainer, v: number): number {
+		if (field === 'everyReps') return Math.max(1, Math.round(v))
+		if (field === 'stepRate') {
+			const clamped = Math.max(rateRange.step, Math.min(rateRange.max, v))
+			v = Math.round(clamped / rateRange.step) * rateRange.step
+		} else v = snapToGrid(v)
+		return Math.round(v * 100) / 100
+	}
 	function commitTrainer(loop: VideoLoop, field: keyof SpeedTrainer, e: Event) {
 		const sp = loop.speed
 		if (!sp) return
 		const el = e.target as HTMLInputElement
-		let v = parseFloat(el.value)
-		if (Number.isNaN(v)) v = sp[field]
-		if (field === 'everyReps') v = Math.max(1, Math.round(v))
-		else if (field === 'stepRate')
-			v = Math.round(Math.max(rateRange.step, v) / rateRange.step) * rateRange.step
-		else v = snapToGrid(v)
-		v = Math.round(v * 100) / 100
+		const raw = parseFloat(el.value)
+		const v = clampTrainerField(field, Number.isNaN(raw) ? sp[field] : raw)
 		el.value = String(v) // reflect the snap/clamp even when the model value is unchanged
 		updateLoop(loop.id, { speed: { ...sp, [field]: v } })
+	}
+	// −/+ next to each box: phones render no native number spinner, so changing 0.7 to 0.75 means
+	// typing the decimal point on a keypad. One tap = one grid step (or one rep).
+	function nudgeTrainer(loop: VideoLoop, field: keyof SpeedTrainer, dir: number) {
+		const sp = loop.speed
+		if (!sp) return
+		const step = field === 'everyReps' ? 1 : rateRange.step
+		const v = clampTrainerField(field, sp[field] + dir * step)
+		if (v !== sp[field]) updateLoop(loop.id, { speed: { ...sp, [field]: v } })
+	}
+	// Replay the tier the ramp is holding from its first rep — same speed, rep counter back to 1.
+	// Unlike ⏮ (restartLoop) it does NOT drop back to the ramp's start rate, and it leaves the
+	// stopwatch alone: this is a mid-practice retry, not a fresh run.
+	function restartTier(loop: VideoLoop) {
+		const sp = loop.speed
+		if (!sp || loop.id !== liveLoopId) return
+		passCount = tierStart(sp, passCount)
+		controller?.setActiveLoop(loop, true) // re-seek to A + play; this resets the player to loop.rate…
+		controller?.setRate(rateAtPass(sp, passCount)) // …so put the ramp's rate back after it
 	}
 
 	async function setBound(loop: VideoLoop, which: 'A' | 'B') {
@@ -675,6 +707,36 @@
 	{/if}
 
 	<!-- A/B timestamp as m / s / ms boxes (req 2). Select-all on focus, clamped per box. -->
+	<!-- One speed-trainer number with its own −/+ buttons. Phones render no native spinner on
+		 type=number, so without these a 0.05 change means typing "0.75" on a decimal keypad. -->
+	{#snippet rampNum(loop: VideoLoop, sp: SpeedTrainer, field: keyof SpeedTrainer, label: string)}
+		{@const reps = field === 'everyReps'}
+		<div class="join" role="group" aria-label={label}>
+			<button
+				class="btn btn-xs btn-outline join-item px-1"
+				onclick={() => nudgeTrainer(loop, field, -1)}
+				aria-label={`Decrease ${label}`}>−</button
+			>
+			<input
+				type="number"
+				inputmode={reps ? 'numeric' : 'decimal'}
+				min={reps ? 1 : field === 'stepRate' ? rateRange.step : rateRange.min}
+				max={reps ? undefined : rateRange.max}
+				step={reps ? 1 : rateRange.step}
+				value={sp[field]}
+				onfocus={selectAllOnFocus}
+				onchange={(e) => commitTrainer(loop, field, e)}
+				aria-label={label}
+				class="input input-xs input-bordered join-item no-spin bg-white border-teal/30 w-12 text-center tabular-nums px-0"
+			/>
+			<button
+				class="btn btn-xs btn-outline join-item px-1"
+				onclick={() => nudgeTrainer(loop, field, 1)}
+				aria-label={`Increase ${label}`}>+</button
+			>
+		</div>
+	{/snippet}
+
 	{#snippet boundBoxes(loop: VideoLoop, which: 'A' | 'B', label: string)}
 		{@const parts = splitTime(which === 'A' ? loop.startSec : loop.endSec)}
 		<div class="flex flex-col gap-0.5">
@@ -879,60 +941,32 @@
 							</label>
 							{#if loop.speed}
 								{@const sp = loop.speed}
-								<div class="flex items-end gap-1 flex-wrap pl-6">
-									<span class="text-[0.65rem] uppercase tracking-wide opacity-60 pb-1.5">From</span>
-									<input
-										type="number"
-										inputmode="decimal"
-										min={rateRange.min}
-										max={rateRange.max}
-										step={rateRange.step}
-										value={sp.startRate}
-										onfocus={selectAllOnFocus}
-										onchange={(e) => commitTrainer(loop, 'startRate', e)}
-										class="input input-xs input-bordered bg-white border-teal/30 w-16 text-center"
-									/>
-									<span class="text-[0.65rem] uppercase tracking-wide opacity-60 pb-1.5">× to</span>
-									<input
-										type="number"
-										inputmode="decimal"
-										min={rateRange.min}
-										max={rateRange.max}
-										step={rateRange.step}
-										value={sp.endRate}
-										onfocus={selectAllOnFocus}
-										onchange={(e) => commitTrainer(loop, 'endRate', e)}
-										class="input input-xs input-bordered bg-white border-teal/30 w-16 text-center"
-									/>
-									<span class="text-[0.65rem] opacity-50 pb-1.5">×</span>
+								<div class="flex items-center gap-1 flex-wrap pl-6">
+									<span class="text-[0.65rem] uppercase tracking-wide opacity-60">From</span>
+									{@render rampNum(loop, sp, 'startRate', 'start speed')}
+									<span class="text-[0.65rem] uppercase tracking-wide opacity-60">× to</span>
+									{@render rampNum(loop, sp, 'endRate', 'target speed')}
+									<span class="text-[0.65rem] opacity-50">×</span>
 								</div>
-								<div class="flex items-end gap-1 flex-wrap pl-6">
-									<span class="text-[0.65rem] uppercase tracking-wide opacity-60 pb-1.5">By</span>
-									<input
-										type="number"
-										inputmode="decimal"
-										min={rateRange.step}
-										max={rateRange.max}
-										step={rateRange.step}
-										value={sp.stepRate}
-										onfocus={selectAllOnFocus}
-										onchange={(e) => commitTrainer(loop, 'stepRate', e)}
-										class="input input-xs input-bordered bg-white border-teal/30 w-16 text-center"
-									/>
-									<span class="text-[0.65rem] uppercase tracking-wide opacity-60 pb-1.5"
-										>× every</span
+								<div class="flex items-center gap-1 flex-wrap pl-6">
+									<span class="text-[0.65rem] uppercase tracking-wide opacity-60">By</span>
+									{@render rampNum(loop, sp, 'stepRate', 'step size')}
+									<span class="text-[0.65rem] uppercase tracking-wide opacity-60">× every</span>
+									{@render rampNum(loop, sp, 'everyReps', 'reps per speed')}
+									<span class="text-[0.65rem] opacity-50">reps (A→B)</span>
+								</div>
+								<!-- Retry the speed that's playing now: the rate stays, its rep count starts over.
+									 Only the loop the player is actually on has a ramp position to restart. -->
+								<div class="pl-6">
+									<button
+										class="btn btn-xs btn-outline"
+										onclick={() => restartTier(loop)}
+										disabled={loop.id !== liveLoopId || !ready || !!missingBlob}
+										title={loop.id === liveLoopId
+											? 'Replay the current speed from its first rep'
+											: 'Play this loop first — there is no ramp position to restart'}
+										>⏮ Restart this speed</button
 									>
-									<input
-										type="number"
-										inputmode="numeric"
-										min="1"
-										step="1"
-										value={sp.everyReps}
-										onfocus={selectAllOnFocus}
-										onchange={(e) => commitTrainer(loop, 'everyReps', e)}
-										class="input input-xs input-bordered bg-white border-teal/30 w-14 text-center"
-									/>
-									<span class="text-[0.65rem] opacity-50 pb-1.5">reps (A→B)</span>
 								</div>
 								<!-- The step floor is the source's own rate grid (commitTrainer snaps to it), so say which
 									 grid and why — a typed 0.02 silently becoming 0.05 on YouTube looks like a bug. -->
@@ -1024,3 +1058,17 @@
 		</p>
 	{/if}
 </div>
+
+<style>
+	/* The ramp boxes carry their own −/+ buttons, so drop the native desktop spinner rather than
+	   stack two sets of arrows on the same input. (Mobile never draws one to begin with.) */
+	.no-spin {
+		-moz-appearance: textfield;
+		appearance: textfield;
+	}
+	.no-spin::-webkit-inner-spin-button,
+	.no-spin::-webkit-outer-spin-button {
+		appearance: none;
+		margin: 0;
+	}
+</style>

@@ -273,6 +273,22 @@ export function loopReps(loop: VideoLoop): number {
 	return loop.speed ? speedRampReps(loop.speed) : Math.max(1, loop.repeatCount ?? DEFAULT_LOOP_REPS)
 }
 
+// The pass counter after one A→B wrap, held inside the top tier instead of counting past it. An
+// unbounded counter is the bug: a loop left running at the top has "already done" hundreds of
+// passes, so raising `endRate` later would index tiers that only came into existence with the edit
+// and the ramp would jump straight to the new top. Holding means the rate the user hears survives
+// the edit and the climb resumes one step at a time.
+export function nextPass(sp: SpeedTrainer, passes: number): number {
+	const n = Math.max(0, passes) + 1
+	return n >= speedRampReps(sp) ? n - Math.max(1, Math.floor(sp.everyReps)) : n
+}
+
+// First pass index of the tier `passes` sits in — "replay this speed from its first rep".
+export function tierStart(sp: SpeedTrainer, passes: number): number {
+	const every = Math.max(1, Math.floor(sp.everyReps))
+	return Math.floor(Math.max(0, passes) / every) * every
+}
+
 // Playback rate after `passes` completed A→B passes, clamped to the ramp's own endpoints.
 export function rateAtPass(sp: SpeedTrainer, passes: number): number {
 	const dir = sp.endRate < sp.startRate ? -1 : 1

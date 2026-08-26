@@ -8,10 +8,12 @@ import {
 	makeExercise,
 	makeRoutine,
 	moveExerciseToRoutine,
+	nextPass,
 	rateAtPass,
 	sectionsTotalSec,
 	makeSection,
-	speedRampReps
+	speedRampReps,
+	tierStart
 } from '../src/lib/types/guitar'
 import type { Routine, SpeedTrainer } from '../src/lib/types/guitar'
 
@@ -71,6 +73,33 @@ test('a descending ramp slows down and stops at its lower endRate', () => {
 	expect(speedRampReps(sp)).toBe(5)
 	expect(rateAtPass(sp, 1)).toBeCloseTo(0.95, 6)
 	expect(rateAtPass(sp, 9)).toBeCloseTo(0.8, 6)
+})
+
+test('raising the target mid-practice keeps the speed that is playing and climbs one step', () => {
+	// The reported bug: the pass counter ran past the ramp's end, so a loop left at the top had
+	// "already done" enough passes to index the tiers that only appeared when endRate was raised —
+	// the ramp jumped straight to the new maximum instead of continuing from the current speed.
+	let sp = ramp()
+	let pass = 0
+	for (let i = 0; i < 50; i++) pass = nextPass(sp, pass) // practise well past the top of the ramp
+	expect(rateAtPass(sp, pass)).toBeCloseTo(1, 6)
+
+	sp = { ...sp, endRate: 1.5 } // user raises the "To" box
+	expect(rateAtPass(sp, pass)).toBeCloseTo(1, 6) // still playing 1.00×, no jump to 1.50×
+	// It climbs when the tier's reps are filled, not on the edit: 1.00× still owes the rest of its
+	// two reps (the hold parks the counter on the first rep of the top tier), then one step.
+	pass = nextPass(sp, pass)
+	expect(rateAtPass(sp, pass)).toBeCloseTo(1, 6)
+	pass = nextPass(sp, pass)
+	expect(rateAtPass(sp, pass)).toBeCloseTo(1.05, 6)
+})
+
+test('restarting the current speed replays its first rep without changing the rate', () => {
+	const sp = ramp()
+	const pass = 5 // tier 2 (0.80×), second of its two reps
+	expect(rateAtPass(sp, pass)).toBeCloseTo(0.8, 6)
+	expect(tierStart(sp, pass)).toBe(4)
+	expect(rateAtPass(sp, tierStart(sp, pass))).toBeCloseTo(0.8, 6)
 })
 
 test('every tier of a grid-aligned ramp survives the YouTube rate snap', () => {
