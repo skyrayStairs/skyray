@@ -292,8 +292,10 @@
 		// Show letters (C–B) or solfège (Do–Ti) per the user's choice.
 		const useSolfege = (config.quizNoteNaming ?? 'letters') === 'solfege'
 		const label = useSolfege ? nt.solfege : nt.name
-		// req 5: pick a single root string and state it (parallel to the chord prompts).
-		const rs = resolveRs()
+		// Older routines used the chord root-string setting for note questions too.
+		const rootString = config.quizNoteRootString ?? config.quizRootString ?? 'both'
+		const rs = rootString === 'all' ? pick([6, 5, 4] as const)
+			: rootString === 'both' ? pick([6, 5] as const) : rootString
 		const markers: Marker[] = fretsForPc(rs, nt.pc, 12).map((f) => ({
 			string: rs,
 			fret: f,

@@ -129,6 +129,23 @@
 						onclick={() => onUpdate({ quizNoteNaming: 'solfege' })}>Do–Ti</button
 					>
 				</div>
+				<label class="flex flex-col gap-0.5 pl-6 max-w-[15rem]">
+					<span class="text-[0.65rem] uppercase tracking-wide opacity-60">Note root string</span>
+					<select
+						class="select select-xs sm:select-sm select-bordered bg-white border-teal/30"
+						value={String(config.quizNoteRootString ?? config.quizRootString ?? 'both')}
+						onchange={(e) => {
+							const v = (e.target as HTMLSelectElement).value
+							onUpdate({ quizNoteRootString: v === 'both' || v === 'all' ? v : (parseInt(v, 10) as 6 | 5 | 4) })
+						}}
+					>
+						<option value="all">All (6th, 5th & 4th)</option>
+						<option value="both">Both (6th & 5th)</option>
+						<option value="6">6th string (E)</option>
+						<option value="5">5th string (A)</option>
+						<option value="4">4th string (D)</option>
+					</select>
+				</label>
 			{/if}
 			<label class="flex items-center gap-2 text-sm">
 				<input
